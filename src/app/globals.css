@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+:root {
+  --surface: #f3f5f3;
+  --raised: #ffffff;
+  --raised-translucent: rgba(255, 255, 255, 0.92);
+  --ink: #18211b;
+  --muted: #56635b;
+  --accent: #176b45;
+  --accent-strong: #105737;
+  --accent-bright: #269766;
+  --accent-soft: #e3f1e9;
+  --focus: #168054;
+  --border: #d4dbd6;
+  --skeleton: #e4e9e5;
+  --sidebar: #13231a;
+  --sidebar-ink: #eef3ef;
+  --sidebar-muted: #a8b8ad;
+  --sidebar-border: #30463a;
+  --sidebar-hover: #203329;
+  --sidebar-active: #28513d;
+  --sidebar-focus: #60d29a;
+  --success-surface: #e4f3e9;
+  --success-border: #90bda0;
+  --success-ink: #155738;
+  --warning-surface: #fff4da;
+  --warning-border: #ddbd73;
+  --warning-ink: #75500a;
+  --info-surface: #e8f0f8;
+  --info-border: #a6bed6;
+  --info-ink: #315b7b;
+  --danger-surface: #f9e8ea;
+  --danger-border: #d3a0a5;
+  --danger-ink: #84232d;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  background: var(--surface);
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  overflow-x: hidden;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: Arial, "Helvetica Neue", sans-serif;
+  text-rendering: optimizeLegibility;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .erp-chrome {
+    display: none !important;
+  }
+  .erp-content {
+    padding-left: 0 !important;
+  }
+  body,
+  html {
+    background: white;
+  }
+}

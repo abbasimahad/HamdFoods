@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Next.js and test output
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# Generated clients and build artifacts
+src/generated/
+*.tsbuildinfo
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local editor files
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local database artifacts
+*.db
+*.db-journal

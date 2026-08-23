@@ -1,0 +1,40 @@
+export const INVENTORY_STATUSES = [
+  "AVAILABLE",
+  "IN_PRODUCTION",
+  "RESERVED",
+  "QUALITY_HOLD",
+  "QUARANTINE",
+  "REPROCESS",
+  "DAMAGED",
+  "EXPIRED",
+  "SCRAP",
+  "IN_TRANSIT",
+] as const;
+export type InventoryStatus = (typeof INVENTORY_STATUSES)[number];
+
+export const INVENTORY_MOVEMENT_TYPES = [
+  "OPENING_BALANCE",
+  "ADJUSTMENT_IN",
+  "ADJUSTMENT_OUT",
+  "TRANSFER_OUT",
+  "TRANSFER_IN",
+  "STATUS_OUT",
+  "STATUS_IN",
+  "PRODUCTION_ISSUE",
+  "PRODUCTION_RETURN",
+  "PRODUCTION_CONSUMPTION",
+  "PRODUCTION_OUTPUT",
+  "PRODUCTION_REPROCESS_OUTPUT",
+  "PRODUCTION_REJECTED_OUTPUT",
+  "PACKAGING_ISSUE",
+  "PACKAGING_RETURN",
+  "PACKAGING_CONSUMPTION",
+  "PACKAGING_DAMAGE",
+] as const;
+export type ImplementedMovementType = (typeof INVENTORY_MOVEMENT_TYPES)[number];
+
+export const INVENTORY_PAGE_SIZE = 25;
+
+export function movementSign(type: ImplementedMovementType): 1 | -1 {
+  return ["OPENING_BALANCE", "ADJUSTMENT_IN", "TRANSFER_IN", "STATUS_IN"].includes(type) ? 1 : -1;
+}
