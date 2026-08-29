@@ -33,6 +33,7 @@ import {
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { valueManualInventoryMovement } from "@/server/costing/prisma-inventory-valuation-repository";
 
 export class PrismaInventoryRepository implements InventoryRepository {
   async listWarehouses(query: string, page: number): Promise<PageResult<WarehouseRecord>> {
@@ -154,16 +155,21 @@ export class PrismaInventoryRepository implements InventoryRepository {
           normalized.amount,
         );
       }
-      return (
-        await transaction.inventoryMovement.create({
-          data: movementData({
-            command,
-            warehouseId: command.warehouseId,
-            quantity: signed(normalized.amount, sign),
-            canonicalUnitId: normalized.unitId,
-          }),
-        })
-      ).id;
+      const movement = await transaction.inventoryMovement.create({
+        data: movementData({
+          command,
+          warehouseId: command.warehouseId,
+          quantity: signed(normalized.amount, sign),
+          canonicalUnitId: normalized.unitId,
+        }),
+      });
+      await valueManualInventoryMovement(
+        transaction,
+        movement.id,
+        command.unitCost,
+        command.actorUserId,
+      );
+      return movement.id;
     });
   }
 

@@ -3,9 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
 
-import type { Prisma } from "@/generated/prisma/client";
+import type { InventoryMovementType, Prisma } from "@/generated/prisma/client";
 import { InventoryRepositoryError } from "@/modules/inventory/application/contracts";
 import {
+  isCanonicalPieceUnit,
   isSupportedQuantityUnitCode,
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
@@ -84,6 +85,597 @@ export type ProductionOutputInventoryCommand = {
   reason: string;
   actorUserId: string;
 };
+
+export type SalesOrderReservationInventoryCommand = {
+  operation: "RESERVE" | "RELEASE";
+  salesOrderId: string;
+  salesOrderNumber: string;
+  salesOrderLineId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  quantity: string;
+  actorUserId: string;
+};
+
+export type SalesDispatchInventoryCommand = {
+  salesDispatchId: string;
+  salesDispatchNumber: string;
+  salesDispatchLineId: string;
+  salesDispatchAllocationId: string;
+  salesOrderId: string;
+  salesOrderLineId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  productionLotId: string;
+  quantity: string;
+  dispatchAt: Date;
+  actorUserId: string;
+};
+
+export type SalesInvoiceInventoryCommand = {
+  salesInvoiceId: string;
+  salesInvoiceNumber: string;
+  salesInvoiceLineId: string;
+  salesInvoiceAllocationId: string;
+  salesOrderId: string;
+  salesOrderLineId: string;
+  salesDispatchId: string;
+  salesDispatchLineId: string;
+  salesDispatchAllocationId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  productionLotId: string;
+  quantity: string;
+  actorUserId: string;
+};
+
+export type SalesReturnReceiptInventoryCommand = {
+  salesReturnId: string;
+  salesReturnNumber: string;
+  salesReturnLineId: string;
+  type: "INVOICED_RETURN" | "DISPATCH_REFUSAL";
+  salesInvoiceId?: string | undefined;
+  salesInvoiceLineId?: string | undefined;
+  salesOrderId: string;
+  salesDispatchId: string;
+  salesDispatchLineId: string;
+  salesDispatchAllocationId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  productionLotId: string;
+  quantity: string;
+  actorUserId: string;
+};
+
+export type SalesReturnInspectionInventoryCommand = {
+  salesReturnId: string;
+  salesReturnNumber: string;
+  salesReturnLineId: string;
+  salesReturnInspectionId: string;
+  salesInvoiceId?: string | undefined;
+  salesInvoiceLineId?: string | undefined;
+  salesOrderId: string;
+  salesDispatchId: string;
+  salesDispatchLineId: string;
+  salesDispatchAllocationId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  productionLotId: string;
+  quantity: string;
+  classification: "GOOD_RESALE" | "QUARANTINE" | "REPROCESS" | "DAMAGED" | "EXPIRED";
+  reason: string;
+  actorUserId: string;
+};
+
+export async function receiveSalesReturnInventory(
+  transaction: Prisma.TransactionClient,
+  commands: readonly SalesReturnReceiptInventoryCommand[],
+) {
+  if (!commands.length)
+    throw new InventoryRepositoryError("reference", "Sales return has no lines.");
+  const warehouseId = commands[0]!.warehouseId;
+  if (commands.some((command) => command.warehouseId !== warehouseId))
+    throw new InventoryRepositoryError(
+      "reference",
+      "A sales return must be received into one warehouse.",
+    );
+  const [warehouse, items, lots] = await Promise.all([
+    transaction.warehouse.findFirst({ where: { id: warehouseId, active: true } }),
+    transaction.item.findMany({
+      where: {
+        id: { in: [...new Set(commands.map((command) => command.itemId))] },
+        itemType: "FINISHED_GOOD",
+      },
+      include: { stockUnit: true, finishedGoodProfile: true },
+    }),
+    transaction.productionLot.findMany({
+      where: { id: { in: [...new Set(commands.map((command) => command.productionLotId))] } },
+    }),
+  ]);
+  if (
+    !warehouse ||
+    items.length !== new Set(commands.map((command) => command.itemId)).size ||
+    lots.length !== new Set(commands.map((command) => command.productionLotId)).size
+  )
+    throw new InventoryRepositoryError(
+      "reference",
+      "Sales return warehouse, item, or finished lot is invalid.",
+    );
+  for (const command of commands) {
+    const quantity = new Decimal(exactPositive(command.quantity, "Return quantity"));
+    const item = items.find((candidate) => candidate.id === command.itemId);
+    const lot = lots.find((candidate) => candidate.id === command.productionLotId);
+    if (
+      !item ||
+      !lot ||
+      !item.finishedGoodProfile ||
+      !isCanonicalPieceUnit(item.stockUnit) ||
+      item.stockUnitId !== command.canonicalUnitId ||
+      lot.finishedGoodId !== command.itemId
+    )
+      throw new InventoryRepositoryError(
+        "reference",
+        "Sales return line has incompatible finished-good provenance.",
+      );
+    if (command.type === "DISPATCH_REFUSAL") {
+      const transit = await transaction.inventoryMovement.aggregate({
+        where: {
+          warehouseId,
+          itemId: command.itemId,
+          productionLotId: command.productionLotId,
+          salesDispatchAllocationId: command.salesDispatchAllocationId,
+          status: "IN_TRANSIT",
+        },
+        _sum: { quantity: true },
+      });
+      if (new Decimal(transit._sum.quantity?.toString() ?? "0").lt(quantity))
+        throw new InventoryRepositoryError(
+          "stock",
+          "The refused dispatch allocation no longer has enough IN_TRANSIT stock.",
+        );
+    }
+  }
+  const groupId = randomUUID();
+  const movements: Prisma.InventoryMovementCreateManyInput[] = [];
+  for (const command of commands) {
+    const common = {
+      itemId: command.itemId,
+      warehouseId: command.warehouseId,
+      canonicalUnitId: command.canonicalUnitId,
+      referenceType: "SALES_RETURN",
+      referenceId: command.salesReturnId,
+      groupId,
+      reason: `Sales return ${command.salesReturnNumber} received into return inspection.`,
+      createdByUserId: command.actorUserId,
+      productionLotId: command.productionLotId,
+      salesOrderId: command.salesOrderId,
+      salesDispatchId: command.salesDispatchId,
+      salesDispatchLineId: command.salesDispatchLineId,
+      salesDispatchAllocationId: command.salesDispatchAllocationId,
+      salesInvoiceId: command.salesInvoiceId ?? null,
+      salesInvoiceLineId: command.salesInvoiceLineId ?? null,
+      salesReturnId: command.salesReturnId,
+      salesReturnLineId: command.salesReturnLineId,
+    };
+    if (command.type === "DISPATCH_REFUSAL")
+      movements.push(
+        {
+          ...common,
+          status: "IN_TRANSIT" as const,
+          quantity: new Decimal(command.quantity).negated().toFixed(),
+          movementType: "DISPATCH_REFUSAL_RETURN" as const,
+          sourceKey: `SR:${command.salesReturnLineId}:REFUSAL:IN_TRANSIT`,
+        },
+        {
+          ...common,
+          status: "RETURN_INSPECTION" as const,
+          quantity: command.quantity,
+          movementType: "DISPATCH_REFUSAL_RETURN" as const,
+          sourceKey: `SR:${command.salesReturnLineId}:REFUSAL:RETURN_INSPECTION`,
+        },
+      );
+    else
+      movements.push({
+        ...common,
+        status: "RETURN_INSPECTION" as const,
+        quantity: command.quantity,
+        movementType: "SALES_RETURN_RECEIPT" as const,
+        sourceKey: `SR:${command.salesReturnLineId}:RECEIPT`,
+      });
+  }
+  await transaction.inventoryMovement.createMany({ data: movements });
+}
+
+export async function inspectSalesReturnInventory(
+  transaction: Prisma.TransactionClient,
+  commands: readonly SalesReturnInspectionInventoryCommand[],
+) {
+  for (const command of commands) {
+    const quantity = new Decimal(exactPositive(command.quantity, "Inspection quantity"));
+    const [balance, lot] = await Promise.all([
+      transaction.inventoryMovement.aggregate({
+        where: {
+          itemId: command.itemId,
+          warehouseId: command.warehouseId,
+          productionLotId: command.productionLotId,
+          salesReturnLineId: command.salesReturnLineId,
+          status: "RETURN_INSPECTION",
+        },
+        _sum: { quantity: true },
+      }),
+      transaction.productionLot.findUnique({
+        where: { id: command.productionLotId },
+        select: { expiryDate: true },
+      }),
+    ]);
+    if (new Decimal(balance._sum.quantity?.toString() ?? "0").lt(quantity))
+      throw new InventoryRepositoryError(
+        "stock",
+        "Return inspection stock no longer covers this classification.",
+      );
+    if (command.classification === "GOOD_RESALE" && lot?.expiryDate && lot.expiryDate <= new Date())
+      throw new InventoryRepositoryError(
+        "reference",
+        "An expired finished lot cannot be returned to AVAILABLE stock.",
+      );
+  }
+  const movementFor = {
+    GOOD_RESALE: { status: "AVAILABLE" as const, type: "RETURN_TO_AVAILABLE" as const },
+    QUARANTINE: { status: "QUARANTINE" as const, type: "RETURN_TO_QUARANTINE" as const },
+    REPROCESS: { status: "REPROCESS" as const, type: "RETURN_TO_REPROCESS" as const },
+    DAMAGED: { status: "DAMAGED" as const, type: "RETURN_TO_DAMAGED" as const },
+    EXPIRED: { status: "EXPIRED" as const, type: "RETURN_TO_EXPIRED" as const },
+  };
+  const groupId = randomUUID();
+  const movements: Prisma.InventoryMovementCreateManyInput[] = [];
+  for (const command of commands) {
+    const destination = movementFor[command.classification];
+    const common = {
+      itemId: command.itemId,
+      warehouseId: command.warehouseId,
+      canonicalUnitId: command.canonicalUnitId,
+      movementType: destination.type,
+      referenceType: "SALES_RETURN_INSPECTION",
+      referenceId: command.salesReturnId,
+      groupId,
+      reason: command.reason,
+      createdByUserId: command.actorUserId,
+      productionLotId: command.productionLotId,
+      salesOrderId: command.salesOrderId,
+      salesDispatchId: command.salesDispatchId,
+      salesDispatchLineId: command.salesDispatchLineId,
+      salesDispatchAllocationId: command.salesDispatchAllocationId,
+      salesInvoiceId: command.salesInvoiceId ?? null,
+      salesInvoiceLineId: command.salesInvoiceLineId ?? null,
+      salesReturnId: command.salesReturnId,
+      salesReturnLineId: command.salesReturnLineId,
+      salesReturnInspectionId: command.salesReturnInspectionId,
+    };
+    movements.push(
+      {
+        ...common,
+        status: "RETURN_INSPECTION" as const,
+        quantity: new Decimal(command.quantity).negated().toFixed(),
+        sourceKey: `SR:${command.salesReturnInspectionId}:OUT`,
+      },
+      {
+        ...common,
+        status: destination.status,
+        quantity: command.quantity,
+        sourceKey: `SR:${command.salesReturnInspectionId}:${destination.status}`,
+      },
+    );
+  }
+  await transaction.inventoryMovement.createMany({ data: movements });
+}
+
+export async function postSalesInvoiceOutflowInventory(
+  transaction: Prisma.TransactionClient,
+  commands: readonly SalesInvoiceInventoryCommand[],
+) {
+  if (!commands.length)
+    throw new InventoryRepositoryError("reference", "Invoice has no dispatch allocations.");
+  const warehouseId = commands[0]!.warehouseId;
+  if (commands.some((command) => command.warehouseId !== warehouseId))
+    throw new InventoryRepositoryError(
+      "reference",
+      "An invoice uses one source warehouse per dispatch allocation.",
+    );
+  const requiredByAllocation = new Map<
+    string,
+    { itemId: string; productionLotId: string; quantity: Decimal }
+  >();
+  for (const command of commands) {
+    const quantity = new Decimal(exactPositive(command.quantity, "Invoice quantity"));
+    const current = requiredByAllocation.get(command.salesDispatchAllocationId);
+    requiredByAllocation.set(command.salesDispatchAllocationId, {
+      itemId: command.itemId,
+      productionLotId: command.productionLotId,
+      quantity: (current?.quantity ?? new Decimal(0)).add(quantity),
+    });
+  }
+  for (const [salesDispatchAllocationId, required] of requiredByAllocation) {
+    const inTransit = await transaction.inventoryMovement.aggregate({
+      where: {
+        warehouseId,
+        itemId: required.itemId,
+        productionLotId: required.productionLotId,
+        salesDispatchAllocationId,
+        status: "IN_TRANSIT",
+      },
+      _sum: { quantity: true },
+    });
+    if (new Decimal(inTransit._sum.quantity?.toString() ?? "0").lt(required.quantity))
+      throw new InventoryRepositoryError(
+        "stock",
+        "A linked dispatch allocation no longer has enough IN_TRANSIT stock to invoice.",
+      );
+  }
+  const groupId = randomUUID();
+  await transaction.inventoryMovement.createMany({
+    data: commands.map((command) => ({
+      itemId: command.itemId,
+      warehouseId: command.warehouseId,
+      status: "IN_TRANSIT" as const,
+      quantity: new Decimal(command.quantity).negated().toFixed(),
+      canonicalUnitId: command.canonicalUnitId,
+      movementType: "SALES_INVOICE_OUT" as const,
+      referenceType: "SALES_INVOICE",
+      referenceId: command.salesInvoiceId,
+      sourceKey: `INV:${command.salesInvoiceAllocationId}:IN_TRANSIT`,
+      groupId,
+      reason: `Sales invoice ${command.salesInvoiceNumber} finalized dispatched stock outside company custody.`,
+      createdByUserId: command.actorUserId,
+      productionLotId: command.productionLotId,
+      salesOrderId: command.salesOrderId,
+      salesOrderLineId: command.salesOrderLineId,
+      salesDispatchId: command.salesDispatchId,
+      salesDispatchLineId: command.salesDispatchLineId,
+      salesDispatchAllocationId: command.salesDispatchAllocationId,
+      salesInvoiceId: command.salesInvoiceId,
+      salesInvoiceLineId: command.salesInvoiceLineId,
+      salesInvoiceAllocationId: command.salesInvoiceAllocationId,
+    })),
+  });
+}
+
+export async function postSalesDispatchInventory(
+  transaction: Prisma.TransactionClient,
+  commands: readonly SalesDispatchInventoryCommand[],
+) {
+  if (!commands.length)
+    throw new InventoryRepositoryError("reference", "Dispatch has no lot allocations.");
+  const warehouseId = commands[0]!.warehouseId;
+  if (commands.some((command) => command.warehouseId !== warehouseId))
+    throw new InventoryRepositoryError("reference", "A dispatch uses one source warehouse.");
+  const itemIds = [...new Set(commands.map((command) => command.itemId))];
+  const lotIds = [...new Set(commands.map((command) => command.productionLotId))];
+  const [warehouse, items, lots] = await Promise.all([
+    transaction.warehouse.findFirst({ where: { id: warehouseId, active: true } }),
+    transaction.item.findMany({
+      where: { id: { in: itemIds }, itemType: "FINISHED_GOOD", active: true },
+      include: { stockUnit: true, finishedGoodProfile: true },
+    }),
+    transaction.productionLot.findMany({ where: { id: { in: lotIds } } }),
+  ]);
+  if (!warehouse || items.length !== itemIds.length || lots.length !== lotIds.length)
+    throw new InventoryRepositoryError(
+      "reference",
+      "Dispatch warehouse, item, or production lot is invalid.",
+    );
+  const requiredByOrderLine = new Map<string, Decimal>();
+  const requiredByLot = new Map<string, { itemId: string; quantity: Decimal }>();
+  for (const command of commands) {
+    const quantity = new Decimal(exactPositive(command.quantity, "Dispatch quantity"));
+    const item = items.find((candidate) => candidate.id === command.itemId);
+    const lot = lots.find((candidate) => candidate.id === command.productionLotId);
+    if (
+      !item ||
+      !lot ||
+      !item.finishedGoodProfile ||
+      !isCanonicalPieceUnit(item.stockUnit) ||
+      item.stockUnitId !== command.canonicalUnitId ||
+      lot.finishedGoodId !== command.itemId ||
+      (lot.expiryDate && lot.expiryDate < command.dispatchAt)
+    )
+      throw new InventoryRepositoryError(
+        "reference",
+        "Dispatch lot is incompatible, inactive, or expired for the dispatch date.",
+      );
+    requiredByOrderLine.set(
+      command.salesOrderLineId,
+      (requiredByOrderLine.get(command.salesOrderLineId) ?? new Decimal(0)).add(quantity),
+    );
+    const requiredLot = requiredByLot.get(lot.id);
+    requiredByLot.set(lot.id, {
+      itemId: command.itemId,
+      quantity: (requiredLot?.quantity ?? new Decimal(0)).add(quantity),
+    });
+  }
+  for (const [productionLotId, required] of requiredByLot) {
+    const available = await transaction.inventoryMovement.aggregate({
+      where: { itemId: required.itemId, warehouseId, productionLotId, status: "AVAILABLE" },
+      _sum: { quantity: true },
+    });
+    if (new Decimal(available._sum.quantity?.toString() ?? "0").lt(required.quantity))
+      throw new InventoryRepositoryError(
+        "stock",
+        "A selected production lot no longer has enough eligible stock.",
+      );
+  }
+  for (const [salesOrderLineId, required] of requiredByOrderLine) {
+    const reserved = await transaction.inventoryMovement.aggregate({
+      where: { salesOrderLineId, warehouseId, status: "RESERVED" },
+      _sum: { quantity: true },
+    });
+    if (new Decimal(reserved._sum.quantity?.toString() ?? "0").lt(required))
+      throw new InventoryRepositoryError(
+        "stock",
+        "This sales-order line no longer has enough reserved stock for the dispatch.",
+      );
+  }
+  const groupId = randomUUID();
+  await transaction.inventoryMovement.createMany({
+    data: commands.flatMap((command) => [
+      {
+        itemId: command.itemId,
+        warehouseId,
+        status: "RESERVED",
+        quantity: new Decimal(command.quantity).negated().toFixed(),
+        canonicalUnitId: command.canonicalUnitId,
+        movementType: "SALES_DISPATCH",
+        referenceType: "SALES_DISPATCH",
+        referenceId: command.salesDispatchId,
+        sourceKey: `DN:${command.salesDispatchAllocationId}:RESERVED`,
+        groupId,
+        reason: `Dispatch ${command.salesDispatchNumber} left warehouse custody.`,
+        createdByUserId: command.actorUserId,
+        productionLotId: command.productionLotId,
+        salesOrderId: command.salesOrderId,
+        salesOrderLineId: command.salesOrderLineId,
+        salesDispatchId: command.salesDispatchId,
+        salesDispatchLineId: command.salesDispatchLineId,
+        salesDispatchAllocationId: command.salesDispatchAllocationId,
+      },
+      {
+        itemId: command.itemId,
+        warehouseId,
+        status: "IN_TRANSIT",
+        quantity: new Decimal(command.quantity).toFixed(),
+        canonicalUnitId: command.canonicalUnitId,
+        movementType: "SALES_DISPATCH",
+        referenceType: "SALES_DISPATCH",
+        referenceId: command.salesDispatchId,
+        sourceKey: `DN:${command.salesDispatchAllocationId}:IN_TRANSIT`,
+        groupId,
+        reason: `Dispatch ${command.salesDispatchNumber} is in transit.`,
+        createdByUserId: command.actorUserId,
+        productionLotId: command.productionLotId,
+        salesOrderId: command.salesOrderId,
+        salesOrderLineId: command.salesOrderLineId,
+        salesDispatchId: command.salesDispatchId,
+        salesDispatchLineId: command.salesDispatchLineId,
+        salesDispatchAllocationId: command.salesDispatchAllocationId,
+      },
+    ]),
+  });
+}
+
+export async function postSalesOrderReservationInventory(
+  transaction: Prisma.TransactionClient,
+  commands: readonly SalesOrderReservationInventoryCommand[],
+) {
+  if (!commands.length)
+    throw new InventoryRepositoryError("reference", "Sales order has no reservation lines.");
+  const operation = commands[0]?.operation;
+  if (!operation || commands.some((command) => command.operation !== operation))
+    throw new InventoryRepositoryError("reference", "Reservation operation is inconsistent.");
+  const itemIds = [...new Set(commands.map((command) => command.itemId))];
+  const warehouseId = commands[0]!.warehouseId;
+  if (commands.some((command) => command.warehouseId !== warehouseId))
+    throw new InventoryRepositoryError(
+      "reference",
+      "A sales-order reservation uses one warehouse.",
+    );
+  const [items, warehouse] = await Promise.all([
+    transaction.item.findMany({
+      where: {
+        id: { in: itemIds },
+        itemType: "FINISHED_GOOD",
+        ...(operation === "RESERVE" ? { active: true } : {}),
+      },
+      include: { stockUnit: true, finishedGoodProfile: true },
+    }),
+    transaction.warehouse.findFirst({
+      where: { id: warehouseId, ...(operation === "RESERVE" ? { active: true } : {}) },
+    }),
+  ]);
+  if (!warehouse || items.length !== itemIds.length)
+    throw new InventoryRepositoryError(
+      "reference",
+      "Sales-order item or warehouse is inactive or invalid.",
+    );
+  const requiredByItem = new Map<string, Decimal>();
+  for (const command of commands) {
+    const quantity = new Decimal(exactPositive(command.quantity, "Reserved piece quantity"));
+    const item = items.find((candidate) => candidate.id === command.itemId);
+    if (
+      !item ||
+      !item.finishedGoodProfile ||
+      item.stockUnitId !== command.canonicalUnitId ||
+      !isSupportedQuantityUnitCode(item.stockUnit.code) ||
+      item.stockUnit.dimension !== "COUNT"
+    )
+      throw new InventoryRepositoryError(
+        "reference",
+        "Sales-order item must be a finished good with a canonical piece unit.",
+      );
+    requiredByItem.set(
+      command.itemId,
+      (requiredByItem.get(command.itemId) ?? new Decimal(0)).add(quantity),
+    );
+  }
+  const sourceStatus = operation === "RESERVE" ? "AVAILABLE" : "RESERVED";
+  for (const [itemId, required] of requiredByItem) {
+    const balance = await transaction.inventoryMovement.aggregate({
+      where: { itemId, warehouseId, status: sourceStatus },
+      _sum: { quantity: true },
+    });
+    const available = new Decimal(balance._sum.quantity?.toString() ?? "0");
+    if (available.lt(required))
+      throw new InventoryRepositoryError(
+        "stock",
+        operation === "RESERVE"
+          ? `Insufficient AVAILABLE stock for a sales-order line; short ${required.sub(available).toFixed()} pieces.`
+          : "The sales-order reservation is no longer available to release.",
+      );
+  }
+  const groupId = randomUUID();
+  const movementType: InventoryMovementType =
+    operation === "RESERVE" ? "SALES_RESERVATION" : "SALES_RESERVATION_RELEASE";
+  const destinationStatus = operation === "RESERVE" ? "RESERVED" : "AVAILABLE";
+  await transaction.inventoryMovement.createMany({
+    data: commands.flatMap((command) => {
+      const quantity = new Decimal(command.quantity).toFixed();
+      const prefix = `SO:${command.salesOrderLineId}:${operation}`;
+      const common = {
+        itemId: command.itemId,
+        warehouseId: command.warehouseId,
+        canonicalUnitId: command.canonicalUnitId,
+        movementType,
+        referenceType: "SALES_ORDER",
+        referenceId: command.salesOrderId,
+        groupId,
+        salesOrderId: command.salesOrderId,
+        salesOrderLineId: command.salesOrderLineId,
+        reason:
+          operation === "RESERVE"
+            ? `Sales order ${command.salesOrderNumber} stock reservation.`
+            : `Sales order ${command.salesOrderNumber} reservation release.`,
+        createdByUserId: command.actorUserId,
+      };
+      return [
+        {
+          ...common,
+          status: sourceStatus,
+          quantity: new Decimal(quantity).negated().toFixed(),
+          sourceKey: `${prefix}:${sourceStatus}`,
+        },
+        {
+          ...common,
+          status: destinationStatus,
+          quantity,
+          sourceKey: `${prefix}:${destinationStatus}`,
+        },
+      ];
+    }),
+  });
+}
 
 export async function postProductionOutputInventory(
   transaction: Prisma.TransactionClient,

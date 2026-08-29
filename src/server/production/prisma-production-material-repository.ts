@@ -16,6 +16,7 @@ import { reconcileMaterial } from "@/modules/production/domain/material-reconcil
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
 import { postProductionMaterialInventory } from "@/server/inventory/transactional-inventory-posting";
+import { valueProductionConsumption } from "@/server/costing/prisma-inventory-valuation-repository";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
 
 const transactionInclude = {
@@ -160,6 +161,7 @@ export class PrismaProductionMaterialRepository implements ProductionMaterialRep
           `${row.transactionType.toLowerCase()} for batch ${row.productionBatch.batchNumber}.`,
         actorUserId,
       });
+      await valueProductionConsumption(transaction, row.id, actorUserId);
       if (row.transactionType === "ISSUE" && row.productionBatch.status === "RELEASED") {
         await transaction.productionBatch.update({
           where: { id: row.productionBatchId },

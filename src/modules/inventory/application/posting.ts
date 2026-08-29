@@ -31,6 +31,7 @@ export const singlePostingSchema = z.object({
   ...quantityFields,
   warehouseId: z.string().min(1),
   movementType: z.enum(["OPENING_BALANCE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT"]),
+  unitCost: z.string().trim().max(61).optional().transform(emptyToUndefined),
 });
 export const warehouseTransferSchema = z.object({
   ...common,
@@ -59,6 +60,8 @@ export async function postSingleInventory(
   if (forbidden) return forbidden;
   const parsed = singlePostingSchema.safeParse(input);
   if (!parsed.success) return invalid();
+  if (parsed.data.movementType !== "ADJUSTMENT_OUT" && !parsed.data.unitCost)
+    return invalid("Opening and adjustment-in stock require an explicit canonical unit cost.");
   return execute(() =>
     repository.postSingle({
       ...parsed.data,

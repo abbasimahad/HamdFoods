@@ -46,6 +46,7 @@ export type SinglePostingCommand = PostingQuantityInput & {
   sourceKey?: string;
   reason: string;
   actorUserId: string;
+  unitCost?: string | undefined;
 };
 export type WarehouseTransferCommand = PostingQuantityInput & {
   itemId: string;

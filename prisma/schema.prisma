@@ -44,6 +44,7 @@ enum InventoryStatus {
   EXPIRED
   SCRAP
   IN_TRANSIT
+  RETURN_INSPECTION
 }
 
 enum InventoryMovementType {
@@ -66,8 +67,18 @@ enum InventoryMovementType {
   PACKAGING_DAMAGE
   PRODUCTION_OUTPUT
   PACKAGING_CONSUMPTION
+  SALES_RESERVATION
+  SALES_RESERVATION_RELEASE
   SALES_DISPATCH
+  SALES_INVOICE_OUT
   SALES_RETURN
+  SALES_RETURN_RECEIPT
+  RETURN_TO_AVAILABLE
+  RETURN_TO_QUARANTINE
+  RETURN_TO_REPROCESS
+  RETURN_TO_DAMAGED
+  RETURN_TO_EXPIRED
+  DISPATCH_REFUSAL_RETURN
   DAMAGE
   REPROCESS
   SCRAP
@@ -80,6 +91,87 @@ enum PurchaseOrderStatus {
   RECEIVED
   CLOSED
   CANCELLED
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  APPROVED
+  PARTIALLY_DISPATCHED
+  DISPATCHED
+  CLOSED
+  CANCELLED
+}
+
+enum SalesDispatchStatus {
+  DRAFT
+  POSTED
+  DELIVERED
+  CANCELLED
+}
+
+enum SalesInvoiceStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum CustomerLedgerEntryType {
+  SALES_INVOICE
+  CUSTOMER_PAYMENT
+  SALES_RETURN_CREDIT
+  CREDIT_NOTE
+  DEBIT_NOTE
+  OPENING_BALANCE
+  ADJUSTMENT
+}
+
+enum CustomerPaymentStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum CustomerPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+  OTHER
+}
+
+enum SalesReturnStatus {
+  DRAFT
+  RECEIVED
+  INSPECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum SalesReturnType {
+  INVOICED_RETURN
+  DISPATCH_REFUSAL
+}
+
+enum SalesReturnReason {
+  CUSTOMER_REJECTION
+  WRONG_PRODUCT
+  WRONG_QUANTITY
+  DAMAGED_IN_TRANSIT
+  PRODUCT_DEFECT
+  PACKAGING_DEFECT
+  EXPIRED
+  SHORT_EXPIRY
+  QUALITY_COMPLAINT
+  ORDER_CANCELLED
+  OTHER
+}
+
+enum SalesReturnInspectionClassification {
+  GOOD_RESALE
+  QUARANTINE
+  REPROCESS
+  DAMAGED
+  EXPIRED
 }
 
 enum GoodsReceiptStatus {
@@ -193,6 +285,60 @@ enum ProductionLossNature {
   ABNORMAL
 }
 
+enum InventoryValuationMethod {
+  MOVING_WEIGHTED_AVERAGE
+}
+
+enum InventoryValuationEntryType {
+  OPENING_BALANCE
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  PURCHASE_RECEIPT
+  SUPPLIER_REPLACEMENT
+  PURCHASE_RETURN
+  LANDED_COST
+  PRODUCTION_CONSUMPTION
+  PACKAGING_CONSUMPTION
+  PRODUCTION_OUTPUT
+  SALES_OUT
+  SALES_RETURN
+  VALUATION_INITIALIZATION
+  COST_ADJUSTMENT
+}
+
+enum InventoryValuationState {
+  FINAL
+  PROVISIONAL
+  MISSING_VALUATION_BASIS
+}
+
+enum LandedCostStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum LandedCostAllocationMethod {
+  BY_LINE_VALUE
+  BY_QUANTITY
+  MANUAL
+}
+
+enum ProductionCostCategory {
+  DIRECT_LABOR
+  MACHINE
+  UTILITIES
+  FACTORY_OVERHEAD
+  OTHER_DIRECT
+  COST_CREDIT
+}
+
+enum BatchCostingStatus {
+  UNCOSTED
+  PROVISIONAL
+  FINALIZED
+}
+
 enum QcRejectionReason {
   DAMAGED
   WRONG_ITEM
@@ -241,6 +387,35 @@ model User {
   productionOutputPosted       ProductionOutputTransaction[]   @relation("ProductionOutputPostedBy")
   productionOutputCancelled    ProductionOutputTransaction[]   @relation("ProductionOutputCancelledBy")
   productionBatchesCompleted   ProductionBatch[]               @relation("ProductionBatchCompletedBy")
+  salespersons                 Salesperson[]                   @relation("SalespersonLinkedUser")
+  salesOrdersCreated           SalesOrder[]                    @relation("SalesOrderCreatedBy")
+  salesOrdersApproved          SalesOrder[]                    @relation("SalesOrderApprovedBy")
+  salesOrdersCancelled         SalesOrder[]                    @relation("SalesOrderCancelledBy")
+  salesDispatchesCreated       SalesDispatch[]                 @relation("SalesDispatchCreatedBy")
+  salesDispatchesPosted        SalesDispatch[]                 @relation("SalesDispatchPostedBy")
+  salesDispatchesDelivered     SalesDispatch[]                 @relation("SalesDispatchDeliveredBy")
+  salesDispatchesCancelled     SalesDispatch[]                 @relation("SalesDispatchCancelledBy")
+  salesInvoicesCreated         SalesInvoice[]                  @relation("SalesInvoiceCreatedBy")
+  salesInvoicesPosted          SalesInvoice[]                  @relation("SalesInvoicePostedBy")
+  salesInvoicesCancelled       SalesInvoice[]                  @relation("SalesInvoiceCancelledBy")
+  salesReturnsCreated          SalesReturn[]                   @relation("SalesReturnCreatedBy")
+  salesReturnsReceived         SalesReturn[]                   @relation("SalesReturnReceivedBy")
+  salesReturnsInspected        SalesReturn[]                   @relation("SalesReturnInspectedBy")
+  salesReturnsCompleted        SalesReturn[]                   @relation("SalesReturnCompletedBy")
+  salesReturnsCancelled        SalesReturn[]                   @relation("SalesReturnCancelledBy")
+  salesReturnInspections       SalesReturnInspection[]         @relation("SalesReturnInspectionCreatedBy")
+  customerPaymentsCreated      CustomerPayment[]               @relation("CustomerPaymentCreatedBy")
+  customerPaymentsPosted       CustomerPayment[]               @relation("CustomerPaymentPostedBy")
+  customerPaymentsCancelled    CustomerPayment[]               @relation("CustomerPaymentCancelledBy")
+  customerPaymentAllocations   CustomerPaymentAllocation[]     @relation("CustomerPaymentAllocationCreatedBy")
+  customerLedgerEntries        CustomerLedgerEntry[]
+  inventoryValuationEntries    InventoryValuationEntry[]       @relation("InventoryValuationCreatedBy")
+  valuationIssuesResolved      InventoryValuationIssue[]       @relation("InventoryValuationIssueResolvedBy")
+  landedCostsCreated           LandedCost[]                    @relation("LandedCostCreatedBy")
+  landedCostsPosted            LandedCost[]                    @relation("LandedCostPostedBy")
+  valuationAdjustmentsCreated  InventoryValuationAdjustment[]  @relation("InventoryValuationAdjustmentCreatedBy")
+  productionCostEntriesCreated ProductionCostEntry[]           @relation("ProductionCostEntryCreatedBy")
+  batchCostsFinalized          ProductionBatchCostSnapshot[]   @relation("ProductionBatchCostFinalizedBy")
 
   @@map("user")
 }
@@ -379,6 +554,9 @@ model Unit {
   productionMaterialCanonicalUnits ProductionMaterialTransactionLine[] @relation("ProductionMaterialCanonicalUnit")
   productionOutputEnteredUnits     ProductionOutputTransaction[]       @relation("ProductionOutputEnteredUnit")
   productionOutputCanonicalUnits   ProductionOutputTransaction[]       @relation("ProductionOutputCanonicalUnit")
+  salesOrderCanonicalUnits         SalesOrderLine[]                    @relation("SalesOrderCanonicalUnit")
+  salesInvoiceCanonicalUnits       SalesInvoiceLine[]                  @relation("SalesInvoiceCanonicalUnit")
+  salesReturnCanonicalUnits        SalesReturnLine[]                   @relation("SalesReturnCanonicalUnit")
 
   @@unique([id, dimension], map: "unit_id_dimension_uidx")
   @@index([active, name])
@@ -429,6 +607,14 @@ model Item {
   productionPackagingRequirements    ProductionPackagingRequirement[]
   productionMaterialTransactionLines ProductionMaterialTransactionLine[]
   productionLots                     ProductionLot[]
+  salesOrderLines                    SalesOrderLine[]
+  salesDispatchLines                 SalesDispatchLine[]
+  salesInvoiceLines                  SalesInvoiceLine[]
+  salesReturnLines                   SalesReturnLine[]
+  inventoryValuationEntries          InventoryValuationEntry[]
+  inventoryValuationBalance          InventoryValuationBalance?
+  inventoryValuationIssues           InventoryValuationIssue[]
+  inventoryValuationAdjustments      InventoryValuationAdjustment[]
 
   @@unique([id, itemType], map: "item_id_type_uidx")
   @@index([itemType, active, name])
@@ -456,6 +642,9 @@ model Warehouse {
   productionMaterialSources      ProductionMaterialTransactionLine[] @relation("ProductionMaterialSourceWarehouse")
   productionMaterialDestinations ProductionMaterialTransactionLine[] @relation("ProductionMaterialDestinationWarehouse")
   productionOutputDestinations   ProductionOutputTransaction[]
+  salesOrders                    SalesOrder[]
+  salesDispatches                SalesDispatch[]
+  salesReturns                   SalesReturn[]
 
   @@index([active, name])
   @@map("warehouse")
@@ -481,6 +670,17 @@ model InventoryMovement {
   productionMaterialTransactionLineId String?
   productionOutputTransactionId       String?
   productionLotId                     String?
+  salesOrderId                        String?
+  salesOrderLineId                    String?
+  salesDispatchId                     String?
+  salesDispatchLineId                 String?
+  salesDispatchAllocationId           String?
+  salesInvoiceId                      String?
+  salesInvoiceLineId                  String?
+  salesInvoiceAllocationId            String?
+  salesReturnId                       String?
+  salesReturnLineId                   String?
+  salesReturnInspectionId             String?
   item                                Item                               @relation(fields: [itemId], references: [id], onDelete: Restrict)
   warehouse                           Warehouse                          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   canonicalUnit                       Unit                               @relation("InventoryCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
@@ -490,6 +690,19 @@ model InventoryMovement {
   productionMaterialTransactionLine   ProductionMaterialTransactionLine? @relation(fields: [productionMaterialTransactionLineId], references: [id], onDelete: Restrict)
   productionOutputTransaction         ProductionOutputTransaction?       @relation(fields: [productionOutputTransactionId], references: [id], onDelete: Restrict)
   productionLot                       ProductionLot?                     @relation(fields: [productionLotId], references: [id], onDelete: Restrict)
+  salesOrder                          SalesOrder?                        @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  salesOrderLine                      SalesOrderLine?                    @relation(fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+  salesDispatch                       SalesDispatch?                     @relation(fields: [salesDispatchId], references: [id], onDelete: Restrict)
+  salesDispatchLine                   SalesDispatchLine?                 @relation(fields: [salesDispatchLineId], references: [id], onDelete: Restrict)
+  salesDispatchAllocation             SalesDispatchLotAllocation?        @relation(fields: [salesDispatchAllocationId], references: [id], onDelete: Restrict)
+  salesInvoice                        SalesInvoice?                      @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  salesInvoiceLine                    SalesInvoiceLine?                  @relation(fields: [salesInvoiceLineId], references: [id], onDelete: Restrict)
+  salesInvoiceAllocation              SalesInvoiceLotAllocation?         @relation(fields: [salesInvoiceAllocationId], references: [id], onDelete: Restrict)
+  salesReturn                         SalesReturn?                       @relation(fields: [salesReturnId], references: [id], onDelete: Restrict)
+  salesReturnLine                     SalesReturnLine?                   @relation(fields: [salesReturnLineId], references: [id], onDelete: Restrict)
+  salesReturnInspection               SalesReturnInspection?             @relation(fields: [salesReturnInspectionId], references: [id], onDelete: Restrict)
+  valuationEntry                      InventoryValuationEntry?
+  valuationIssue                      InventoryValuationIssue?
 
   @@unique([sourceKey, movementType], map: "inventory_movement_source_type_uidx")
   @@index([itemId, warehouseId, status, postedAt])
@@ -502,6 +715,17 @@ model InventoryMovement {
   @@index([productionMaterialTransactionLineId])
   @@index([productionOutputTransactionId])
   @@index([productionLotId, postedAt])
+  @@index([salesOrderId, status, postedAt])
+  @@index([salesOrderLineId, status, postedAt])
+  @@index([salesDispatchId, status, postedAt])
+  @@index([salesDispatchLineId])
+  @@index([salesDispatchAllocationId])
+  @@index([salesInvoiceId, status, postedAt])
+  @@index([salesInvoiceLineId])
+  @@index([salesInvoiceAllocationId])
+  @@index([salesReturnId, status, postedAt])
+  @@index([salesReturnLineId])
+  @@index([salesReturnInspectionId])
   @@map("inventory_movement")
 }
 
@@ -546,6 +770,620 @@ model Supplier {
   @@index([active, name])
   @@index([city, active])
   @@map("supplier")
+}
+
+model CustomerGroup {
+  id          String     @id @default(uuid())
+  code        String     @unique
+  name        String
+  description String?
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  customers   Customer[]
+
+  @@index([active, name])
+  @@map("customer_group")
+}
+
+model SalesArea {
+  id          String            @id @default(uuid())
+  code        String            @unique
+  name        String
+  description String?
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  routes      SalesRoute[]
+  customers   Customer[]
+  assignments SalespersonArea[]
+  salesOrders SalesOrder[]
+
+  @@index([active, name])
+  @@map("sales_area")
+}
+
+model SalesRoute {
+  id          String             @id @default(uuid())
+  code        String             @unique
+  name        String
+  areaId      String
+  description String?
+  active      Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  area        SalesArea          @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  customers   Customer[]
+  assignments SalespersonRoute[]
+  salesOrders SalesOrder[]
+
+  @@index([areaId, active, name])
+  @@map("sales_route")
+}
+
+model Salesperson {
+  id               String             @id @default(uuid())
+  code             String             @unique
+  name             String
+  phone            String?
+  email            String?
+  linkedUserId     String?
+  notes            String?
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  linkedUser       User?              @relation("SalespersonLinkedUser", fields: [linkedUserId], references: [id], onDelete: Restrict)
+  customers        Customer[]
+  salesOrders      SalesOrder[]
+  areaAssignments  SalespersonArea[]
+  routeAssignments SalespersonRoute[]
+
+  @@index([active, name])
+  @@index([linkedUserId])
+  @@map("salesperson")
+}
+
+model SalespersonArea {
+  salespersonId String
+  areaId        String
+  createdAt     DateTime    @default(now())
+  salesperson   Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Cascade)
+  area          SalesArea   @relation(fields: [areaId], references: [id], onDelete: Restrict)
+
+  @@id([salespersonId, areaId])
+  @@index([areaId])
+  @@map("salesperson_area")
+}
+
+model SalespersonRoute {
+  salespersonId String
+  routeId       String
+  createdAt     DateTime    @default(now())
+  salesperson   Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Cascade)
+  route         SalesRoute  @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  @@id([salespersonId, routeId])
+  @@index([routeId])
+  @@map("salesperson_route")
+}
+
+model Customer {
+  id                    String                @id @default(uuid())
+  code                  String                @unique
+  name                  String
+  contactPerson         String?
+  phone                 String
+  secondaryPhone        String?
+  email                 String?
+  address               String
+  city                  String?
+  customerGroupId       String?
+  areaId                String
+  routeId               String?
+  salespersonId         String?
+  taxRegistrationNo     String?
+  creditLimit           Decimal?              @db.Decimal(24, 6)
+  paymentTermsDays      Int?
+  notes                 String?
+  active                Boolean               @default(true)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  customerGroup         CustomerGroup?        @relation(fields: [customerGroupId], references: [id], onDelete: Restrict)
+  area                  SalesArea             @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  route                 SalesRoute?           @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  salesperson           Salesperson?          @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  salesOrders           SalesOrder[]
+  salesDispatches       SalesDispatch[]
+  salesInvoices         SalesInvoice[]
+  salesReturns          SalesReturn[]
+  customerPayments      CustomerPayment[]
+  customerLedgerEntries CustomerLedgerEntry[]
+
+  @@index([active, name])
+  @@index([customerGroupId, active])
+  @@index([areaId, active])
+  @@index([salespersonId, active])
+  @@map("customer")
+}
+
+model SalesOrder {
+  id                  String              @id @default(uuid())
+  number              String              @unique
+  orderDate           DateTime            @db.Date
+  customerId          String
+  salespersonId       String?
+  salespersonName     String?
+  areaId              String
+  areaName            String
+  routeId             String?
+  routeName           String?
+  warehouseId         String
+  status              SalesOrderStatus    @default(DRAFT)
+  customerReference   String?
+  deliveryDate        DateTime?           @db.Date
+  notes               String?
+  paymentTermsDays    Int?
+  customerCreditLimit Decimal?            @db.Decimal(24, 6)
+  subtotal            Decimal             @db.Decimal(24, 6)
+  discountTotal       Decimal             @db.Decimal(24, 6)
+  taxTotal            Decimal             @db.Decimal(24, 6)
+  grandTotal          Decimal             @db.Decimal(24, 6)
+  createdByUserId     String
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  cancelledByUserId   String?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  customer            Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  salesperson         Salesperson?        @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  area                SalesArea           @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  route               SalesRoute?         @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  warehouse           Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy           User                @relation("SalesOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy          User?               @relation("SalesOrderApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy         User?               @relation("SalesOrderCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  lines               SalesOrderLine[]
+  inventoryMovements  InventoryMovement[]
+  dispatches          SalesDispatch[]
+  invoices            SalesInvoice[]
+  salesReturns        SalesReturn[]
+
+  @@index([customerId, orderDate])
+  @@index([salespersonId, orderDate])
+  @@index([status, orderDate])
+  @@index([warehouseId, orderDate])
+  @@index([createdByUserId])
+  @@map("sales_order")
+}
+
+model SalesOrderLine {
+  id                 String              @id @default(uuid())
+  salesOrderId       String
+  position           Int
+  itemId             String
+  itemType           ItemType            @default(FINISHED_GOOD)
+  cartons            Int
+  loosePieces        Int
+  totalPieces        Decimal             @db.Decimal(24, 6)
+  canonicalUnitId    String
+  cartonRate         Decimal             @db.Decimal(24, 6)
+  pieceRate          Decimal             @db.Decimal(24, 6)
+  discount1Percent   Decimal             @db.Decimal(7, 4)
+  discount2Percent   Decimal             @db.Decimal(7, 4)
+  taxPercent         Decimal             @db.Decimal(7, 4)
+  grossAmount        Decimal             @db.Decimal(24, 6)
+  discountAmount     Decimal             @db.Decimal(24, 6)
+  taxAmount          Decimal             @db.Decimal(24, 6)
+  netAmount          Decimal             @db.Decimal(24, 6)
+  notes              String?
+  salesOrder         SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  item               Item                @relation(fields: [itemId, itemType], references: [id, itemType], onDelete: Restrict)
+  canonicalUnit      Unit                @relation("SalesOrderCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
+  inventoryMovements InventoryMovement[]
+  dispatchLines      SalesDispatchLine[]
+  invoiceLines       SalesInvoiceLine[]
+
+  @@unique([salesOrderId, position])
+  @@index([itemId])
+  @@index([canonicalUnitId])
+  @@map("sales_order_line")
+}
+
+model SalesDispatch {
+  id                 String              @id @default(uuid())
+  number             String              @unique
+  salesOrderId       String
+  customerId         String
+  dispatchAt         DateTime            @default(now())
+  sourceWarehouseId  String
+  deliveryAddress    String
+  routeName          String?
+  salespersonName    String?
+  vehicleNumber      String?
+  driverName         String?
+  driverPhone        String?
+  transporter        String?
+  gatePassReference  String?
+  notes              String?
+  status             SalesDispatchStatus @default(DRAFT)
+  createdByUserId    String
+  postedByUserId     String?
+  postedAt           DateTime?
+  deliveredByUserId  String?
+  deliveredAt        DateTime?
+  receiverName       String?
+  deliveryNotes      String?
+  cancelledByUserId  String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  salesOrder         SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  sourceWarehouse    Warehouse           @relation(fields: [sourceWarehouseId], references: [id], onDelete: Restrict)
+  createdBy          User                @relation("SalesDispatchCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy           User?               @relation("SalesDispatchPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  deliveredBy        User?               @relation("SalesDispatchDeliveredBy", fields: [deliveredByUserId], references: [id], onDelete: Restrict)
+  cancelledBy        User?               @relation("SalesDispatchCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  lines              SalesDispatchLine[]
+  inventoryMovements InventoryMovement[]
+  invoiceLines       SalesInvoiceLine[]
+  salesReturns       SalesReturn[]
+
+  @@index([salesOrderId, dispatchAt])
+  @@index([customerId, dispatchAt])
+  @@index([status, dispatchAt])
+  @@map("sales_dispatch")
+}
+
+model SalesDispatchLine {
+  id                 String                       @id @default(uuid())
+  salesDispatchId    String
+  salesOrderLineId   String
+  itemId             String
+  cartons            Int
+  loosePieces        Int
+  totalPieces        Decimal                      @db.Decimal(24, 6)
+  notes              String?
+  salesDispatch      SalesDispatch                @relation(fields: [salesDispatchId], references: [id], onDelete: Cascade)
+  salesOrderLine     SalesOrderLine               @relation(fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+  item               Item                         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  allocations        SalesDispatchLotAllocation[]
+  inventoryMovements InventoryMovement[]
+  invoiceLines       SalesInvoiceLine[]
+  salesReturnLines   SalesReturnLine[]
+
+  @@unique([salesDispatchId, salesOrderLineId])
+  @@index([itemId])
+  @@map("sales_dispatch_line")
+}
+
+model SalesDispatchLotAllocation {
+  id                  String                      @id @default(uuid())
+  salesDispatchLineId String
+  productionLotId     String
+  quantity            Decimal                     @db.Decimal(24, 6)
+  salesDispatchLine   SalesDispatchLine           @relation(fields: [salesDispatchLineId], references: [id], onDelete: Cascade)
+  productionLot       ProductionLot               @relation(fields: [productionLotId], references: [id], onDelete: Restrict)
+  inventoryMovements  InventoryMovement[]
+  invoiceAllocations  SalesInvoiceLotAllocation[]
+  salesReturnLines    SalesReturnLine[]
+
+  @@unique([salesDispatchLineId, productionLotId])
+  @@index([productionLotId])
+  @@map("sales_dispatch_lot_allocation")
+}
+
+model SalesDispatchSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("sales_dispatch_sequence")
+}
+
+model SalesInvoice {
+  id                 String                      @id @default(uuid())
+  number             String                      @unique
+  salesOrderId       String
+  customerId         String
+  invoiceDate        DateTime                    @db.Date
+  dueDate            DateTime                    @db.Date
+  paymentTermsDays   Int?
+  salespersonName    String?
+  areaName           String
+  routeName          String?
+  billingAddress     String
+  deliveryAddress    String
+  status             SalesInvoiceStatus          @default(DRAFT)
+  notes              String?
+  subtotal           Decimal                     @db.Decimal(24, 6)
+  discountTotal      Decimal                     @db.Decimal(24, 6)
+  taxTotal           Decimal                     @db.Decimal(24, 6)
+  grandTotal         Decimal                     @db.Decimal(24, 6)
+  createdByUserId    String
+  postedByUserId     String?
+  postedAt           DateTime?
+  cancelledByUserId  String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  salesOrder         SalesOrder                  @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy          User                        @relation("SalesInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy           User?                       @relation("SalesInvoicePostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy        User?                       @relation("SalesInvoiceCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  lines              SalesInvoiceLine[]
+  inventoryMovements InventoryMovement[]
+  ledgerEntries      CustomerLedgerEntry[]
+  paymentAllocations CustomerPaymentAllocation[]
+  salesReturns       SalesReturn[]
+
+  @@index([salesOrderId, invoiceDate])
+  @@index([customerId, invoiceDate])
+  @@index([status, invoiceDate])
+  @@map("sales_invoice")
+}
+
+model SalesInvoiceLine {
+  id                  String                      @id @default(uuid())
+  salesInvoiceId      String
+  salesOrderLineId    String
+  salesDispatchId     String
+  salesDispatchLineId String
+  itemId              String
+  cartons             Int
+  loosePieces         Int
+  totalPieces         Decimal                     @db.Decimal(24, 6)
+  canonicalUnitId     String
+  cartonRate          Decimal                     @db.Decimal(24, 6)
+  pieceRate           Decimal                     @db.Decimal(24, 6)
+  discount1Percent    Decimal                     @db.Decimal(7, 4)
+  discount2Percent    Decimal                     @db.Decimal(7, 4)
+  taxPercent          Decimal                     @db.Decimal(7, 4)
+  grossAmount         Decimal                     @db.Decimal(24, 6)
+  discountAmount      Decimal                     @db.Decimal(24, 6)
+  taxAmount           Decimal                     @db.Decimal(24, 6)
+  netAmount           Decimal                     @db.Decimal(24, 6)
+  notes               String?
+  salesInvoice        SalesInvoice                @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+  salesOrderLine      SalesOrderLine              @relation(fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+  salesDispatch       SalesDispatch               @relation(fields: [salesDispatchId], references: [id], onDelete: Restrict)
+  salesDispatchLine   SalesDispatchLine           @relation(fields: [salesDispatchLineId], references: [id], onDelete: Restrict)
+  item                Item                        @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  canonicalUnit       Unit                        @relation("SalesInvoiceCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
+  allocations         SalesInvoiceLotAllocation[]
+  inventoryMovements  InventoryMovement[]
+  salesReturnLines    SalesReturnLine[]
+
+  @@index([salesOrderLineId])
+  @@index([salesDispatchLineId])
+  @@index([itemId])
+  @@map("sales_invoice_line")
+}
+
+model SalesInvoiceLotAllocation {
+  id                        String                     @id @default(uuid())
+  salesInvoiceLineId        String
+  salesDispatchAllocationId String
+  productionLotId           String
+  quantity                  Decimal                    @db.Decimal(24, 6)
+  salesInvoiceLine          SalesInvoiceLine           @relation(fields: [salesInvoiceLineId], references: [id], onDelete: Cascade)
+  salesDispatchAllocation   SalesDispatchLotAllocation @relation(fields: [salesDispatchAllocationId], references: [id], onDelete: Restrict)
+  productionLot             ProductionLot              @relation(fields: [productionLotId], references: [id], onDelete: Restrict)
+  inventoryMovements        InventoryMovement[]
+
+  @@unique([salesInvoiceLineId, salesDispatchAllocationId])
+  @@index([salesDispatchAllocationId])
+  @@index([productionLotId])
+  @@map("sales_invoice_lot_allocation")
+}
+
+model SalesInvoiceSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("sales_invoice_sequence")
+}
+
+model CustomerLedgerEntry {
+  id                String                  @id @default(uuid())
+  customerId        String
+  entryType         CustomerLedgerEntryType
+  entryDate         DateTime                @db.Date
+  dueDate           DateTime?
+  signedAmount      Decimal                 @db.Decimal(24, 6)
+  salesInvoiceId    String?                 @unique
+  customerPaymentId String?                 @unique
+  salesReturnId     String?                 @unique
+  referenceType     String
+  referenceId       String
+  description       String
+  createdByUserId   String
+  createdAt         DateTime                @default(now())
+  customer          Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  salesInvoice      SalesInvoice?           @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  customerPayment   CustomerPayment?        @relation(fields: [customerPaymentId], references: [id], onDelete: Restrict)
+  salesReturn       SalesReturn?            @relation(fields: [salesReturnId], references: [id], onDelete: Restrict)
+  createdBy         User                    @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, entryDate])
+  @@index([customerId, dueDate])
+  @@index([entryType, entryDate])
+  @@map("customer_ledger_entry")
+}
+
+model SalesReturn {
+  id                   String               @id @default(uuid())
+  number               String               @unique
+  type                 SalesReturnType
+  customerId           String
+  salesInvoiceId       String?
+  salesOrderId         String
+  salesDispatchId      String
+  receivingWarehouseId String
+  returnAt             DateTime             @default(now())
+  status               SalesReturnStatus    @default(DRAFT)
+  customerReference    String?
+  notes                String?
+  createdByUserId      String
+  receivedByUserId     String?
+  receivedAt           DateTime?
+  inspectedByUserId    String?
+  inspectedAt          DateTime?
+  completedByUserId    String?
+  completedAt          DateTime?
+  cancelledByUserId    String?
+  cancelledAt          DateTime?
+  cancellationReason   String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  customer             Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  salesInvoice         SalesInvoice?        @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  salesOrder           SalesOrder           @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  salesDispatch        SalesDispatch        @relation(fields: [salesDispatchId], references: [id], onDelete: Restrict)
+  receivingWarehouse   Warehouse            @relation(fields: [receivingWarehouseId], references: [id], onDelete: Restrict)
+  createdBy            User                 @relation("SalesReturnCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  receivedBy           User?                @relation("SalesReturnReceivedBy", fields: [receivedByUserId], references: [id], onDelete: Restrict)
+  inspectedBy          User?                @relation("SalesReturnInspectedBy", fields: [inspectedByUserId], references: [id], onDelete: Restrict)
+  completedBy          User?                @relation("SalesReturnCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy          User?                @relation("SalesReturnCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  lines                SalesReturnLine[]
+  ledgerEntry          CustomerLedgerEntry?
+  inventoryMovements   InventoryMovement[]
+
+  @@index([customerId, returnAt])
+  @@index([salesInvoiceId, returnAt])
+  @@index([status, returnAt])
+  @@map("sales_return")
+}
+
+model SalesReturnLine {
+  id                        String                     @id @default(uuid())
+  salesReturnId             String
+  salesInvoiceLineId        String?
+  salesDispatchLineId       String
+  salesDispatchAllocationId String
+  productionLotId           String
+  itemId                    String
+  canonicalUnitId           String
+  cartons                   Int
+  loosePieces               Int
+  totalPieces               Decimal                    @db.Decimal(24, 6)
+  reason                    SalesReturnReason
+  notes                     String?
+  cartonRate                Decimal?                   @db.Decimal(24, 6)
+  pieceRate                 Decimal?                   @db.Decimal(24, 6)
+  discount1Percent          Decimal?                   @db.Decimal(7, 4)
+  discount2Percent          Decimal?                   @db.Decimal(7, 4)
+  taxPercent                Decimal?                   @db.Decimal(7, 4)
+  grossAmount               Decimal?                   @db.Decimal(24, 6)
+  discountAmount            Decimal?                   @db.Decimal(24, 6)
+  taxAmount                 Decimal?                   @db.Decimal(24, 6)
+  netAmount                 Decimal?                   @db.Decimal(24, 6)
+  salesReturn               SalesReturn                @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+  salesInvoiceLine          SalesInvoiceLine?          @relation(fields: [salesInvoiceLineId], references: [id], onDelete: Restrict)
+  salesDispatchLine         SalesDispatchLine          @relation(fields: [salesDispatchLineId], references: [id], onDelete: Restrict)
+  salesDispatchAllocation   SalesDispatchLotAllocation @relation(fields: [salesDispatchAllocationId], references: [id], onDelete: Restrict)
+  productionLot             ProductionLot              @relation(fields: [productionLotId], references: [id], onDelete: Restrict)
+  item                      Item                       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  canonicalUnit             Unit                       @relation("SalesReturnCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
+  inspections               SalesReturnInspection[]
+  inventoryMovements        InventoryMovement[]
+
+  @@index([salesInvoiceLineId])
+  @@index([salesDispatchAllocationId])
+  @@map("sales_return_line")
+}
+
+model SalesReturnInspection {
+  id                 String                              @id @default(uuid())
+  salesReturnLineId  String
+  classification     SalesReturnInspectionClassification
+  quantity           Decimal                             @db.Decimal(24, 6)
+  reason             String?
+  notes              String?
+  createdByUserId    String
+  createdAt          DateTime                            @default(now())
+  salesReturnLine    SalesReturnLine                     @relation(fields: [salesReturnLineId], references: [id], onDelete: Cascade)
+  createdBy          User                                @relation("SalesReturnInspectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  inventoryMovements InventoryMovement[]
+
+  @@unique([salesReturnLineId, classification])
+  @@index([salesReturnLineId])
+  @@map("sales_return_inspection")
+}
+
+model SalesReturnSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("sales_return_sequence")
+}
+
+model CustomerPayment {
+  id                 String                      @id @default(uuid())
+  number             String                      @unique
+  customerId         String
+  paymentDate        DateTime                    @db.Date
+  method             CustomerPaymentMethod
+  totalAmount        Decimal                     @db.Decimal(24, 6)
+  referenceNumber    String?
+  bankName           String?
+  chequeNumber       String?
+  chequeDate         DateTime?                   @db.Date
+  notes              String?
+  status             CustomerPaymentStatus       @default(DRAFT)
+  createdByUserId    String
+  postedByUserId     String?
+  postedAt           DateTime?
+  cancelledByUserId  String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy          User                        @relation("CustomerPaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy           User?                       @relation("CustomerPaymentPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy        User?                       @relation("CustomerPaymentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  allocations        CustomerPaymentAllocation[]
+  ledgerEntry        CustomerLedgerEntry?
+
+  @@index([customerId, paymentDate])
+  @@index([status, paymentDate])
+  @@map("customer_payment")
+}
+
+model CustomerPaymentAllocation {
+  id                String          @id @default(uuid())
+  customerPaymentId String
+  salesInvoiceId    String
+  allocatedAmount   Decimal         @db.Decimal(24, 6)
+  createdByUserId   String
+  createdAt         DateTime        @default(now())
+  customerPayment   CustomerPayment @relation(fields: [customerPaymentId], references: [id], onDelete: Cascade)
+  salesInvoice      SalesInvoice    @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  createdBy         User            @relation("CustomerPaymentAllocationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([customerPaymentId, salesInvoiceId])
+  @@index([salesInvoiceId])
+  @@map("customer_payment_allocation")
+}
+
+model CustomerPaymentSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("customer_payment_sequence")
+}
+
+model SalesOrderSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("sales_order_sequence")
 }
 
 model PurchaseOrder {
@@ -660,6 +1498,7 @@ model GoodsReceipt {
   inventoryLots              InventoryLot[]
   purchaseReturn             PurchaseReturn?     @relation("ReplacementGoodsReceipts", fields: [purchaseReturnId], references: [id], onDelete: Restrict)
   originatingPurchaseReturns PurchaseReturn[]    @relation("OriginalGoodsReceipt")
+  landedCosts                LandedCost[]
 
   @@index([status, receiptDate])
   @@index([purchaseOrderId, receiptDate])
@@ -693,6 +1532,7 @@ model GoodsReceiptLine {
   qcDecision                  GoodsReceiptQcDecision?
   purchaseReturnLine          PurchaseReturnLine?     @relation(fields: [purchaseReturnLineId], references: [id], onDelete: Restrict)
   originalPurchaseReturnLines PurchaseReturnLine[]    @relation("OriginalPurchaseReturnLine")
+  landedCostAllocations       LandedCostAllocation[]
 
   @@unique([goodsReceiptId, position])
   @@unique([goodsReceiptId, purchaseOrderLineId], map: "goods_receipt_line_po_line_uidx")
@@ -721,6 +1561,7 @@ model InventoryLot {
   purchaseReturnLines                PurchaseReturnLine[]
   purchasedMaterialQuarantines       PurchasedMaterialQuarantine[]
   productionMaterialTransactionLines ProductionMaterialTransactionLine[]
+  inventoryValuationEntries          InventoryValuationEntry[]
 
   @@index([itemId, supplierLotNumber])
   @@index([supplierId, createdAt])
@@ -1024,6 +1865,9 @@ model ProductionBatch {
   productionInventoryMovements               InventoryMovement[]
   outputTransactions                         ProductionOutputTransaction[]
   productionLot                              ProductionLot?
+  inventoryValuationEntries                  InventoryValuationEntry[]
+  productionCostEntries                      ProductionCostEntry[]
+  productionCostSnapshot                     ProductionBatchCostSnapshot?
 
   @@index([status, plannedProductionDate])
   @@index([finishedGoodId, plannedProductionDate])
@@ -1173,21 +2017,26 @@ model ProductionMaterialTransactionSequence {
 }
 
 model ProductionLot {
-  id                 String                        @id @default(uuid())
-  lotNumber          String                        @unique
-  productionBatchId  String                        @unique
-  finishedGoodId     String
-  finishedGoodType   ItemType                      @default(FINISHED_GOOD)
-  recipeId           String
-  recipeVersion      Int
-  productionDate     DateTime                      @db.Date
-  expiryDate         DateTime?                     @db.Date
-  createdAt          DateTime                      @default(now())
-  productionBatch    ProductionBatch               @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
-  finishedGood       Item                          @relation(fields: [finishedGoodId, finishedGoodType], references: [id, itemType], onDelete: Restrict)
-  recipe             Recipe                        @relation(fields: [recipeId], references: [id], onDelete: Restrict)
-  outputTransactions ProductionOutputTransaction[]
-  inventoryMovements InventoryMovement[]
+  id                        String                        @id @default(uuid())
+  lotNumber                 String                        @unique
+  productionBatchId         String                        @unique
+  finishedGoodId            String
+  finishedGoodType          ItemType                      @default(FINISHED_GOOD)
+  recipeId                  String
+  recipeVersion             Int
+  productionDate            DateTime                      @db.Date
+  expiryDate                DateTime?                     @db.Date
+  createdAt                 DateTime                      @default(now())
+  productionBatch           ProductionBatch               @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
+  finishedGood              Item                          @relation(fields: [finishedGoodId, finishedGoodType], references: [id, itemType], onDelete: Restrict)
+  recipe                    Recipe                        @relation(fields: [recipeId], references: [id], onDelete: Restrict)
+  outputTransactions        ProductionOutputTransaction[]
+  inventoryMovements        InventoryMovement[]
+  salesDispatchAllocations  SalesDispatchLotAllocation[]
+  salesInvoiceAllocations   SalesInvoiceLotAllocation[]
+  salesReturnLines          SalesReturnLine[]
+  productionCostSnapshot    ProductionBatchCostSnapshot?
+  inventoryValuationEntries InventoryValuationEntry[]
 
   @@index([finishedGoodId, productionDate])
   @@index([recipeId])
@@ -1247,4 +2096,186 @@ model ProductionOutputSequence {
   nextValue Int
 
   @@map("production_output_sequence")
+}
+
+model InventoryValuationBalance {
+  itemId            String                   @id
+  valuationMethod   InventoryValuationMethod @default(MOVING_WEIGHTED_AVERAGE)
+  ownedQuantity     Decimal                  @default(0) @db.Decimal(24, 6)
+  inventoryValue    Decimal                  @default(0) @db.Decimal(30, 6)
+  averageUnitCost   Decimal?                 @db.Decimal(30, 12)
+  missingBasisCount Int                      @default(0)
+  lastValuationAt   DateTime?
+  updatedAt         DateTime                 @updatedAt
+  item              Item                     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([missingBasisCount, lastValuationAt])
+  @@map("inventory_valuation_balance")
+}
+
+model InventoryValuationEntry {
+  id                       String                      @id @default(uuid())
+  sourceKey                String                      @unique
+  itemId                   String
+  inventoryMovementId      String?                     @unique
+  entryType                InventoryValuationEntryType
+  state                    InventoryValuationState     @default(FINAL)
+  valuationMethod          InventoryValuationMethod    @default(MOVING_WEIGHTED_AVERAGE)
+  effectiveAt              DateTime
+  quantityEffect           Decimal                     @db.Decimal(24, 6)
+  unitCost                 Decimal?                    @db.Decimal(30, 12)
+  valueDelta               Decimal?                    @db.Decimal(30, 6)
+  runningOwnedQuantity     Decimal                     @db.Decimal(24, 6)
+  runningInventoryValue    Decimal                     @db.Decimal(30, 6)
+  resultingAverageUnitCost Decimal?                    @db.Decimal(30, 12)
+  sourceType               String
+  sourceId                 String?
+  sourceNumber             String?
+  productionBatchId        String?
+  inventoryLotId           String?
+  productionLotId          String?
+  notes                    String?
+  createdByUserId          String
+  createdAt                DateTime                    @default(now())
+  item                     Item                        @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  inventoryMovement        InventoryMovement?          @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+  productionBatch          ProductionBatch?            @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
+  inventoryLot             InventoryLot?               @relation(fields: [inventoryLotId], references: [id], onDelete: Restrict)
+  productionLot            ProductionLot?              @relation(fields: [productionLotId], references: [id], onDelete: Restrict)
+  createdBy                User                        @relation("InventoryValuationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([itemId, effectiveAt, id])
+  @@index([entryType, effectiveAt])
+  @@index([sourceType, sourceId])
+  @@index([productionBatchId, effectiveAt])
+  @@map("inventory_valuation_entry")
+}
+
+model InventoryValuationIssue {
+  id                  String                        @id @default(uuid())
+  sourceKey           String                        @unique
+  itemId              String
+  inventoryMovementId String?                       @unique
+  quantity            Decimal                       @db.Decimal(24, 6)
+  reasonCode          String
+  description         String
+  detectedAt          DateTime                      @default(now())
+  resolvedAt          DateTime?
+  resolvedByUserId    String?
+  adjustmentId        String?                       @unique
+  item                Item                          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  inventoryMovement   InventoryMovement?            @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+  resolvedBy          User?                         @relation("InventoryValuationIssueResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  adjustment          InventoryValuationAdjustment? @relation(fields: [adjustmentId], references: [id], onDelete: Restrict)
+
+  @@index([itemId, resolvedAt])
+  @@map("inventory_valuation_issue")
+}
+
+model InventoryValuationAdjustment {
+  id              String                   @id @default(uuid())
+  number          String                   @unique
+  itemId          String
+  valueDelta      Decimal                  @db.Decimal(30, 6)
+  reason          String
+  reference       String?
+  createdByUserId String
+  createdAt       DateTime                 @default(now())
+  item            Item                     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  createdBy       User                     @relation("InventoryValuationAdjustmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  resolvedIssue   InventoryValuationIssue?
+
+  @@index([itemId, createdAt])
+  @@map("inventory_valuation_adjustment")
+}
+
+model InventoryValuationAdjustmentSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("inventory_valuation_adjustment_sequence")
+}
+
+model LandedCost {
+  id               String                     @id @default(uuid())
+  number           String                     @unique
+  goodsReceiptId   String
+  allocationMethod LandedCostAllocationMethod
+  status           LandedCostStatus           @default(DRAFT)
+  category         String
+  totalAmount      Decimal                    @db.Decimal(30, 6)
+  description      String
+  reference        String?
+  createdByUserId  String
+  postedByUserId   String?
+  postedAt         DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  goodsReceipt     GoodsReceipt               @relation(fields: [goodsReceiptId], references: [id], onDelete: Restrict)
+  createdBy        User                       @relation("LandedCostCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy         User?                      @relation("LandedCostPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  allocations      LandedCostAllocation[]
+
+  @@index([goodsReceiptId, status, createdAt])
+  @@map("landed_cost")
+}
+
+model LandedCostAllocation {
+  id                 String           @id @default(uuid())
+  landedCostId       String
+  goodsReceiptLineId String
+  allocatedAmount    Decimal          @db.Decimal(30, 6)
+  landedCost         LandedCost       @relation(fields: [landedCostId], references: [id], onDelete: Cascade)
+  goodsReceiptLine   GoodsReceiptLine @relation(fields: [goodsReceiptLineId], references: [id], onDelete: Restrict)
+
+  @@unique([landedCostId, goodsReceiptLineId], map: "landed_cost_allocation_unique")
+  @@index([goodsReceiptLineId])
+  @@map("landed_cost_allocation")
+}
+
+model LandedCostSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("landed_cost_sequence")
+}
+
+model ProductionCostEntry {
+  id                String                 @id @default(uuid())
+  productionBatchId String
+  category          ProductionCostCategory
+  amount            Decimal                @db.Decimal(30, 6)
+  description       String
+  reference         String?
+  createdByUserId   String
+  createdAt         DateTime               @default(now())
+  productionBatch   ProductionBatch        @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
+  createdBy         User                   @relation("ProductionCostEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([productionBatchId, category, createdAt])
+  @@map("production_cost_entry")
+}
+
+model ProductionBatchCostSnapshot {
+  id                       String             @id @default(uuid())
+  productionBatchId        String             @unique
+  productionLotId          String             @unique
+  status                   BatchCostingStatus @default(FINALIZED)
+  rawMaterialCost          Decimal            @db.Decimal(30, 6)
+  packagingCost            Decimal            @db.Decimal(30, 6)
+  additionalCost           Decimal            @db.Decimal(30, 6)
+  costCredits              Decimal            @db.Decimal(30, 6)
+  damagedPackagingExposure Decimal            @db.Decimal(30, 6)
+  finishedGoodsCostPool    Decimal            @db.Decimal(30, 6)
+  actualGoodPieces         Decimal            @db.Decimal(24, 6)
+  costPerPiece             Decimal            @db.Decimal(30, 12)
+  calculationSnapshot      Json
+  finalizedByUserId        String
+  finalizedAt              DateTime           @default(now())
+  productionBatch          ProductionBatch    @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
+  productionLot            ProductionLot      @relation(fields: [productionLotId], references: [id], onDelete: Restrict)
+  finalizedBy              User               @relation("ProductionBatchCostFinalizedBy", fields: [finalizedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, finalizedAt])
+  @@map("production_batch_cost_snapshot")
 }

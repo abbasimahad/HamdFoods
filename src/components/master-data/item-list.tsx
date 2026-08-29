@@ -75,6 +75,14 @@ export function ItemList({
               )}
               <td className="p-4">{item.active ? "Active" : "Inactive"}</td>
               <td className="p-4">
+                {itemType === "FINISHED_GOOD" && (
+                  <Link
+                    className="mb-2 block text-xs font-semibold text-[var(--accent)]"
+                    href={`/inventory/valuation/${item.id}`}
+                  >
+                    Cost history
+                  </Link>
+                )}
                 {itemType === "FINISHED_GOOD" && canViewRecipes && (
                   <Link
                     className="mb-2 block text-xs font-semibold text-[var(--accent)]"

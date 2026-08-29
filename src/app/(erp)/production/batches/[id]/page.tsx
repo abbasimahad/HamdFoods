@@ -88,6 +88,12 @@ export default async function ProductionBatchDetailPage({
             Output, yield & completion
           </Link>
         )}
+        <Link
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          href={`/production/batches/${batch.id}/costing`}
+        >
+          Batch costing
+        </Link>
       </div>
       {batch.hasShortage && batch.status !== "CANCELLED" && (
         <div className="mb-5 rounded-xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-950">

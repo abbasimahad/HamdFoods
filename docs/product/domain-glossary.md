@@ -19,6 +19,15 @@ Human-entered master codes are normalized to uppercase hyphenated form. Masters 
 - **Purchase-order line:** An order for one raw or packaging item that retains entered quantity, order unit, rate per selected unit, canonical quantity, discount/tax percentages, and exact calculated totals.
 - **Ordered quantity:** Commercial intent recorded on a PO. It is distinct from physical received or available stock.
 
+## Sales orders and reservation
+
+- **Sales order:** A customer commercial commitment identified by a server-generated order number. It snapshots customer sales assignment values and exact commercial terms but is not an invoice or customer balance.
+- **Sales reservation:** A paired, immutable ledger status transfer from AVAILABLE to RESERVED for a specific approved Sales Order line. It changes neither total physical stock nor accounting. Cancellation writes the attributable inverse transfer.
+- **Saleable finished-good quantity:** Canonical PCS derived by normalizing entered cartons and loose pieces through the finished-good profile. Cartons and loose pieces are input/display representations, not independent balances.
+- **Sales dispatch / delivery note:** A numbered physical delivery document linked to one approved Sales Order and its source warehouse. DRAFT dispatches remain editable; posting transfers an exactly allocated finished-good quantity from RESERVED to IN_TRANSIT without invoicing or accounting.
+- **Dispatch lot allocation:** The exact canonical PCS attributed from one dispatch line to one finished-production lot. Allocations must sum exactly to the line quantity; candidates are positive AVAILABLE lots for the matching finished good, presented in FEFO (earliest-expiry-first) order and revalidated server-side.
+- **Partially dispatched order:** An approved Sales Order with at least one, but not all, ordered canonical pieces cumulatively posted to dispatch. Remaining entitlement stays RESERVED. A fully dispatched order is `DISPATCHED`; neither state means `CLOSED` or paid.
+
 Draft purchase orders are editable. Approval revalidates active references and freezes the commitment; cancellation retains the order and records actor, time, and reason. Future receipt records will determine received and remaining quantities.
 
 ## Goods receiving and purchase QC
@@ -114,7 +123,7 @@ Supplier-lot lineage is resolved through posted raw consumption movements to the
 
 - **Warehouse:** An active/inactive stock location master. Historical warehouses are retained rather than deleted.
 - **Inventory movement:** An immutable signed canonical quantity entering or leaving one item, warehouse, and status bucket. It records its type, reference, actor, timestamp, and reason.
-- **Inventory status:** One of AVAILABLE, RESERVED, QUALITY_HOLD, QUARANTINE, REPROCESS, DAMAGED, EXPIRED, SCRAP, IN_TRANSIT, or IN_PRODUCTION. Only AVAILABLE is normal usable stock; IN_PRODUCTION is physical batch custody.
+- **Inventory status:** One of AVAILABLE, RESERVED, QUALITY_HOLD, RETURN_INSPECTION, QUARANTINE, REPROCESS, DAMAGED, EXPIRED, SCRAP, IN_TRANSIT, or IN_PRODUCTION. Only AVAILABLE is normal usable stock; RETURN_INSPECTION is controlled return custody pending classification; IN_PRODUCTION is physical batch custody.
 - **Stock balance:** A derived sum of signed movements for an item, warehouse, and status. It is not an editable stored master value.
 - **Warehouse transfer:** One atomic operation containing linked TRANSFER_OUT and TRANSFER_IN movements.
 - **Status transfer:** One atomic operation containing linked STATUS_OUT and STATUS_IN movements within a warehouse.
@@ -148,3 +157,34 @@ COUNT quantities are whole integers. A finished good uses the active PCS/COUNT m
 - **Cancelled/reversed:** neutralized through an attributable compensating action.
 
 Detailed state transitions remain domain decisions for the phase that introduces each transaction type.
+
+## Inventory valuation and production cost
+
+- **Inventory valuation entry:** An immutable monetary event linked to a stable business source and, where applicable, one physical inventory movement. It records quantity effect, unit cost, value delta, running owned quantity/value, and resulting average cost.
+- **Moving weighted average:** The Phase 21 company-wide per-item valuation method. Valued inbound recomputes average from pooled quantity and value; terminal outbound uses the current average without changing it.
+- **Missing valuation basis:** An explicit unresolved state for historical inbound quantity whose reliable acquisition cost cannot be derived. It is never silently assigned zero and blocks new valued outflow until an authorized initialization resolves it.
+- **Landed cost:** Capitalizable freight, duty, handling, or similar acquisition cost allocated to a posted GRN. It changes monetary carrying value only and has no physical stock or supplier-payable effect in Phase 21.
+- **Production cost entry:** An attributable batch-level labor, machine, utilities, overhead, other-direct, or explicit recovery-credit amount that does not originate in inventory consumption.
+- **Batch cost snapshot:** The immutable finalized calculation for one completed production batch and lot, including valued consumption, additional cost, credits, actual GOOD pieces, cost pool, cost per piece, and derived carton cost.
+- **Sales inventory cost basis:** The moving-average value relieved by a posted sales-invoice stock outflow. Phase 21 stores it for later COGS accounting but creates no journal.
+
+## Sales invoicing and receivables
+
+- **Sales invoice:** A draft, posted, or cancelled financial sales document for one Sales Order. It is sourced exclusively from posted/delivered dispatch lines and retains the approved price, sequential discounts, tax, payment-term, address, salesperson, area, and route snapshots.
+- **Invoiceable quantity:** Posted dispatch pieces minus the pieces on POSTED invoice lines referencing that same dispatch line. It is derived at save and rechecked during posting; it is never an editable counter.
+- **Invoice lot allocation:** The portion of an invoice line attributed to the exact Phase 17 dispatch-lot allocation. It cannot choose a new finished lot and must total the invoice line exactly.
+- **Customer receivable ledger entry:** An immutable signed customer subledger event. Phase 18 writes only a positive `SALES_INVOICE` amount; customer outstanding is the signed sum. Future payments and credits will write negative entries without changing the balance model.
+- **Available credit:** Configured credit limit minus current signed receivable exposure. A null limit means no configured cap; an exact zero limit allows no credit. Approved but uninvoiced commitments are included for forward-looking credit checks.
+
+## Customer payments and allocation
+
+- **Customer payment / receipt:** A DRAFT, POSTED, or CANCELLED customer-payment document with a server-generated receipt number and controlled payment method. POSTED payments are immutable and write one negative `CUSTOMER_PAYMENT` entry to the customer receivable ledger.
+- **Payment allocation:** A positive exact amount applied from one payment to one posted invoice for the same customer. It may be partial and is limited by both the payment's unallocated amount and the invoice's derived outstanding amount.
+- **Unallocated customer credit:** The positive remainder of a posted payment after its allocations. It reduces the customer-level ledger balance immediately but does not settle any individual invoice until an explicit later allocation is recorded.
+- **Invoice outstanding:** Original invoice grand total minus allocations from POSTED customer payments. The invoice's commercial total and lifecycle do not change when it is settled.
+- **Sales return:** A lot-traceable customer return document. Invoiced returns progress from DRAFT through physical receipt and inspection to a separate customer receivable credit; dispatch refusals before invoice are physical-only and never create that credit.
+- **Return inspection:** The exact classification of every received return quantity from `RETURN_INSPECTION` to GOOD_RESALE/AVAILABLE, QUARANTINE, REPROCESS, DAMAGED, or EXPIRED. The original finished-production lot is retained.
+- **Sales return credit:** A negative `SALES_RETURN_CREDIT` customer-ledger entry calculated from immutable invoice terms when an inspected invoiced return is completed. It reduces invoice outstanding to zero at most and can leave customer credit; it is not a cash refund.
+- **Dispatch refusal redelivery:** A completed pre-invoice refusal makes the refused quantity outstanding on its Sales Order again and permanently excludes it from the original dispatch's invoiceable quantity. A manager must explicitly reserve available stock before a replacement dispatch; return receipt/inspection never restores a reservation automatically.
+- **Customer statement:** A chronologically ordered view of the signed customer-receivable ledger with derived opening and running balances. Positive balance means the customer owes the company; negative balance is customer credit.
+- **Receivable aging:** Server-derived outstanding invoice amounts grouped by due-date age; settled invoices are excluded.

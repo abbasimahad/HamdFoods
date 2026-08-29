@@ -6,15 +6,24 @@ export function SearchPagination({
   page,
   pageCount,
   total,
+  filters,
 }: {
   route: string;
   query: string;
   page: number;
   pageCount: number;
   total: number;
+  filters?: Readonly<Record<string, string | undefined>>;
 }) {
-  const pageHref = (target: number) =>
-    `${route}?${new URLSearchParams({ ...(query ? { q: query } : {}), page: String(target) })}`;
+  const pageHref = (target: number) => {
+    const parameters = new URLSearchParams();
+    if (query) parameters.set("q", query);
+    for (const [name, value] of Object.entries(filters ?? {})) {
+      if (value) parameters.set(name, value);
+    }
+    parameters.set("page", String(target));
+    return `${route}?${parameters}`;
+  };
   return (
     <div className="flex flex-col gap-3 border-t border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xs text-[var(--muted)]">

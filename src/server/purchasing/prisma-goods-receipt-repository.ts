@@ -29,6 +29,7 @@ import {
   postPurchaseReceiptInventory,
   postReceiptQcInventory,
 } from "@/server/inventory/transactional-inventory-posting";
+import { valueGoodsReceipt } from "@/server/costing/prisma-inventory-valuation-repository";
 import {
   calculatePurchaseOrderFulfilment,
   updatePurchaseOrderFulfilmentStatus,
@@ -294,6 +295,7 @@ export class PrismaGoodsReceiptRepository implements GoodsReceiptRepository {
           actorUserId,
         })),
       );
+      await valueGoodsReceipt(transaction, receipt.id, actorUserId);
       await transaction.goodsReceipt.update({
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },

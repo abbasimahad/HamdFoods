@@ -1,35 +1,35 @@
 # Current phase
 
-## Phase 14 - Finished Output, Yield, Reprocess & Batch Completion
+## Phase 21 - Inventory Valuation & Production Costing
 
 **Status:** COMPLETE
 
-### Output and inventory
+### Inventory valuation
 
-- IN_PROGRESS batches accept DRAFT GOOD, REPROCESS, REJECTED, and PROCESS_LOSS documents with server-generated PO numbers. Only drafts may change or be cancelled; posted history is immutable and attributable.
-- GOOD posting normalizes cartons and loose pieces through the carton engine and writes only canonical PCS to AVAILABLE with `PRODUCTION_OUTPUT`. Multiple postings accumulate from the ledger and display as one normalized carton/loose view.
-- REPROCESS and REJECTED post exact product-content quantities to REPROCESS and SCRAP with distinct movement types. PROCESS_LOSS retains controlled normal/abnormal classification and reason but creates no positive stock.
-- One immutable production lot per batch records the finished good, recipe version, production date, optional expiry, and batch identity. Output movements preserve batch, output-document, production-lot, actor, and timestamp provenance.
+- The official method is company-wide per-item `MOVING_WEIGHTED_AVERAGE`; warehouse, lot, and inventory-status transfers remain quantity-only internal movements.
+- `InventoryMovement` remains authoritative for physical quantity. Immutable `InventoryValuationEntry` rows and their locked per-item balance become authoritative for inventory value, with exact six-decimal money and twelve-decimal unit-cost arithmetic.
+- Valued inbound uses `(old value + inbound value) / (old quantity + inbound quantity)`. Outbound uses the current moving average; a zero quantity forces value and average to zero.
+- Posted GRNs enter at net purchase value after line discounts and before tax. Supplier replacements restore the original commercial unit basis without a second supplier charge. Posted purchase returns leave at current moving-average cost.
+- Posted landed-cost documents allocate by line value, compatible canonical quantity, or exact manual allocation and create monetary true-ups without changing quantity or rewriting the GRN.
+- Future opening balances and adjustment-ins require an explicit unit cost. Historical inbound without reliable cost is marked `MISSING_VALUATION_BASIS` and may be resolved only through an authorized, attributable monetary initialization or adjustment.
 
-### Reconciliation, yield, and packaging
+### Production and sales cost basis
 
-- Actual input is derived only from posted RAW_MATERIAL consumption. Compatible input, good content, reprocess, rejected output, and process loss produce exact accounted output and unreconciled difference.
-- Good yield is `good output / actual input`; recoverable yield adds reprocess; process-loss percent uses process loss alone. Expected-versus-actual yield is reported in percentage points. MASS and VOLUME are never implicitly converted, and incompatible component bases remain visible without a fabricated yield.
-- Final Packaging BOM standards use cumulative posted good pieces for PER_PIECE lines and normalized full cartons for PER_CARTON lines. Planned variance remains visible beside final total-depleted and good-consumption variances, including output/packaging consistency warnings.
+- Posted raw-material and good-packaging consumption leave inventory at the current moving average and transfer their exact value to the production batch. Issue, return, and packaging-damage status transfers do not change company-wide carrying value; damaged packaging exposure remains separately visible.
+- Labor, machine, utilities, factory overhead, other direct cost, and explicit cost credits are immutable batch-level inputs after finalization. The cost pool is actual valued consumption plus additional cost less credits.
+- Only a COMPLETED batch with resolved consumption, a production lot, positive actual GOOD output, and reconciled calculations may be finalized. Its immutable snapshot preserves actual pieces, cost pool, cost per piece, derived carton cost, user, timestamp, and calculation detail.
+- Finalization attaches value to the existing production-output movements; it creates no duplicate stock. Batch unit cost enters the finished-good moving-average pool while the distinct production-lot cost remains preserved.
+- `SALES_INVOICE_OUT` stores the moving-average monetary outflow for later COGS. An invoiced sales return restores the original sales-out unit basis; subsequent inspection classifications are internal and do not duplicate value.
 
-### Completion and authorization
+### Backfill, routes, and deferred accounting
 
-- `production.view` protects the output, yield, packaging, and lineage view. `production.manage` is resolved server-side for draft creation/editing, posting, cancellation, loss/reprocess recording, and completion; acting user IDs never come from the browser.
-- Completion recomputes all facts in a Serializable transaction. It requires IN_PROGRESS status, posted GOOD output, no output drafts, and zero IN_PRODUCTION balance for every item/warehouse/unit/lot custody bucket. Incompatible or nonzero reconciliation and packaging mismatches require an explicit explanation.
-- COMPLETED records the actor and timestamp and is read-only for normal material, packaging, output, and plan operations. The summary retains the recipe/version, raw and packaging actuals, finished and other output, yields, production lot, and consumed supplier lots.
-
-### Routes, migrations, and scope
-
-- Routes: `/production/batches/[id]/output` and `/production/batches/[id]/output/[transactionId]/edit`.
-- Migrations: `20260823240000_phase14_production_output`, `20260823241000_phase14_output_integrity_guards`, `20260823242000_phase14_completion_custody_guard`, and `20260823243000_phase14_output_quantity_guards`. The repository has 21 applied migrations.
-- Phase 14 creates physical quantity and traceability effects only. It adds no costing, valuation, accounting, sales, reprocess reuse, PWA, or deployment behavior.
-- Verification used only permitted implementation checks. Automated tests and aggregate commands that execute tests were neither created nor run.
+- Authorized rebuild processes supported historical ownership events by posting timestamp plus stable identifiers and unique source keys. Re-running unchanged history is idempotent. Unknown historical costs are visible rather than guessed.
+- Routes: `/inventory/valuation`, `/inventory/valuation/[itemId]`, and `/production/batches/[id]/costing`.
+- Migration: `20260830000000_phase21_inventory_valuation`.
+- Phase 21 creates cost basis only. General Ledger, AP journals, COGS journals, revenue journals, P&L, Balance Sheet, and automated selling-price changes remain deferred to an explicitly scoped later phase.
 
 ## Next gate
 
-Phase 15 may build on completed, immutable physical batch history. Its scope must be defined explicitly; costing, accounting, sales, and reprocess reuse remain excluded until a later approved phase introduces them.
+Phase 22 may begin with a new approved scope. It must consume the immutable Phase 21 cost basis rather than create competing inventory-value truth.
+
+Phase 21 verification passed Prettier formatting, ESLint, Vitest (12 files and 37 tests), Prisma validation/client generation, migration status, PostgreSQL connectivity, TypeScript, production build, live table/immutability-trigger inspection, and diff whitespace checks.

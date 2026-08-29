@@ -29,6 +29,7 @@ import {
   postPurchaseReturnInventory,
   quarantinePurchasedMaterialInventory,
 } from "@/server/inventory/transactional-inventory-posting";
+import { valuePurchaseReturn } from "@/server/costing/prisma-inventory-valuation-repository";
 import { updatePurchaseOrderFulfilmentStatus } from "./purchasing-fulfilment";
 
 const returnInclude = {
@@ -178,6 +179,7 @@ export class PrismaPurchaseReturnRepository implements PurchaseReturnRepository 
           actorUserId,
         })),
       );
+      await valuePurchaseReturn(transaction, row.id, actorUserId);
       await transaction.purchaseReturn.update({
         where: { id },
         data: { status: row.replacementExpected ? "AWAITING_REPLACEMENT" : "COMPLETED" },

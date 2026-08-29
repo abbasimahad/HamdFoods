@@ -16,6 +16,7 @@ import { reconcilePackaging } from "@/modules/production/domain/packaging-reconc
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
 import { postProductionMaterialInventory } from "@/server/inventory/transactional-inventory-posting";
+import { valueProductionConsumption } from "@/server/costing/prisma-inventory-valuation-repository";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
 
 const transactionInclude = {
@@ -150,6 +151,7 @@ export class PrismaProductionPackagingRepository implements ProductionPackagingR
               `${row.transactionType.toLowerCase()} for ${row.productionBatch.batchNumber}.`),
         actorUserId,
       });
+      await valueProductionConsumption(transaction, row.id, actorUserId);
       await transaction.productionMaterialTransaction.update({
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },

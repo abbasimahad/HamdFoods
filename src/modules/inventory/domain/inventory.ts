@@ -9,6 +9,7 @@ export const INVENTORY_STATUSES = [
   "EXPIRED",
   "SCRAP",
   "IN_TRANSIT",
+  "RETURN_INSPECTION",
 ] as const;
 export type InventoryStatus = (typeof INVENTORY_STATUSES)[number];
 
@@ -30,6 +31,13 @@ export const INVENTORY_MOVEMENT_TYPES = [
   "PACKAGING_RETURN",
   "PACKAGING_CONSUMPTION",
   "PACKAGING_DAMAGE",
+  "SALES_RETURN_RECEIPT",
+  "RETURN_TO_AVAILABLE",
+  "RETURN_TO_QUARANTINE",
+  "RETURN_TO_REPROCESS",
+  "RETURN_TO_DAMAGED",
+  "RETURN_TO_EXPIRED",
+  "DISPATCH_REFUSAL_RETURN",
 ] as const;
 export type ImplementedMovementType = (typeof INVENTORY_MOVEMENT_TYPES)[number];
 

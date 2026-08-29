@@ -94,6 +94,14 @@ export function InventoryPostingForm({
         placeholder="Required for transfers"
         required={transfer}
       />
+      {!transfer && mode !== "ADJUSTMENT_OUT" && (
+        <Field
+          label="Unit cost (canonical unit)"
+          name="unitCost"
+          placeholder="Required for valued inbound stock"
+          inputMode="decimal"
+        />
+      )}
       <Field
         label="Source key (optional)"
         name="sourceKey"
