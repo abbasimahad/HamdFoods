@@ -1,8 +1,17 @@
 # Current phase
 
-## Phase 25 - Audit Trail, Reversals, Cancellations & Control Framework
+## Phase 26 - Core Automated Test & Integrity Foundation
 
 **Status:** COMPLETE
+
+### Completed Phase 26 testing boundary
+
+- Vitest remains the only automated test framework. The fast Node suite now covers exact quantity/carton/pricing math; inventory reservation, dispatch, invoice outflow, receipt/QC and production custody; purchasing fulfilment; production reconciliation/output/yield; customer settlement and reversal effectiveness; moving weighted-average valuation; production costing; balanced automatic accounting; closed-period/control-account blocking; and authoritative reversal-chain rules.
+- Transaction-oriented tests use deterministic in-memory boundary doubles to prove atomic no-write failures and source idempotency without connecting to a normal database. A shared balanced-journal assertion is used across representative sales, supplier-payment, expense, treasury-transfer, and customer-payment-reversal flows.
+- `vitest.integration.config.ts` provides a separate database-backed suite. It requires an explicit `TEST_DATABASE_URL`, rejects the development URL and unsafe/non-test database names, and is excluded from the normal suite. A disposable migrated test database is not configured in this environment, so PostgreSQL-backed multi-ledger workflow and immutability-trigger execution remain an explicit gap rather than using development data.
+- No browser E2E framework, new posting flow, or Phase 27 product scope was introduced. See `docs/testing/core-test-strategy.md` for the concise test boundary and safe database command.
+
+### Reviewed Phase 25 baseline
 
 ### Existing Phase 24 financial reporting boundary
 
@@ -46,4 +55,4 @@
 
 ## Next gate
 
-**Phase 26 automated testing is the next gate and is not started.** Its test scope must preserve the existing server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, and audit boundaries. No new posting flow or later-phase product scope belongs in that gate.
+**Phase 27 is the next gate and is not started.** Its scope must preserve the tested server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, and test-database safety boundaries.

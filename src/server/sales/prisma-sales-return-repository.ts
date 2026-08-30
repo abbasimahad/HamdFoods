@@ -8,6 +8,7 @@ import {
   calculateSalesOrderLine,
   SALES_ORDER_PAGE_SIZE,
 } from "@/modules/sales/domain/sales-orders";
+import { inspectionClassificationsReconcile } from "@/modules/sales/domain/sales-return-inspection";
 import type {
   ReturnInspectionInput,
   SalesReturnInput,
@@ -821,8 +822,12 @@ function prepareInspections(salesReturn: ReturnRow, input: readonly ReturnInspec
       "Every returned line requires a full inspection classification.",
     );
   for (const line of salesReturn.lines) {
-    const total = sum((grouped.get(line.id) ?? []).map((entry) => entry.quantity));
-    if (!total.eq(line.totalPieces.toString()))
+    if (
+      !inspectionClassificationsReconcile(
+        line.totalPieces.toString(),
+        (grouped.get(line.id) ?? []).map((entry) => entry.quantity),
+      )
+    )
       throw issue(
         "invalid-reference",
         "Inspection classifications must exactly reconcile to each returned quantity.",

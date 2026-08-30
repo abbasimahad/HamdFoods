@@ -9,7 +9,12 @@ import type {
   ValuationQuery,
 } from "@/modules/costing/application/contracts";
 import { CostingRepositoryError } from "@/modules/costing/application/contracts";
-import { allocateByWeights, exactCost, exactSignedCost } from "@/modules/costing/domain/costing";
+import {
+  allocateByWeights,
+  calculateProductionCostTotals,
+  exactCost,
+  exactSignedCost,
+} from "@/modules/costing/domain/costing";
 import { prisma } from "@/server/db/prisma";
 import {
   InventoryValuationError,
@@ -1115,12 +1120,20 @@ async function batchCosting(client: Client, batchId: string) {
       .map((row) => row.amount.toString()),
   );
   const damagedExposure = nullableSum(damagedPackaging.map((line) => line.totalCost));
-  const pool =
+  const calculated =
     rawCost && packagingCost
-      ? money(rawCost.add(packagingCost).add(additional).sub(credits))
+      ? calculateProductionCostTotals({
+          rawMaterialCost: rawCost.toFixed(),
+          packagingCost: packagingCost.toFixed(),
+          additionalCosts: [additional.toFixed()],
+          credits: credits.toFixed(),
+          actualGoodPieces: goodPieces.toFixed(),
+          piecesPerCarton: batch.finishedGood.finishedGoodProfile.piecesPerCarton,
+        })
       : null;
+  const pool = calculated ? new Decimal(calculated.finishedGoodsCostPool) : null;
   if (pool?.lt(0)) warnings.push("Cost credits exceed capitalizable manufacturing cost.");
-  const costPerPiece = pool && pool.gte(0) && goodPieces.gt(0) ? unit(pool.div(goodPieces)) : null;
+  const costPerPiece = calculated?.costPerPiece ? new Decimal(calculated.costPerPiece) : null;
   const abnormal = sum(
     batch.outputTransactions
       .filter((row) => row.outputType === "PROCESS_LOSS" && row.lossNature === "ABNORMAL")

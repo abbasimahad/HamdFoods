@@ -65,3 +65,34 @@ export function formatCost(value: string | null, digits = 2) {
 export function derivedCartonCost(unitCost: string, piecesPerCarton: number) {
   return new Decimal(unitCost).mul(piecesPerCarton).toFixed(6);
 }
+
+export function calculateProductionCostTotals(input: {
+  rawMaterialCost: string;
+  packagingCost: string;
+  additionalCosts: readonly string[];
+  credits: string;
+  actualGoodPieces: string;
+  piecesPerCarton: number;
+}) {
+  const raw = exactCost(input.rawMaterialCost, "Raw-material cost", true);
+  const packaging = exactCost(input.packagingCost, "Packaging cost", true);
+  const additional = input.additionalCosts.reduce(
+    (total, value) => total.add(exactCost(value, "Additional production cost", true)),
+    new Decimal(0),
+  );
+  const credits = exactCost(input.credits, "Production cost credits", true);
+  const output = exactCost(input.actualGoodPieces, "Actual good output", true);
+  const pool = raw.add(packaging).add(additional).sub(credits).toDecimalPlaces(6);
+  const costPerPiece = pool.gte(0) && output.gt(0) ? pool.div(output).toDecimalPlaces(12) : null;
+  return {
+    finishedGoodsCostPool: pool.toFixed(6),
+    costPerPiece: costPerPiece?.toFixed(12) ?? null,
+    costPerCarton: costPerPiece?.mul(parsePositivePieces(input.piecesPerCarton)).toFixed(6) ?? null,
+  };
+}
+
+function parsePositivePieces(value: number) {
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error("Pieces per carton must be a positive integer.");
+  return value;
+}

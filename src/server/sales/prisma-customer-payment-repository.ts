@@ -2,6 +2,7 @@ import "server-only";
 
 import Decimal from "decimal.js";
 import { Prisma } from "@/generated/prisma/client";
+import { hasReversalConflict } from "@/modules/accounting/domain/reversal-integrity";
 import { SALES_ORDER_PAGE_SIZE } from "@/modules/sales/domain/sales-orders";
 import { prisma } from "@/server/db/prisma";
 import {
@@ -235,7 +236,12 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
       });
       if (!original || original.status !== "POSTED")
         throw problem("invalid-state", "Only posted customer payments can be reversed.");
-      if (original.reversalOfId || original.reversalPayment)
+      if (
+        hasReversalConflict({
+          reversalOfId: original.reversalOfId,
+          hasLinkedReversal: Boolean(original.reversalPayment),
+        })
+      )
         throw problem("conflict", "This customer payment already has a reversal.");
       const reversalReason = requiredReason(reason, "Reversal reason");
       const reversal = await transaction.customerPayment.create({

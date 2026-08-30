@@ -2,6 +2,7 @@ import "server-only";
 
 import Decimal from "decimal.js";
 import { type Prisma } from "@/generated/prisma/client";
+import { hasReversalConflict } from "@/modules/accounting/domain/reversal-integrity";
 import { prisma } from "@/server/db/prisma";
 import {
   effectiveSupplierPaymentWhere,
@@ -266,7 +267,12 @@ export async function reverseSupplierPayment(
     });
     if (!original || original.status !== "POSTED")
       throw new Phase23AccountingError("Only posted supplier payments can be reversed.");
-    if (original.reversalOfId || original.reversalPayment)
+    if (
+      hasReversalConflict({
+        reversalOfId: original.reversalOfId,
+        hasLinkedReversal: Boolean(original.reversalPayment),
+      })
+    )
       throw new Phase23AccountingError("This supplier payment already has a reversal.");
     const reversalReason = requiredReason(reason, "Reversal reason");
     await validateTreasury(tx, original.treasuryAccountId);
@@ -551,7 +557,12 @@ export async function reverseExpenseVoucher(
     });
     if (!original || original.status !== "POSTED")
       throw new Phase23AccountingError("Only posted expenses can be reversed.");
-    if (original.reversalOfId || original.reversalVoucher)
+    if (
+      hasReversalConflict({
+        reversalOfId: original.reversalOfId,
+        hasLinkedReversal: Boolean(original.reversalVoucher),
+      })
+    )
       throw new Phase23AccountingError("This expense voucher already has a reversal.");
     const reversalReason = requiredReason(reason, "Reversal reason");
     await validateTreasury(tx, original.treasuryAccountId);
@@ -723,7 +734,12 @@ export async function reverseTreasuryTransfer(
     });
     if (!original || original.status !== "POSTED")
       throw new Phase23AccountingError("Only posted treasury transfers can be reversed.");
-    if (original.reversalOfId || original.reversalTransfer)
+    if (
+      hasReversalConflict({
+        reversalOfId: original.reversalOfId,
+        hasLinkedReversal: Boolean(original.reversalTransfer),
+      })
+    )
       throw new Phase23AccountingError("This treasury transfer already has a reversal.");
     const reversalReason = requiredReason(reason, "Reversal reason");
     await validateTreasury(tx, original.destinationTreasuryAccountId);
