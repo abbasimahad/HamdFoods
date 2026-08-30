@@ -9,18 +9,27 @@ import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaPurchasingRepository } from "@/server/purchasing/prisma-purchasing-repository";
 import { PrismaPurchaseReturnRepository } from "@/server/purchasing/prisma-purchase-return-repository";
+import { prisma } from "@/server/db/prisma";
 import { saveSupplierAction, setSupplierStatusAction } from "../actions";
 
 export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const principal = await requirePermission("purchasing.view");
   const id = (await params).id;
-  const [supplier, returns] = await Promise.all([
+  const canViewAccounting = hasPermission(principal, "accounting.view");
+  const [supplier, returns, payableEntries] = await Promise.all([
     new PrismaPurchasingRepository().getSupplier(id),
     new PrismaPurchaseReturnRepository().listPurchaseReturns({
       page: 1,
       query: "",
       supplierId: id,
     }),
+    canViewAccounting
+      ? prisma.supplierPayableLedgerEntry.findMany({
+          where: { supplierId: id },
+          orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
+          take: 100,
+        })
+      : Promise.resolve([]),
   ]);
   if (!supplier) notFound();
   const canManage = hasPermission(principal, "purchasing.manage");
@@ -53,6 +62,53 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
           />
         )}
       </Card>
+      {canViewAccounting ? (
+        <p className="mb-5">
+          <Link
+            className="font-semibold text-[var(--accent)]"
+            href={`/purchasing/suppliers/${supplier.id}/statement`}
+          >
+            View supplier payable statement
+          </Link>
+        </p>
+      ) : null}
+      {canViewAccounting ? (
+        <Card className="mb-5 overflow-hidden">
+          <div className="p-5">
+            <h2 className="font-semibold">Supplier payable statement</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Balance is derived from posted supplier-payable entries.
+            </p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Reference</th>
+                <th className="p-3 text-left">Type</th>
+                <th className="p-3 text-left">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {payableEntries.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="p-3">{entry.entryDate.toISOString().slice(0, 10)}</td>
+                  <td className="p-3">{entry.sourceNumber ?? entry.sourceId}</td>
+                  <td className="p-3">{entry.entryType.replaceAll("_", " ")}</td>
+                  <td className="p-3">{entry.signedAmount.toString()}</td>
+                </tr>
+              ))}
+              {!payableEntries.length ? (
+                <tr>
+                  <td className="p-3 text-[var(--muted)]" colSpan={4}>
+                    No supplier-payable entries.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </Card>
+      ) : null}
       <Card className="mb-5 p-5">
         <h2 className="font-semibold">Purchase returns and replacement obligations</h2>
         {returns.records.length ? (

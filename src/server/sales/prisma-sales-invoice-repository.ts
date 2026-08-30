@@ -22,6 +22,8 @@ import { normalizeCartonQuantity } from "@/modules/quantity/domain/cartons";
 import { prisma } from "@/server/db/prisma";
 import { postSalesInvoiceOutflowInventory } from "@/server/inventory/transactional-inventory-posting";
 import { valueSalesInvoiceOutflow } from "@/server/costing/prisma-inventory-valuation-repository";
+import { postSalesInvoiceAccounting } from "@/server/accounting/transactional-accounting-posting";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { assertCreditAvailable, CreditExposureError } from "./credit-exposure";
 
 const postedInvoiceLines = {
@@ -347,7 +349,22 @@ export class PrismaSalesInvoiceRepository implements SalesInvoiceRepository {
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },
       });
+      await postSalesInvoiceAccounting(transaction, invoice.id, actorUserId);
       await closeSalesOrderWhenComplete(transaction, invoice.salesOrderId);
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "SALES_INVOICE",
+        entityId: invoice.id,
+        entityReference: invoice.number,
+        module: "sales",
+        description: `Posted sales invoice ${invoice.number}.`,
+        metadata: { grandTotal: invoice.grandTotal.toString(), lineCount: invoice.lines.length },
+        beforeSnapshot: { status: invoice.status },
+        afterSnapshot: { status: "POSTED" },
+        related: { entityType: "SALES_ORDER", entityId: invoice.salesOrderId },
+        controlEvent: true,
+      });
     });
   }
 
@@ -355,7 +372,7 @@ export class PrismaSalesInvoiceRepository implements SalesInvoiceRepository {
     await serializable(async (transaction) => {
       const invoice = await transaction.salesInvoice.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, number: true },
       });
       if (!invoice) throw fail("not-found", "Invoice no longer exists.");
       if (invoice.status !== "DRAFT")
@@ -368,6 +385,18 @@ export class PrismaSalesInvoiceRepository implements SalesInvoiceRepository {
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "SALES_INVOICE",
+        entityId: id,
+        entityReference: invoice.number,
+        module: "sales",
+        description: `Cancelled draft sales invoice ${invoice.number}.`,
+        reasonCode: "OTHER",
+        reason,
+        controlEvent: true,
       });
     });
   }

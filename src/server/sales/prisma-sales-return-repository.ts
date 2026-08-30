@@ -25,6 +25,8 @@ import {
 } from "@/server/inventory/transactional-inventory-posting";
 import { prisma } from "@/server/db/prisma";
 import { valueSalesReturnReceipt } from "@/server/costing/prisma-inventory-valuation-repository";
+import { postSalesReturnAccounting } from "@/server/accounting/transactional-accounting-posting";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 
 const liveReturnStatuses = ["RECEIVED", "INSPECTED", "COMPLETED"] as const;
 const returnInclude = {
@@ -221,6 +223,22 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
         where: { id },
         data: { status: "RECEIVED", receivedByUserId: actorUserId, receivedAt: new Date() },
       });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "POST",
+        entityType: "SALES_RETURN",
+        entityId: salesReturn.id,
+        entityReference: salesReturn.number,
+        module: "sales",
+        description: `Received sales return ${salesReturn.number}.`,
+        metadata: { type: salesReturn.type, lineCount: salesReturn.lines.length },
+        beforeSnapshot: { status: salesReturn.status },
+        afterSnapshot: { status: "RECEIVED" },
+        related: salesReturn.salesInvoiceId
+          ? { entityType: "SALES_INVOICE", entityId: salesReturn.salesInvoiceId }
+          : { entityType: "DISPATCH", entityId: salesReturn.salesDispatchId },
+        controlEvent: true,
+      });
     });
   }
 
@@ -308,6 +326,27 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
           where: { id: salesReturn.salesOrderId },
           data: { status: "PARTIALLY_DISPATCHED" },
         });
+      const completedRefusal = salesReturn.type === "DISPATCH_REFUSAL";
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "COMPLETE",
+        entityType: "SALES_RETURN",
+        entityId: salesReturn.id,
+        entityReference: salesReturn.number,
+        module: "sales",
+        description: `${completedRefusal ? "Inspected and completed" : "Inspected"} sales return ${salesReturn.number}.`,
+        metadata: {
+          type: salesReturn.type,
+          inspectionCount: created.length,
+          classifications: created.map((entry) => ({
+            classification: entry.classification,
+            quantity: entry.quantity,
+          })),
+        },
+        beforeSnapshot: { status: salesReturn.status },
+        afterSnapshot: { status: completedRefusal ? "COMPLETED" : "INSPECTED" },
+        controlEvent: true,
+      });
     });
   }
 
@@ -384,6 +423,25 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
         where: { id },
         data: { status: "COMPLETED", completedByUserId: actorUserId, completedAt: new Date() },
       });
+      await postSalesReturnAccounting(tx, salesReturn.id, actorUserId);
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "COMPLETE",
+        entityType: "SALES_RETURN",
+        entityId: salesReturn.id,
+        entityReference: salesReturn.number,
+        module: "sales",
+        description: `Financially completed sales return ${salesReturn.number}.`,
+        metadata: { creditAmount: credit.toFixed() },
+        beforeSnapshot: { status: salesReturn.status },
+        afterSnapshot: { status: "COMPLETED" },
+        related: {
+          entityType: "SALES_INVOICE",
+          entityId: salesReturn.salesInvoice.id,
+          reference: salesReturn.salesInvoice.number,
+        },
+        controlEvent: true,
+      });
     });
   }
 
@@ -391,7 +449,7 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
     await serializable(async (tx) => {
       const salesReturn = await tx.salesReturn.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, number: true },
       });
       if (!salesReturn) throw issue("not-found", "Sales return no longer exists.");
       if (salesReturn.status !== "DRAFT")
@@ -404,6 +462,20 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "SALES_RETURN",
+        entityId: id,
+        entityReference: salesReturn.number,
+        module: "sales",
+        description: `Cancelled draft sales return ${salesReturn.number}.`,
+        reasonCode: "OTHER",
+        reason,
+        beforeSnapshot: { status: salesReturn.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }

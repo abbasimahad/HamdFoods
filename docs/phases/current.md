@@ -1,35 +1,48 @@
 # Current phase
 
-## Phase 21 - Inventory Valuation & Production Costing
+## Phase 25 - Audit Trail, Reversals, Cancellations & Control Framework
 
 **Status:** COMPLETE
 
-### Inventory valuation
+### Existing Phase 24 financial reporting boundary
 
-- The official method is company-wide per-item `MOVING_WEIGHTED_AVERAGE`; warehouse, lot, and inventory-status transfers remain quantity-only internal movements.
-- `InventoryMovement` remains authoritative for physical quantity. Immutable `InventoryValuationEntry` rows and their locked per-item balance become authoritative for inventory value, with exact six-decimal money and twelve-decimal unit-cost arithmetic.
-- Valued inbound uses `(old value + inbound value) / (old quantity + inbound quantity)`. Outbound uses the current moving average; a zero quantity forces value and average to zero.
-- Posted GRNs enter at net purchase value after line discounts and before tax. Supplier replacements restore the original commercial unit basis without a second supplier charge. Posted purchase returns leave at current moving-average cost.
-- Posted landed-cost documents allocate by line value, compatible canonical quantity, or exact manual allocation and create monetary true-ups without changing quantity or rewriting the GRN.
-- Future opening balances and adjustment-ins require an explicit unit cost. Historical inbound without reliable cost is marked `MISSING_VALUATION_BASIS` and may be resolved only through an authorized, attributable monetary initialization or adjustment.
+- `/accounting/reports` provides protected, printable financial statements and operational-finance reports: Profit & Loss, Balance Sheet, Cash Flow, receivable and payable aging, inventory valuation and GL reconciliation, WIP/production costing, product profitability, and expense/treasury analysis. Every page is server-rendered behind `accounting.view` and applies the requested accounting-date filter to POSTED journals or the corresponding authoritative POSTED/FINAL source ledger.
+- `src/server/accounting/financial-reporting.ts` is the single calculation layer used by the reports and management dashboard. It uses exact `Decimal` arithmetic, account mappings rather than UI-held values, source-linked journal lines, customer/supplier allocation state, valuation entries, and finalized batch-cost snapshots. It distinguishes sales discounts from sales returns and exposes reconciliation differences instead of modifying them.
+- The accounting landing page now presents a management snapshot of year-to-date profit, cash and bank, AR, AP, inventory value, open periods, and unresolved posting blocks, with links to the detailed reports.
 
-### Production and sales cost basis
+### Existing Phase 24 controlled-close boundary
 
-- Posted raw-material and good-packaging consumption leave inventory at the current moving average and transfer their exact value to the production batch. Issue, return, and packaging-damage status transfers do not change company-wide carrying value; damaged packaging exposure remains separately visible.
-- Labor, machine, utilities, factory overhead, other direct cost, and explicit cost credits are immutable batch-level inputs after finalization. The cost pool is actual valued consumption plus additional cost less credits.
-- Only a COMPLETED batch with resolved consumption, a production lot, positive actual GOOD output, and reconciled calculations may be finalized. Its immutable snapshot preserves actual pieces, cost pool, cost per piece, derived carton cost, user, timestamp, and calculation detail.
-- Finalization attaches value to the existing production-output movements; it creates no duplicate stock. Batch unit cost enters the finished-good moving-average pool while the distinct production-lot cost remains preserved.
-- `SALES_INVOICE_OUT` stores the moving-average monetary outflow for later COGS. An invoiced sales return restores the original sales-out unit basis; subsequent inspection classifications are internal and do not duplicate value.
+- Migration `20260831050000_phase24_period_close_audit` adds immutable accounting-period close/reopen events with actor and mandatory reopen reason.
+- Close/reopen remains restricted to `accounting.manage`. The server closes only OPEN periods and blocks closure when the period trial balance is unequal, unresolved posting blocks were raised in the period, in-period valuation is not FINAL, or a comparable control-account reconciliation differs. Draft journals are shown as an explicit warning because they are not included in statements.
+- Existing central OPEN-period guards remain the decision point for new journal posting. Reopening a closed period is a recorded exception; no posted transaction is deleted or rewritten by the reporting or close workflow.
 
-### Backfill, routes, and deferred accounting
+### Completed Phase 25 audit/control boundary
 
-- Authorized rebuild processes supported historical ownership events by posting timestamp plus stable identifiers and unique source keys. Re-running unchanged history is idempotent. Unknown historical costs are visible rather than guessed.
-- Routes: `/inventory/valuation`, `/inventory/valuation/[itemId]`, and `/production/batches/[id]/costing`.
-- Migration: `20260830000000_phase21_inventory_valuation`.
-- Phase 21 creates cost basis only. General Ledger, AP journals, COGS journals, revenue journals, P&L, Balance Sheet, and automated selling-price changes remain deferred to an explicitly scoped later phase.
+- Migration `20260831060000_phase25_audit_control_framework` adds typed, append-only `AuditEvent` records with server-resolved actor identity, stable actions/entity types/reason codes, indexed search fields, sensitive-field scrubbing, and a PostgreSQL update/delete rejection trigger.
+- High-risk lifecycle coverage is complete for managed users and role permissions; manual inventory adjustments and transfers; purchase orders, receipts, QC, returns, and quarantine; recipes, batches, material/packaging/output transactions; valuation and costing; sales orders, dispatch/delivery, invoices, customer payments/allocations, and returns; supplier payments, expenses, treasury transfers, journals, accounting periods, and mapping controls. Cancellation, reversal, reopen, and override events require a meaningful server-validated reason.
+- Source repositories own operational lifecycle events. Automatic accounting records a distinct JOURNAL event linked to its source; missing settings, open period, tax-policy support, or usable account mappings produce an attributable CONTROL_BLOCKED event and persistent posting block. Supplier-payment, expense, treasury-transfer, and manual-journal reversals create linked compensating documents/journals instead of mutating posted truth.
+- Database-backed document sequences provide unique operational and financial references, while PostgreSQL immutability guards prevent posted document headers, lines, allocations, journals, and audit history from being rewritten or deleted through supported workflows.
+- `/administration/audit-log` provides protected server-backed search, detail, and recent-control visibility. Audit metadata recursively removes credential-like fields, and PostgreSQL rejects audit-event updates and deletes.
+
+### Scope boundaries
+
+- Reports disclose source/GL differences and manual cash movement instead of silently repairing them. No bank-statement import or reconciliation, refunds, credit notes/debit notes engine, fixed assets, payroll, budgeting/forecasting, multi-currency, tax filing, or new transaction-posting engine was introduced.
+- Aging is based on posted open invoices/payables net of posted payment allocations at the selected as-of date. Inventory historical views reconstruct the last valuation state per item from valuation entries at that date.
+
+### Prior Phase 24 verification evidence
+
+- `corepack pnpm prisma validate` and `corepack pnpm prisma generate` passed.
+- `corepack pnpm prisma migrate deploy` applied `20260831050000_phase24_period_close_audit`; `corepack pnpm prisma migrate status` then reported 34 migrations and a schema up to date.
+- `corepack pnpm db:check` completed a PostgreSQL query successfully.
+- `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm format:check`, `corepack pnpm build`, and `git diff --check` passed. The production build registered every Phase 24 report route.
+- Automated tests were intentionally not run because the approved Phase 24 scope forbade them.
+
+### Phase 25 completion evidence
+
+- `corepack pnpm verify` passed Prettier, ESLint, Vitest (15 files and 46 tests), Prisma validation/client generation, TypeScript, and the 75-page production build on the completed Phase 25 source state.
+- `corepack pnpm prisma migrate deploy` reported no pending migrations; `corepack pnpm prisma migrate status` reported 36 migrations and a schema up to date. `corepack pnpm db:check` completed a PostgreSQL query successfully.
+- A read-only `prisma db execute` assertion confirmed the non-internal `audit_event_append_only` trigger is installed. `git diff --check` passed.
 
 ## Next gate
 
-Phase 22 may begin with a new approved scope. It must consume the immutable Phase 21 cost basis rather than create competing inventory-value truth.
-
-Phase 21 verification passed Prettier formatting, ESLint, Vitest (12 files and 37 tests), Prisma validation/client generation, migration status, PostgreSQL connectivity, TypeScript, production build, live table/immutability-trigger inspection, and diff whitespace checks.
+**Phase 26 automated testing is the next gate and is not started.** Its test scope must preserve the existing server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, and audit boundaries. No new posting flow or later-phase product scope belongs in that gate.

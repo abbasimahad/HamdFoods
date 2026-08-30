@@ -18,6 +18,7 @@ import type {
 import { SalesDispatchRepositoryError } from "@/modules/sales/application/sales-dispatch-contracts";
 import { postSalesDispatchInventory } from "@/server/inventory/transactional-inventory-posting";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 
 const dispatchInclude = {
   salesOrder: { include: { lines: true } },
@@ -287,6 +288,24 @@ export class PrismaSalesDispatchRepository implements SalesDispatchRepository {
         where: { id: dispatch.salesOrderId },
         data: { status: fullyDispatched ? "DISPATCHED" : "PARTIALLY_DISPATCHED" },
       });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "POST",
+        entityType: "DISPATCH",
+        entityId: dispatch.id,
+        entityReference: dispatch.number,
+        module: "sales",
+        description: `Posted sales dispatch ${dispatch.number}.`,
+        metadata: { fullyDispatched, lineCount: dispatch.lines.length },
+        beforeSnapshot: { status: dispatch.status },
+        afterSnapshot: { status: "POSTED" },
+        related: {
+          entityType: "SALES_ORDER",
+          entityId: dispatch.salesOrderId,
+          reference: dispatch.salesOrder.number,
+        },
+        controlEvent: true,
+      });
     });
   }
 
@@ -299,7 +318,7 @@ export class PrismaSalesDispatchRepository implements SalesDispatchRepository {
     await serializable(async (tx) => {
       const dispatch = await tx.salesDispatch.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, number: true, salesOrderId: true },
       });
       if (!dispatch)
         throw new SalesDispatchRepositoryError("not-found", "Dispatch no longer exists.");
@@ -318,13 +337,27 @@ export class PrismaSalesDispatchRepository implements SalesDispatchRepository {
           deliveryNotes: notes ?? null,
         },
       });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "COMPLETE",
+        entityType: "DISPATCH",
+        entityId: id,
+        entityReference: dispatch.number,
+        module: "sales",
+        description: `Confirmed delivery of sales dispatch ${dispatch.number}.`,
+        metadata: { receiverName: receiverName ?? null, notes: notes ?? null },
+        beforeSnapshot: { status: dispatch.status },
+        afterSnapshot: { status: "DELIVERED" },
+        related: { entityType: "SALES_ORDER", entityId: dispatch.salesOrderId },
+        controlEvent: true,
+      });
     });
   }
   async cancelSalesDispatch(id: string, reason: string, actorUserId: string) {
     await serializable(async (tx) => {
       const dispatch = await tx.salesDispatch.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, number: true },
       });
       if (!dispatch)
         throw new SalesDispatchRepositoryError("not-found", "Dispatch no longer exists.");
@@ -341,6 +374,20 @@ export class PrismaSalesDispatchRepository implements SalesDispatchRepository {
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "DISPATCH",
+        entityId: id,
+        entityReference: dispatch.number,
+        module: "sales",
+        description: `Cancelled draft sales dispatch ${dispatch.number}.`,
+        reasonCode: "OTHER",
+        reason,
+        beforeSnapshot: { status: dispatch.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }

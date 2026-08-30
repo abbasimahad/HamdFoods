@@ -62,6 +62,14 @@ describe("user administration", () => {
     );
     expect(result).toEqual({ ok: true, userId: "new" });
     expect(JSON.stringify(result)).not.toContain("password123");
+    expect(repository.createUser).toHaveBeenCalledWith(
+      "admin",
+      expect.objectContaining({
+        name: "New",
+        email: "new@example.com",
+        roleCodes: ["VIEWER"],
+      }),
+    );
   });
 
   it("allows only SUPER_ADMIN to assign SUPER_ADMIN", async () => {

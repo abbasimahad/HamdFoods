@@ -14,7 +14,7 @@ export type AtomicUserAccessResult =
 
 export type UserManagementStore = {
   roleCodesExist(roleCodes: readonly string[]): Promise<boolean>;
-  createUser(input: ManagedUserInput): Promise<{ id: string; email: string }>;
+  createUser(actorId: string, input: ManagedUserInput): Promise<{ id: string; email: string }>;
   replaceUserRolesPreservingSuperAdmin(
     actorId: string,
     userId: string,
@@ -58,7 +58,7 @@ export async function createManagedUser(
   if (roleCodes.includes("SUPER_ADMIN") && !isSuperAdmin(actor)) {
     return { ok: false, reason: "protected-role" };
   }
-  const user = await store.createUser({
+  const user = await store.createUser(actor.id, {
     ...input,
     name: input.name.trim(),
     email: input.email.trim().toLowerCase(),

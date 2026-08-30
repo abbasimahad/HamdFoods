@@ -55,7 +55,7 @@ export async function planProductionBatch(
   id: string,
   repository: ProductionBatchRepository,
 ): Promise<ProductionBatchMutationResult> {
-  return lifecycle(actor, id, repository, () => repository.planBatch(id));
+  return lifecycle(actor, id, repository, () => repository.planBatch(id, actor.id));
 }
 
 export async function releaseProductionBatch(

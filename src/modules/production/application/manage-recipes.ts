@@ -97,7 +97,7 @@ export async function inactivateRecipe(
   id: string,
   repository: RecipeRepository,
 ): Promise<RecipeMutationResult> {
-  return lifecycle(actor, id, repository, () => repository.inactivateRecipe(id));
+  return lifecycle(actor, id, repository, (actorId) => repository.inactivateRecipe(id, actorId));
 }
 export async function createNewRecipeVersion(
   actor: ApplicationPrincipal,

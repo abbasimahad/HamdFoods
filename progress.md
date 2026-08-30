@@ -27,3 +27,16 @@ Phase 21 Task 2 - purchase, landed-cost, production, sales, and historical event
 Phase 21 Task 3 - valuation and batch-costing workflows/UI: complete
 Phase 21 Task 4 - documentation and verification: complete
 Phase 21 completion audit: complete. `corepack pnpm verify` passed Prettier, ESLint, Vitest (12 files and 37 tests), Prisma schema/client generation, TypeScript, and production build. Migration status, PostgreSQL connectivity and Phase 21 table/trigger presence, and diff whitespace also passed.
+
+Phase 22: complete. The double-entry accounting foundation includes a seeded mapped chart, immutable source-idempotent journals, supplier payable ledger, controlled posting blocks/backfill, source transaction translations, manager controls, protected GL reporting, and reconciliation. Final verification used the user-authorized `corepack pnpm verify` plus migration status and live PostgreSQL connectivity.
+
+Phase 23 Task 5 - reconciliation, documentation, and permitted checks: reopened after completion audit.
+Phase 23 completion audit: cancellation, expense-reversal, allocation-proposal, print/detail, pagination, application-boundary, and child-record immutability gaps were repaired. Prisma validation/client generation, migration deploy/status (33 migrations), PostgreSQL connectivity, Prettier, ESLint, TypeScript, production build, and diff whitespace passed on the repaired source state. Automated tests remain intentionally excluded by the approved plan.
+
+Phase 25 completion plan: docs/plans/2026-08-30-phase25-audit-control-completion.md
+Phase 25 Task 1 - audit core and access-control mutations: complete
+Phase 25 Task 2 - purchasing lifecycle coverage: complete
+Phase 25 Task 3 - production and costing lifecycle coverage: complete
+Phase 25 Task 4 - sales, treasury, and accounting-control coverage: complete
+Phase 25 Task 5 - live control proof, documentation, and completion gate: complete
+Phase 25 completion audit: complete. `corepack pnpm verify` passed Prettier, ESLint, Vitest (15 files and 46 tests), Prisma validation/client generation, TypeScript, and the 75-page production build. Migration deploy/status, PostgreSQL connectivity, append-only trigger assertion, diff whitespace, secret-shape review, and Phase 26 scope scan passed. Phase 26 is READY and not started.

@@ -15,6 +15,7 @@ import { ProductionMaterialRepositoryError } from "@/modules/production/applicat
 import { reconcileMaterial } from "@/modules/production/domain/material-reconciliation";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { postProductionMaterialInventory } from "@/server/inventory/transactional-inventory-posting";
 import { valueProductionConsumption } from "@/server/costing/prisma-inventory-valuation-repository";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
@@ -167,10 +168,49 @@ export class PrismaProductionMaterialRepository implements ProductionMaterialRep
           where: { id: row.productionBatchId },
           data: { status: "IN_PROGRESS" },
         });
+        await recordAuditEvent(transaction, {
+          actorUserId,
+          action: "UPDATE",
+          entityType: "PRODUCTION_BATCH",
+          entityId: row.productionBatch.id,
+          entityReference: row.productionBatch.batchNumber,
+          module: "production",
+          description: `Started production batch ${row.productionBatch.batchNumber} through first material issue.`,
+          beforeSnapshot: { status: row.productionBatch.status },
+          afterSnapshot: { status: "IN_PROGRESS" },
+          related: {
+            entityType: "MATERIAL_TRANSACTION",
+            entityId: row.id,
+            reference: row.transactionNumber,
+          },
+          controlEvent: true,
+        });
       }
       await transaction.productionMaterialTransaction.update({
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "MATERIAL_TRANSACTION",
+        entityId: row.id,
+        entityReference: row.transactionNumber,
+        module: "production",
+        description: `Posted ${row.transactionType.toLowerCase()} material transaction ${row.transactionNumber}.`,
+        metadata: {
+          transactionType: row.transactionType,
+          itemId: line.itemId,
+          quantity: line.normalizedQuantity.toString(),
+        },
+        beforeSnapshot: { status: row.status },
+        afterSnapshot: { status: "POSTED" },
+        related: {
+          entityType: "PRODUCTION_BATCH",
+          entityId: row.productionBatchId,
+          reference: row.productionBatch.batchNumber,
+        },
+        controlEvent: true,
       });
     });
   }
@@ -192,6 +232,20 @@ export class PrismaProductionMaterialRepository implements ProductionMaterialRep
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "MATERIAL_TRANSACTION",
+        entityId: current.id,
+        entityReference: current.transactionNumber,
+        module: "production",
+        description: `Cancelled draft material transaction ${current.transactionNumber}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: current.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }

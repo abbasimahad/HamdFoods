@@ -178,7 +178,7 @@ export interface ProductionBatchRepository {
   listActiveWarehouses(): Promise<readonly BatchWarehouseOption[]>;
   createBatch(input: ProductionBatchInput): Promise<string>;
   updateBatch(input: ProductionBatchInput & { id: string }): Promise<string>;
-  planBatch(id: string): Promise<void>;
+  planBatch(id: string, actorUserId: string): Promise<void>;
   releaseBatch(id: string, actorUserId: string, acknowledgeShortage: boolean): Promise<boolean>;
   cancelBatch(id: string, actorUserId: string, reason: string): Promise<void>;
   getBatch(id: string): Promise<ProductionBatchRecord | null>;

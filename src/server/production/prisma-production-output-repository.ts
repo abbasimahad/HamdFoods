@@ -18,6 +18,7 @@ import {
 import { piecesToCartons } from "@/modules/quantity/domain/cartons";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { postProductionOutputInventory } from "@/server/inventory/transactional-inventory-posting";
 import { PrismaProductionMaterialRepository } from "./prisma-production-material-repository";
 import { PrismaProductionPackagingRepository } from "./prisma-production-packaging-repository";
@@ -179,6 +180,29 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
           postedAt: new Date(),
         },
       });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "PRODUCTION_OUTPUT",
+        entityId: row.id,
+        entityReference: row.outputNumber,
+        module: "production",
+        description: `Posted ${row.outputType.toLowerCase().replaceAll("_", " ")} output ${row.outputNumber}.`,
+        metadata: {
+          outputType: row.outputType,
+          quantity,
+          canonicalUnitId,
+          productionLotId: lot.id,
+        },
+        beforeSnapshot: { status: row.status },
+        afterSnapshot: { status: "POSTED" },
+        related: {
+          entityType: "PRODUCTION_BATCH",
+          entityId: row.productionBatchId,
+          reference: row.productionBatch.batchNumber,
+        },
+        controlEvent: true,
+      });
     });
   }
 
@@ -199,6 +223,20 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "PRODUCTION_OUTPUT",
+        entityId: current.id,
+        entityReference: current.outputNumber,
+        module: "production",
+        description: `Cancelled draft production output ${current.outputNumber}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: current.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }
@@ -236,6 +274,24 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
           completedAt: new Date(),
           completionExplanation: explanation ?? null,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "COMPLETE",
+        entityType: "PRODUCTION_BATCH",
+        entityId: batchId,
+        entityReference: snapshot.batchNumber,
+        module: "production",
+        description: `Completed production batch ${snapshot.batchNumber}.`,
+        reasonCode: explanation ? "MANAGEMENT_APPROVAL" : null,
+        reason: explanation ?? null,
+        metadata: {
+          explanationRequired: snapshot.needsExplanation,
+          goodPieces: snapshot.goodPieces,
+        },
+        beforeSnapshot: { status: snapshot.status },
+        afterSnapshot: { status: "COMPLETED" },
+        controlEvent: true,
       });
     });
   }
@@ -515,6 +571,7 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
   const batch = await client.productionBatch.findUnique({
     where: { id: batchId },
     select: {
+      batchNumber: true,
       status: true,
       productContentCanonicalDimension: true,
       plannedProductContentNormalizedQuantity: true,
@@ -576,6 +633,8 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
     return !new Decimal(consumed).eq(standard);
   });
   return {
+    batchNumber: batch.batchNumber,
+    goodPieces,
     status: batch.status,
     blockers: [
       ...(posted.some((row) => row.outputType === "GOOD")

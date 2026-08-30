@@ -25,6 +25,7 @@ import {
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 
 const PAGE_SIZE = 25;
 const recipeInclude = {
@@ -143,6 +144,10 @@ export class PrismaRecipeRepository implements RecipeRepository {
       if (!row || row.status !== "DRAFT")
         throw new RecipeRepositoryError("invalid-state", "Only a draft recipe can be approved.");
       await validateApproval(transaction, row);
+      const priorApproved = await transaction.recipe.findMany({
+        where: { finishedGoodId: row.finishedGoodId, status: "APPROVED", id: { not: row.id } },
+        select: { id: true, code: true, version: true, status: true },
+      });
       await transaction.recipe.updateMany({
         where: { finishedGoodId: row.finishedGoodId, status: "APPROVED", id: { not: row.id } },
         data: { status: "INACTIVE" },
@@ -151,10 +156,40 @@ export class PrismaRecipeRepository implements RecipeRepository {
         where: { id },
         data: { status: "APPROVED", approvedByUserId: actorUserId, approvedAt: new Date() },
       });
+      for (const prior of priorApproved)
+        await recordAuditEvent(transaction, {
+          actorUserId,
+          action: "DEACTIVATE",
+          entityType: "MASTER_DATA",
+          entityId: prior.id,
+          entityReference: `${prior.code}/v${prior.version}`,
+          module: "production",
+          description: `Inactivated superseded recipe ${prior.code} version ${prior.version}.`,
+          beforeSnapshot: { status: prior.status },
+          afterSnapshot: { status: "INACTIVE" },
+          related: { entityType: "MASTER_DATA", entityId: row.id },
+          controlEvent: true,
+        });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "APPROVE",
+        entityType: "MASTER_DATA",
+        entityId: row.id,
+        entityReference: `${row.code}/v${row.version}`,
+        module: "production",
+        description: `Approved recipe ${row.code} version ${row.version}.`,
+        beforeSnapshot: { status: row.status },
+        afterSnapshot: { status: "APPROVED" },
+        controlEvent: true,
+      });
     });
   }
-  async inactivateRecipe(id: string) {
+  async inactivateRecipe(id: string, actorUserId: string) {
     await serializable(async (transaction) => {
+      const recipe = await transaction.recipe.findUnique({
+        where: { id },
+        select: { code: true, version: true, status: true },
+      });
       const result = await transaction.recipe.updateMany({
         where: { id, status: "APPROVED" },
         data: { status: "INACTIVE" },
@@ -164,6 +199,18 @@ export class PrismaRecipeRepository implements RecipeRepository {
           "invalid-state",
           "Only an approved recipe can be made inactive.",
         );
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "DEACTIVATE",
+        entityType: "MASTER_DATA",
+        entityId: id,
+        entityReference: recipe ? `${recipe.code}/v${recipe.version}` : null,
+        module: "production",
+        description: `Inactivated recipe ${recipe?.code ?? id}${recipe ? ` version ${recipe.version}` : ""}.`,
+        beforeSnapshot: { status: recipe?.status ?? "APPROVED" },
+        afterSnapshot: { status: "INACTIVE" },
+        controlEvent: true,
+      });
     });
   }
   async createNewVersion(id: string, actorUserId: string) {
@@ -174,64 +221,74 @@ export class PrismaRecipeRepository implements RecipeRepository {
         where: { code: source.code },
         _max: { version: true },
       });
-      return (
-        await transaction.recipe.create({
-          data: {
-            code: source.code,
-            name: source.name,
-            finishedGoodId: source.finishedGoodId,
-            version: (latest._max.version ?? 0) + 1,
-            standardBatchEnteredQuantity: source.standardBatchEnteredQuantity,
-            standardBatchUnitId: source.standardBatchUnitId,
-            standardBatchUnitDimension: source.standardBatchUnitDimension,
-            standardBatchNormalizedQuantity: source.standardBatchNormalizedQuantity,
-            standardBatchCanonicalUnitId: source.standardBatchCanonicalUnitId,
-            standardBatchCanonicalDimension: source.standardBatchCanonicalDimension,
-            expectedOutputEnteredQuantity: source.expectedOutputEnteredQuantity,
-            expectedOutputUnitId: source.expectedOutputUnitId,
-            expectedOutputUnitDimension: source.expectedOutputUnitDimension,
-            expectedOutputNormalizedQuantity: source.expectedOutputNormalizedQuantity,
-            expectedOutputCanonicalUnitId: source.expectedOutputCanonicalUnitId,
-            expectedOutputCanonicalDimension: source.expectedOutputCanonicalDimension,
-            notes: source.notes,
-            effectiveDate: null,
-            createdByUserId: actorUserId,
-            ingredients: {
-              create: source.ingredients.map((line) => ({
-                sequence: line.sequence,
-                itemId: line.itemId,
-                enteredQuantity: line.enteredQuantity,
-                enteredUnitId: line.enteredUnitId,
-                enteredUnitDimension: line.enteredUnitDimension,
-                normalizedQuantity: line.normalizedQuantity,
-                canonicalUnitId: line.canonicalUnitId,
-                canonicalUnitDimension: line.canonicalUnitDimension,
-                allowancePercent: line.allowancePercent,
-                processNotes: line.processNotes,
-              })),
-            },
-            packagingBom: {
-              create: {
-                lines: {
-                  create: (source.packagingBom?.lines ?? []).map((line) => ({
-                    sequence: line.sequence,
-                    itemId: line.itemId,
-                    usageBasis: line.usageBasis,
-                    enteredQuantity: line.enteredQuantity,
-                    enteredUnitId: line.enteredUnitId,
-                    enteredUnitDimension: line.enteredUnitDimension,
-                    normalizedQuantity: line.normalizedQuantity,
-                    canonicalUnitId: line.canonicalUnitId,
-                    canonicalUnitDimension: line.canonicalUnitDimension,
-                    allowancePercent: line.allowancePercent,
-                    notes: line.notes,
-                  })),
-                },
+      const created = await transaction.recipe.create({
+        data: {
+          code: source.code,
+          name: source.name,
+          finishedGoodId: source.finishedGoodId,
+          version: (latest._max.version ?? 0) + 1,
+          standardBatchEnteredQuantity: source.standardBatchEnteredQuantity,
+          standardBatchUnitId: source.standardBatchUnitId,
+          standardBatchUnitDimension: source.standardBatchUnitDimension,
+          standardBatchNormalizedQuantity: source.standardBatchNormalizedQuantity,
+          standardBatchCanonicalUnitId: source.standardBatchCanonicalUnitId,
+          standardBatchCanonicalDimension: source.standardBatchCanonicalDimension,
+          expectedOutputEnteredQuantity: source.expectedOutputEnteredQuantity,
+          expectedOutputUnitId: source.expectedOutputUnitId,
+          expectedOutputUnitDimension: source.expectedOutputUnitDimension,
+          expectedOutputNormalizedQuantity: source.expectedOutputNormalizedQuantity,
+          expectedOutputCanonicalUnitId: source.expectedOutputCanonicalUnitId,
+          expectedOutputCanonicalDimension: source.expectedOutputCanonicalDimension,
+          notes: source.notes,
+          effectiveDate: null,
+          createdByUserId: actorUserId,
+          ingredients: {
+            create: source.ingredients.map((line) => ({
+              sequence: line.sequence,
+              itemId: line.itemId,
+              enteredQuantity: line.enteredQuantity,
+              enteredUnitId: line.enteredUnitId,
+              enteredUnitDimension: line.enteredUnitDimension,
+              normalizedQuantity: line.normalizedQuantity,
+              canonicalUnitId: line.canonicalUnitId,
+              canonicalUnitDimension: line.canonicalUnitDimension,
+              allowancePercent: line.allowancePercent,
+              processNotes: line.processNotes,
+            })),
+          },
+          packagingBom: {
+            create: {
+              lines: {
+                create: (source.packagingBom?.lines ?? []).map((line) => ({
+                  sequence: line.sequence,
+                  itemId: line.itemId,
+                  usageBasis: line.usageBasis,
+                  enteredQuantity: line.enteredQuantity,
+                  enteredUnitId: line.enteredUnitId,
+                  enteredUnitDimension: line.enteredUnitDimension,
+                  normalizedQuantity: line.normalizedQuantity,
+                  canonicalUnitId: line.canonicalUnitId,
+                  canonicalUnitDimension: line.canonicalUnitDimension,
+                  allowancePercent: line.allowancePercent,
+                  notes: line.notes,
+                })),
               },
             },
           },
-        })
-      ).id;
+        },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CREATE",
+        entityType: "MASTER_DATA",
+        entityId: created.id,
+        entityReference: `${created.code}/v${created.version}`,
+        module: "production",
+        description: `Created recipe ${created.code} version ${created.version} from an immutable prior version.`,
+        afterSnapshot: { status: created.status, version: created.version },
+        related: { entityType: "MASTER_DATA", entityId: source.id },
+      });
+      return created.id;
     });
   }
   async getRecipe(id: string) {

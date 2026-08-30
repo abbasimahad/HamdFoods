@@ -194,7 +194,7 @@ export interface RecipeRepository {
   createRecipe(input: RecipeInput): Promise<string>;
   updateRecipe(input: RecipeInput & { id: string }): Promise<string>;
   approveRecipe(id: string, actorUserId: string): Promise<void>;
-  inactivateRecipe(id: string): Promise<void>;
+  inactivateRecipe(id: string, actorUserId: string): Promise<void>;
   createNewVersion(id: string, actorUserId: string): Promise<string>;
   getRecipe(id: string): Promise<RecipeRecord | null>;
   listRecipes(query: RecipeQuery): Promise<RecipePage>;

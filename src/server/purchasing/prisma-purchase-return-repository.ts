@@ -25,11 +25,13 @@ import {
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import {
   postPurchaseReturnInventory,
   quarantinePurchasedMaterialInventory,
 } from "@/server/inventory/transactional-inventory-posting";
 import { valuePurchaseReturn } from "@/server/costing/prisma-inventory-valuation-repository";
+import { postPurchaseReturnAccounting } from "@/server/accounting/transactional-accounting-posting";
 import { updatePurchaseOrderFulfilmentStatus } from "./purchasing-fulfilment";
 
 const returnInclude = {
@@ -184,11 +186,31 @@ export class PrismaPurchaseReturnRepository implements PurchaseReturnRepository 
         where: { id },
         data: { status: row.replacementExpected ? "AWAITING_REPLACEMENT" : "COMPLETED" },
       });
+      await postPurchaseReturnAccounting(transaction, row.id, actorUserId);
       await updatePurchaseOrderFulfilmentStatus(transaction, row.purchaseOrderId);
+      const finalStatus = row.replacementExpected ? "AWAITING_REPLACEMENT" : "COMPLETED";
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "PURCHASE_RETURN",
+        entityId: row.id,
+        entityReference: row.number,
+        module: "purchasing",
+        description: `Posted purchase return ${row.number}.`,
+        metadata: { lineCount: row.lines.length, replacementExpected: row.replacementExpected },
+        beforeSnapshot: { status: row.status },
+        afterSnapshot: { status: finalStatus },
+        related: { entityType: "PURCHASE_ORDER", entityId: row.purchaseOrderId },
+        controlEvent: true,
+      });
     });
   }
   async cancelPurchaseReturn(id: string, reason: string, actorUserId: string) {
     await serializable(async (transaction) => {
+      const purchaseReturn = await transaction.purchaseReturn.findUnique({
+        where: { id },
+        select: { number: true, status: true },
+      });
       const result = await transaction.purchaseReturn.updateMany({
         where: { id, status: "DRAFT" },
         data: {
@@ -203,6 +225,20 @@ export class PrismaPurchaseReturnRepository implements PurchaseReturnRepository 
           "invalid-state",
           "Only an existing draft purchase return can be cancelled.",
         );
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "PURCHASE_RETURN",
+        entityId: id,
+        entityReference: purchaseReturn?.number ?? null,
+        module: "purchasing",
+        description: `Cancelled draft purchase return ${purchaseReturn?.number ?? id}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: purchaseReturn?.status ?? "DRAFT" },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
+      });
     });
   }
   async quarantinePurchasedMaterial(input: PurchasedMaterialQuarantineInput) {
@@ -258,6 +294,24 @@ export class PrismaPurchaseReturnRepository implements PurchaseReturnRepository 
         sourceGoodsReceiptId: option.goodsReceiptId,
         reason: `Purchased material quarantined: ${input.reason}${input.notes ? ` - ${input.notes}` : ""}`,
         actorUserId: input.actorUserId,
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId: input.actorUserId,
+        action: "ADJUST",
+        entityType: "INVENTORY_TRANSFER",
+        entityId: record.id,
+        module: "purchasing",
+        description: "Moved purchased material from available stock to quarantine.",
+        reasonCode: "QUALITY_FAILURE",
+        reason: input.reason,
+        metadata: {
+          itemId: option.itemId,
+          warehouseId: option.warehouseId,
+          inventoryLotId: option.inventoryLotId,
+          quantity: amount.toFixed(6),
+        },
+        related: { entityType: "GRN", entityId: option.goodsReceiptId },
+        controlEvent: true,
       });
       return record.id;
     });

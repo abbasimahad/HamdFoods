@@ -25,11 +25,16 @@ import {
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import {
   postPurchaseReceiptInventory,
   postReceiptQcInventory,
 } from "@/server/inventory/transactional-inventory-posting";
 import { valueGoodsReceipt } from "@/server/costing/prisma-inventory-valuation-repository";
+import {
+  postGoodsReceiptAcceptanceAccounting,
+  postValuationAccounting,
+} from "@/server/accounting/transactional-accounting-posting";
 import {
   calculatePurchaseOrderFulfilment,
   updatePurchaseOrderFulfilmentStatus,
@@ -300,12 +305,44 @@ export class PrismaGoodsReceiptRepository implements GoodsReceiptRepository {
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },
       });
+      const valuations = await transaction.inventoryValuationEntry.findMany({
+        where: {
+          sourceType: "GOODS_RECEIPT",
+          sourceId: receipt.id,
+          entryType: { in: ["PURCHASE_RECEIPT", "SUPPLIER_REPLACEMENT"] },
+        },
+        select: { id: true },
+      });
+      for (const valuation of valuations)
+        await postValuationAccounting(transaction, valuation.id, actorUserId);
       await updatePurchaseOrderFulfilmentStatus(transaction, receipt.purchaseOrderId);
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "GRN",
+        entityId: receipt.id,
+        entityReference: receipt.number,
+        module: "purchasing",
+        description: `Posted goods receipt ${receipt.number}.`,
+        metadata: { purpose: receipt.purpose, lineCount: receipt.lines.length },
+        beforeSnapshot: { status: receipt.status },
+        afterSnapshot: { status: "POSTED" },
+        related: {
+          entityType: "PURCHASE_ORDER",
+          entityId: receipt.purchaseOrderId,
+          reference: receipt.purchaseOrder.number,
+        },
+        controlEvent: true,
+      });
     });
   }
 
   async cancelGoodsReceipt(id: string, reason: string, actorUserId: string) {
     await serializable(async (transaction) => {
+      const receipt = await transaction.goodsReceipt.findUnique({
+        where: { id },
+        select: { number: true, status: true },
+      });
       const updated = await transaction.goodsReceipt.updateMany({
         where: { id, status: "DRAFT" },
         data: {
@@ -320,6 +357,20 @@ export class PrismaGoodsReceiptRepository implements GoodsReceiptRepository {
           "invalid-state",
           "Only an existing draft goods receipt can be cancelled.",
         );
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "GRN",
+        entityId: id,
+        entityReference: receipt?.number ?? null,
+        module: "purchasing",
+        description: `Cancelled draft goods receipt ${receipt?.number ?? id}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: receipt?.status ?? "DRAFT" },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
+      });
     });
   }
 
@@ -408,9 +459,45 @@ export class PrismaGoodsReceiptRepository implements GoodsReceiptRepository {
         where: { id },
         data: { status: "QC_COMPLETED", qcByUserId: actorUserId, qcCompletedAt: new Date() },
       });
+      await postGoodsReceiptAcceptanceAccounting(transaction, receipt.id, actorUserId);
       if (receipt.purchaseReturnId)
-        await completeReturnWhenSatisfied(transaction, receipt.purchaseReturnId);
+        await completeReturnWhenSatisfied(
+          transaction,
+          receipt.purchaseReturnId,
+          actorUserId,
+          receipt.id,
+          receipt.number,
+        );
       await updatePurchaseOrderFulfilmentStatus(transaction, receipt.purchaseOrderId);
+      const acceptedQuantity = inventoryCommands.reduce(
+        (total, command) => total.add(command.acceptedQuantity),
+        new Decimal(0),
+      );
+      const rejectedQuantity = inventoryCommands.reduce(
+        (total, command) => total.add(command.rejectedQuantity),
+        new Decimal(0),
+      );
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "COMPLETE",
+        entityType: "GRN",
+        entityId: receipt.id,
+        entityReference: receipt.number,
+        module: "purchasing",
+        description: `Completed quality control for goods receipt ${receipt.number}.`,
+        metadata: {
+          acceptedQuantity: acceptedQuantity.toFixed(6),
+          rejectedQuantity: rejectedQuantity.toFixed(6),
+        },
+        beforeSnapshot: { status: receipt.status },
+        afterSnapshot: { status: "QC_COMPLETED" },
+        related: {
+          entityType: "PURCHASE_ORDER",
+          entityId: receipt.purchaseOrderId,
+          reference: receipt.purchaseOrder.number,
+        },
+        controlEvent: true,
+      });
     });
   }
 
@@ -764,6 +851,9 @@ async function replacementRemaining(
 async function completeReturnWhenSatisfied(
   transaction: Prisma.TransactionClient,
   purchaseReturnId: string,
+  actorUserId: string,
+  goodsReceiptId: string,
+  goodsReceiptNumber: string,
 ) {
   const row = await transaction.purchaseReturn.findUnique({
     where: { id: purchaseReturnId },
@@ -788,11 +878,25 @@ async function completeReturnWhenSatisfied(
         );
       return accepted.gte(line.normalizedQuantity.toString());
     });
-  if (complete)
+  if (complete) {
     await transaction.purchaseReturn.update({
       where: { id: purchaseReturnId },
       data: { status: "COMPLETED" },
     });
+    await recordAuditEvent(transaction, {
+      actorUserId,
+      action: "COMPLETE",
+      entityType: "PURCHASE_RETURN",
+      entityId: row.id,
+      entityReference: row.number,
+      module: "purchasing",
+      description: `Completed replacement obligation for purchase return ${row.number}.`,
+      beforeSnapshot: { status: row.status },
+      afterSnapshot: { status: "COMPLETED" },
+      related: { entityType: "GRN", entityId: goodsReceiptId, reference: goodsReceiptNumber },
+      controlEvent: true,
+    });
+  }
 }
 
 async function nextNumber(transaction: Prisma.TransactionClient, year: number) {

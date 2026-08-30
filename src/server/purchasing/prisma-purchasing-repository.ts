@@ -28,6 +28,7 @@ import {
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 
 const orderInclude = {
   supplier: true,
@@ -276,6 +277,18 @@ export class PrismaPurchasingRepository implements PurchasingRepository {
           approvedAt: new Date(),
         },
       });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "APPROVE",
+        entityType: "PURCHASE_ORDER",
+        entityId: order.id,
+        entityReference: order.number,
+        module: "purchasing",
+        description: `Approved purchase order ${order.number}.`,
+        beforeSnapshot: { status: order.status },
+        afterSnapshot: { status: "APPROVED", totalAmount: prepared.totals.grandTotal },
+        controlEvent: true,
+      });
     });
   }
 
@@ -283,7 +296,7 @@ export class PrismaPurchasingRepository implements PurchasingRepository {
     await serializable(async (transaction) => {
       const order = await transaction.purchaseOrder.findUnique({
         where: { id },
-        select: { status: true },
+        select: { number: true, status: true },
       });
       if (!order)
         throw new PurchasingRepositoryError("not-found", "Purchase order no longer exists.");
@@ -301,6 +314,20 @@ export class PrismaPurchasingRepository implements PurchasingRepository {
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "PURCHASE_ORDER",
+        entityId: id,
+        entityReference: order.number,
+        module: "purchasing",
+        description: `Cancelled purchase order ${order.number}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: order.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }

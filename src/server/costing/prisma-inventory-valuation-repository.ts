@@ -20,6 +20,12 @@ import {
   postValueAdjustment,
   resolveExhaustedValuationIssue,
 } from "@/server/inventory/transactional-inventory-valuation";
+import {
+  postFinalizedProductionAccounting,
+  postProductionCostAccounting,
+  postValuationAccounting,
+} from "@/server/accounting/transactional-accounting-posting";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
@@ -162,6 +168,19 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
           actorUserId,
           resolvedIssueId: issue.id,
         });
+        await recordAuditEvent(tx, {
+          actorUserId,
+          action: "ADJUST",
+          entityType: "VALUATION_ADJUSTMENT",
+          entityId: issue.id,
+          entityReference: reference ?? issue.id,
+          module: "costing",
+          description: "Resolved an exhausted historical valuation issue.",
+          reasonCode: "ACCOUNTING_CORRECTION",
+          reason,
+          metadata: { itemId: issue.itemId, valueDelta: "0", exhaustedQuantity: true },
+          controlEvent: true,
+        });
         return issue.id;
       }
       const value = exactCost(totalValue, "Initialization value");
@@ -191,12 +210,39 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         resolvedIssueId: issue.id,
         adjustmentId: adjustment.id,
       });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "ADJUST",
+        entityType: "VALUATION_ADJUSTMENT",
+        entityId: adjustment.id,
+        entityReference: adjustment.number,
+        module: "costing",
+        description: `Initialized inventory valuation with ${adjustment.number}.`,
+        reasonCode: "ACCOUNTING_CORRECTION",
+        reason,
+        metadata: { itemId: issue.itemId, valueDelta: value.toFixed(6), issueId: issue.id },
+        controlEvent: true,
+      });
       return adjustment.id;
     });
   }
 
   async rebuild(actorUserId: string) {
-    return serializable(async (tx) => rebuildValuation(tx, actorUserId));
+    return serializable(async (tx) => {
+      const result = await rebuildValuation(tx, actorUserId);
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "BACKFILL",
+        entityType: "VALUATION_ADJUSTMENT",
+        entityId: "inventory-valuation-ledger",
+        entityReference: "Inventory valuation ledger",
+        module: "costing",
+        description: "Rebuilt missing inventory valuation ledger entries.",
+        metadata: result,
+        controlEvent: true,
+      });
+      return result;
+    });
   }
 
   async adjustItemValue(
@@ -234,6 +280,19 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         actorUserId,
         valueDelta: value.toFixed(6),
         adjustmentId: adjustment.id,
+      });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "ADJUST",
+        entityType: "VALUATION_ADJUSTMENT",
+        entityId: adjustment.id,
+        entityReference: adjustment.number,
+        module: "costing",
+        description: `Posted inventory value adjustment ${adjustment.number}.`,
+        reasonCode: "ACCOUNTING_CORRECTION",
+        reason,
+        metadata: { itemId, valueDelta: value.toFixed(6), reference: reference ?? null },
+        controlEvent: true,
       });
       return adjustment.id;
     });
@@ -351,6 +410,30 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
           actorUserId: input.actorUserId,
           valueDelta: allocations[index]!,
         });
+      const valuationEntries = await tx.inventoryValuationEntry.findMany({
+        where: { sourceType: "LANDED_COST", sourceId: document.id },
+        select: { id: true },
+      });
+      for (const entry of valuationEntries)
+        await postValuationAccounting(tx, entry.id, input.actorUserId);
+      await recordAuditEvent(tx, {
+        actorUserId: input.actorUserId,
+        action: "POST",
+        entityType: "VALUATION_ADJUSTMENT",
+        entityId: document.id,
+        entityReference: document.number,
+        module: "costing",
+        description: `Posted landed cost ${document.number}.`,
+        metadata: {
+          totalAmount: total.toFixed(6),
+          allocationMethod: input.allocationMethod,
+          category: input.category,
+        },
+        beforeSnapshot: { status: "DRAFT" },
+        afterSnapshot: { status: "POSTED" },
+        related: { entityType: "GRN", entityId: receipt.id, reference: receipt.number },
+        controlEvent: true,
+      });
       return document.id;
     });
   }
@@ -368,18 +451,36 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
       if (!batch || batch.productionCostSnapshot)
         throw new CostingRepositoryError("Finalized or missing batch cost cannot be changed.");
       const amount = exactCost(input.amount, "Production cost amount");
-      return (
-        await tx.productionCostEntry.create({
-          data: {
-            productionBatchId: batch.id,
-            category: input.category,
-            amount: amount.toFixed(6),
-            description: input.description,
-            reference: input.reference ?? null,
-            createdByUserId: input.actorUserId,
-          },
-        })
-      ).id;
+      const entry = await tx.productionCostEntry.create({
+        data: {
+          productionBatchId: batch.id,
+          category: input.category,
+          amount: amount.toFixed(6),
+          description: input.description,
+          reference: input.reference ?? null,
+          createdByUserId: input.actorUserId,
+        },
+      });
+      await postProductionCostAccounting(tx, entry.id, input.actorUserId);
+      await recordAuditEvent(tx, {
+        actorUserId: input.actorUserId,
+        action: "ADJUST",
+        entityType: "COSTING_FINALIZATION",
+        entityId: entry.id,
+        entityReference: batch.batchNumber,
+        module: "costing",
+        description: `Added ${input.category.toLowerCase().replaceAll("_", " ")} to ${batch.batchNumber}.`,
+        reasonCode: "MANAGEMENT_APPROVAL",
+        reason: input.description,
+        metadata: { category: input.category, amount: amount.toFixed(6) },
+        related: {
+          entityType: "PRODUCTION_BATCH",
+          entityId: batch.id,
+          reference: batch.batchNumber,
+        },
+        controlEvent: true,
+      });
+      return entry.id;
     });
   }
 
@@ -482,6 +583,32 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
           actorUserId,
           valueDelta: roundingResidual.toFixed(6),
         });
+      await postFinalizedProductionAccounting(tx, snapshot.id, actorUserId);
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: "COMPLETE",
+        entityType: "COSTING_FINALIZATION",
+        entityId: snapshot.id,
+        entityReference: calculation.batchNumber,
+        module: "costing",
+        description: `Finalized production cost for ${calculation.batchNumber}.`,
+        metadata: {
+          rawMaterialCost: calculation.rawMaterialCost,
+          packagingCost: calculation.packagingCost,
+          additionalCost: calculation.additionalCost,
+          costCredits: calculation.costCredits,
+          finishedGoodsCostPool: calculation.finishedGoodsCostPool,
+          costPerPiece: calculation.costPerPiece,
+        },
+        beforeSnapshot: { costingStatus: calculation.costingStatus },
+        afterSnapshot: { costingStatus: "FINALIZED" },
+        related: {
+          entityType: "PRODUCTION_BATCH",
+          entityId: batch.id,
+          reference: batch.batchNumber,
+        },
+        controlEvent: true,
+      });
     });
   }
 }
@@ -570,6 +697,11 @@ export async function valuePurchaseReturn(
       actorUserId,
       quantity: line.normalizedQuantity.toString(),
     });
+    const valuation = await tx.inventoryValuationEntry.findUnique({
+      where: { sourceKey: `PRODUCTION-CONSUMPTION-COST:${line.id}` },
+      select: { id: true },
+    });
+    if (valuation) await postValuationAccounting(tx, valuation.id, actorUserId, historical);
   }
 }
 

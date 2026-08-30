@@ -339,6 +339,195 @@ enum BatchCostingStatus {
   FINALIZED
 }
 
+enum AccountingAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum AccountingJournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum AccountingPeriodEventAction {
+  CLOSED
+  REOPENED
+}
+
+enum AuditActionType {
+  CREATE
+  UPDATE
+  ACTIVATE
+  DEACTIVATE
+  APPROVE
+  RELEASE
+  POST
+  COMPLETE
+  CANCEL
+  REVERSE
+  REOPEN
+  CLOSE
+  ALLOCATE
+  UNALLOCATE
+  OVERRIDE
+  BACKFILL
+  ADJUST
+  LOGIN_SECURITY_EVENT
+  CONTROL_BLOCKED
+}
+
+enum AuditEntityType {
+  USER
+  ROLE
+  MASTER_DATA
+  PURCHASE_ORDER
+  GRN
+  PURCHASE_RETURN
+  INVENTORY_ADJUSTMENT
+  INVENTORY_TRANSFER
+  PRODUCTION_BATCH
+  MATERIAL_TRANSACTION
+  PACKAGING_TRANSACTION
+  PRODUCTION_OUTPUT
+  SALES_ORDER
+  DISPATCH
+  SALES_INVOICE
+  CUSTOMER_PAYMENT
+  SALES_RETURN
+  SUPPLIER_PAYMENT
+  EXPENSE_VOUCHER
+  TREASURY_TRANSFER
+  JOURNAL
+  ACCOUNTING_PERIOD
+  VALUATION_ADJUSTMENT
+  COSTING_FINALIZATION
+}
+
+enum AuditReasonCode {
+  DATA_ENTRY_ERROR
+  DUPLICATE_ENTRY
+  CUSTOMER_REQUEST
+  SUPPLIER_REQUEST
+  QUALITY_FAILURE
+  WRONG_ITEM
+  WRONG_QUANTITY
+  WRONG_PRICE
+  WRONG_WAREHOUSE
+  ACCOUNTING_CORRECTION
+  OPERATIONAL_CORRECTION
+  MANAGEMENT_APPROVAL
+  OTHER
+}
+
+enum PurchaseTaxTreatment {
+  RECOVERABLE
+  CAPITALIZE
+  EXPENSE
+  NOT_CONFIGURED
+}
+
+enum AccountingMappingKey {
+  ACCOUNTS_RECEIVABLE
+  ACCOUNTS_PAYABLE
+  RAW_MATERIAL_INVENTORY
+  PACKAGING_INVENTORY
+  FINISHED_GOODS_INVENTORY
+  WORK_IN_PROCESS
+  SALES_REVENUE
+  SALES_DISCOUNTS
+  SALES_RETURNS
+  OUTPUT_TAX
+  INPUT_TAX
+  COST_OF_GOODS_SOLD
+  GRNI
+  SUPPLIER_CLAIMS
+  LANDED_COST_CLEARING
+  PRODUCTION_COST_CLEARING
+  INVENTORY_VARIANCE
+  PURCHASE_RETURN_VARIANCE
+  PURCHASE_TAX_EXPENSE
+  OPENING_BALANCE_EQUITY
+  DEFAULT_CASH
+  DEFAULT_BANK
+  SALES_RETURN_INVENTORY_CLEARING
+}
+
+enum AccountingSourceType {
+  OPENING_INVENTORY
+  GOODS_RECEIPT
+  GOODS_RECEIPT_ACCEPTANCE
+  PURCHASE_RETURN
+  LANDED_COST
+  VALUATION_ADJUSTMENT
+  PRODUCTION_CONSUMPTION
+  PACKAGING_CONSUMPTION
+  PRODUCTION_COST
+  PRODUCTION_OUTPUT
+  SALES_INVOICE_REVENUE
+  SALES_INVOICE_COGS
+  CUSTOMER_PAYMENT
+  SALES_RETURN_RECEIPT
+  SALES_RETURN_CREDIT
+  MANUAL_JOURNAL
+  MANUAL_REVERSAL
+  SUPPLIER_PAYMENT
+  EXPENSE_VOUCHER
+  EXPENSE_REVERSAL
+  TREASURY_TRANSFER
+}
+
+enum TreasuryAccountType {
+  CASH
+  BANK
+  PETTY_CASH
+  CLEARING
+}
+
+enum SupplierPaymentStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum SupplierPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+  OTHER
+}
+
+enum ExpenseVoucherStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum TreasuryTransferStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum SupplierLedgerEntryType {
+  PURCHASE_ACCEPTANCE
+  PURCHASE_RETURN_CREDIT
+  SUPPLIER_PAYMENT
+  DEBIT_NOTE
+  CREDIT_NOTE
+  OPENING_BALANCE
+  ADJUSTMENT
+}
+
 enum QcRejectionReason {
   DAMAGED
   WRONG_ITEM
@@ -416,6 +605,21 @@ model User {
   valuationAdjustmentsCreated  InventoryValuationAdjustment[]  @relation("InventoryValuationAdjustmentCreatedBy")
   productionCostEntriesCreated ProductionCostEntry[]           @relation("ProductionCostEntryCreatedBy")
   batchCostsFinalized          ProductionBatchCostSnapshot[]   @relation("ProductionBatchCostFinalizedBy")
+  accountingJournalsPosted     AccountingJournal[]             @relation("AccountingJournalPostedBy")
+  accountingPostingBlocks      AccountingPostingBlock[]        @relation("AccountingPostingBlockCreatedBy")
+  accountingPeriodEvents       AccountingPeriodEvent[]          @relation("AccountingPeriodEventActor")
+  supplierPaymentsCreated      SupplierPayment[]               @relation("SupplierPaymentCreatedBy")
+  supplierPaymentsPosted       SupplierPayment[]               @relation("SupplierPaymentPostedBy")
+  supplierPaymentsCancelled    SupplierPayment[]               @relation("SupplierPaymentCancelledBy")
+  supplierPaymentAllocations   SupplierPaymentAllocation[]     @relation("SupplierPaymentAllocationCreatedBy")
+  expenseVouchersCreated       ExpenseVoucher[]                @relation("ExpenseVoucherCreatedBy")
+  expenseVouchersPosted        ExpenseVoucher[]                @relation("ExpenseVoucherPostedBy")
+  expenseVouchersCancelled     ExpenseVoucher[]                @relation("ExpenseVoucherCancelledBy")
+  expenseVouchersReversed      ExpenseVoucher[]                @relation("ExpenseVoucherReversedBy")
+  treasuryTransfersCreated     TreasuryTransfer[]              @relation("TreasuryTransferCreatedBy")
+  treasuryTransfersPosted      TreasuryTransfer[]              @relation("TreasuryTransferPostedBy")
+  treasuryTransfersCancelled   TreasuryTransfer[]              @relation("TreasuryTransferCancelledBy")
+  auditEvents                  AuditEvent[]                    @relation("AuditEventActor")
 
   @@map("user")
 }
@@ -766,6 +970,9 @@ model Supplier {
   goodsReceipts     GoodsReceipt[]
   inventoryLots     InventoryLot[]
   purchaseReturns   PurchaseReturn[]
+  payableLedgerEntries SupplierPayableLedgerEntry[]
+  supplierPayments  SupplierPayment[]
+  expenseVouchers   ExpenseVoucher[]
 
   @@index([active, name])
   @@index([city, active])
@@ -2278,4 +2485,400 @@ model ProductionBatchCostSnapshot {
 
   @@index([status, finalizedAt])
   @@map("production_batch_cost_snapshot")
+}
+
+model AccountingAccount {
+  id              String                  @id @default(uuid())
+  code            String                  @unique
+  name            String
+  accountType     AccountingAccountType
+  subtype         String?
+  parentAccountId String?
+  isControl       Boolean                 @default(false)
+  postingAllowed  Boolean                 @default(true)
+  active          Boolean                 @default(true)
+  description     String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  parent          AccountingAccount?      @relation("AccountingAccountHierarchy", fields: [parentAccountId], references: [id], onDelete: Restrict)
+  children        AccountingAccount[]     @relation("AccountingAccountHierarchy")
+  journalLines    AccountingJournalLine[]
+  mappings        AccountingAccountMapping[]
+  treasuryAccounts TreasuryAccount[]
+  expenseVoucherLines ExpenseVoucherLine[]
+
+  @@index([accountType, active, code])
+  @@index([parentAccountId])
+  @@map("accounting_account")
+}
+
+model AccountingSettings {
+  id                   String               @id @default("default")
+  baseCurrencyCode     String               @default("PKR") @db.Char(3)
+  purchaseTaxTreatment PurchaseTaxTreatment @default(NOT_CONFIGURED)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  mappings             AccountingAccountMapping[]
+
+  @@map("accounting_settings")
+}
+
+model AccountingAccountMapping {
+  id                   String               @id @default(uuid())
+  accountingSettingsId String               @default("default")
+  mappingKey           AccountingMappingKey
+  accountId            String
+  accountingSettings   AccountingSettings   @relation(fields: [accountingSettingsId], references: [id], onDelete: Cascade)
+  account              AccountingAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([accountingSettingsId, mappingKey])
+  @@index([accountId])
+  @@map("accounting_account_mapping")
+}
+
+model AccountingPeriod {
+  id        String                  @id @default(uuid())
+  name      String                  @unique
+  startDate DateTime                @db.Date
+  endDate   DateTime                @db.Date
+  status    AccountingPeriodStatus  @default(OPEN)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  events    AccountingPeriodEvent[]
+
+  @@index([status, startDate, endDate])
+  @@map("accounting_period")
+}
+
+model AccountingPeriodEvent {
+  id          String                      @id @default(uuid())
+  periodId    String
+  action      AccountingPeriodEventAction
+  reason      String?
+  actorUserId String
+  createdAt   DateTime                    @default(now())
+  period      AccountingPeriod            @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  actor       User                        @relation("AccountingPeriodEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([periodId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("accounting_period_event")
+}
+
+model AuditEvent {
+  id                 String          @id @default(uuid())
+  occurredAt         DateTime        @default(now())
+  actorUserId        String
+  action             AuditActionType
+  entityType         AuditEntityType
+  entityId           String
+  entityReference    String?
+  module             String
+  description        String
+  reasonCode         AuditReasonCode?
+  reason             String?
+  metadata           Json?
+  beforeSnapshot     Json?
+  afterSnapshot      Json?
+  relatedEntityType  AuditEntityType?
+  relatedEntityId    String?
+  relatedReference   String?
+  controlEvent       Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  actor              User            @relation("AuditEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([action, occurredAt])
+  @@index([entityType, entityId, occurredAt])
+  @@index([module, occurredAt])
+  @@map("audit_event")
+}
+
+model AccountingJournalSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("accounting_journal_sequence")
+}
+
+model AccountingJournal {
+  id                String                  @id @default(uuid())
+  journalNumber     String                  @unique
+  accountingDate    DateTime                @db.Date
+  sourceType        AccountingSourceType
+  sourceId          String
+  sourceNumber      String?
+  description       String
+  status            AccountingJournalStatus @default(DRAFT)
+  totalDebit        Decimal                 @db.Decimal(30, 6)
+  totalCredit       Decimal                 @db.Decimal(30, 6)
+  postedByUserId    String?
+  postedAt          DateTime?
+  reversalOfId      String?                 @unique
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  postedBy          User?                   @relation("AccountingJournalPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  reversalJournal   AccountingJournal?      @relation("AccountingJournalReversal")
+  reversalOf        AccountingJournal?      @relation("AccountingJournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  lines             AccountingJournalLine[]
+
+  @@unique([sourceType, sourceId], map: "accounting_journal_source_uidx")
+  @@index([accountingDate, status])
+  @@index([sourceType, sourceId])
+  @@map("accounting_journal")
+}
+
+model AccountingJournalLine {
+  id                String            @id @default(uuid())
+  journalId         String
+  position          Int
+  accountId         String
+  description       String?
+  debit             Decimal           @default(0) @db.Decimal(30, 6)
+  credit            Decimal           @default(0) @db.Decimal(30, 6)
+  customerId        String?
+  supplierId        String?
+  itemId            String?
+  productionBatchId String?
+  sourceMetadata    Json?
+  createdAt         DateTime          @default(now())
+  journal           AccountingJournal @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  account           AccountingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([journalId, position])
+  @@index([accountId, journalId])
+  @@index([customerId])
+  @@index([supplierId])
+  @@index([itemId])
+  @@index([productionBatchId])
+  @@map("accounting_journal_line")
+}
+
+model SupplierPayableLedgerEntry {
+  id           String                  @id @default(uuid())
+  sourceKey    String                  @unique
+  supplierId   String
+  entryType    SupplierLedgerEntryType
+  entryDate    DateTime                @db.Date
+  signedAmount Decimal                 @db.Decimal(30, 6)
+  sourceType   String
+  sourceId     String
+  sourceNumber String?
+  description  String
+  journalId    String?                 @unique
+  createdAt    DateTime                @default(now())
+  supplier     Supplier                @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  allocations  SupplierPaymentAllocation[]
+
+  @@index([supplierId, entryDate])
+  @@index([entryType, entryDate])
+  @@map("supplier_payable_ledger_entry")
+}
+
+model TreasuryAccount {
+  id                    String              @id @default(uuid())
+  code                  String              @unique
+  name                  String
+  accountType           TreasuryAccountType
+  glAccountId           String
+  bankName              String?
+  accountTitle          String?
+  accountNumberMasked   String?
+  branch                String?
+  notes                 String?
+  active                Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  glAccount             AccountingAccount   @relation(fields: [glAccountId], references: [id], onDelete: Restrict)
+  supplierPayments      SupplierPayment[]
+  expenseVouchers       ExpenseVoucher[]
+  outgoingTransfers     TreasuryTransfer[]  @relation("TreasuryTransferSource")
+  incomingTransfers     TreasuryTransfer[]  @relation("TreasuryTransferDestination")
+
+  @@index([active, accountType, code])
+  @@index([glAccountId])
+  @@map("treasury_account")
+}
+
+model SupplierPayment {
+  id                    String                @id @default(uuid())
+  number                String                @unique
+  supplierId            String
+  paymentDate           DateTime              @db.Date
+  treasuryAccountId     String
+  method                SupplierPaymentMethod
+  totalAmount           Decimal               @db.Decimal(30, 6)
+  referenceNumber       String?
+  bankReference         String?
+  chequeNumber          String?
+  chequeDate            DateTime?             @db.Date
+  notes                 String?
+  status                SupplierPaymentStatus @default(DRAFT)
+  createdByUserId       String
+  postedByUserId        String?
+  postedAt              DateTime?
+  cancelledByUserId     String?
+  cancelledAt           DateTime?
+  cancellationReason    String?
+  reversalOfId          String?               @unique
+  reversalReason        String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  supplier              Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  treasuryAccount       TreasuryAccount       @relation(fields: [treasuryAccountId], references: [id], onDelete: Restrict)
+  createdBy             User                  @relation("SupplierPaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy              User?                 @relation("SupplierPaymentPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy           User?                 @relation("SupplierPaymentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  reversalOf            SupplierPayment?      @relation("SupplierPaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalPayment       SupplierPayment?      @relation("SupplierPaymentReversal")
+  allocations           SupplierPaymentAllocation[]
+
+  @@index([supplierId, paymentDate])
+  @@index([treasuryAccountId, paymentDate])
+  @@index([status, paymentDate])
+  @@map("supplier_payment")
+}
+
+model SupplierPaymentAllocation {
+  id                        String                     @id @default(uuid())
+  supplierPaymentId         String
+  payableLedgerEntryId      String
+  allocatedAmount           Decimal                    @db.Decimal(30, 6)
+  createdByUserId           String
+  createdAt                 DateTime                   @default(now())
+  supplierPayment           SupplierPayment            @relation(fields: [supplierPaymentId], references: [id], onDelete: Cascade)
+  payableLedgerEntry        SupplierPayableLedgerEntry @relation(fields: [payableLedgerEntryId], references: [id], onDelete: Restrict)
+  createdBy                 User                       @relation("SupplierPaymentAllocationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([supplierPaymentId, payableLedgerEntryId])
+  @@index([payableLedgerEntryId])
+  @@map("supplier_payment_allocation")
+}
+
+model SupplierPaymentSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("supplier_payment_sequence")
+}
+
+model ExpenseVoucher {
+  id                    String               @id @default(uuid())
+  number                String               @unique
+  expenseDate           DateTime             @db.Date
+  payee                 String?
+  supplierId            String?
+  treasuryAccountId     String
+  description           String
+  totalAmount           Decimal              @db.Decimal(30, 6)
+  referenceNumber       String?
+  notes                 String?
+  status                ExpenseVoucherStatus @default(DRAFT)
+  reversalOfId          String?              @unique
+  createdByUserId       String
+  postedByUserId        String?
+  postedAt              DateTime?
+  cancelledByUserId     String?
+  cancelledAt           DateTime?
+  cancellationReason    String?
+  reversedByUserId      String?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  supplier              Supplier?            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  treasuryAccount       TreasuryAccount      @relation(fields: [treasuryAccountId], references: [id], onDelete: Restrict)
+  reversalOf            ExpenseVoucher?      @relation("ExpenseVoucherReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalVoucher       ExpenseVoucher?      @relation("ExpenseVoucherReversal")
+  createdBy             User                 @relation("ExpenseVoucherCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy              User?                @relation("ExpenseVoucherPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy           User?                @relation("ExpenseVoucherCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  reversedBy            User?                @relation("ExpenseVoucherReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
+  lines                 ExpenseVoucherLine[]
+
+  @@index([expenseDate, status])
+  @@index([treasuryAccountId, expenseDate])
+  @@index([supplierId, expenseDate])
+  @@map("expense_voucher")
+}
+
+model ExpenseVoucherLine {
+  id                String         @id @default(uuid())
+  expenseVoucherId  String
+  position          Int
+  expenseAccountId  String
+  description       String
+  amount            Decimal        @db.Decimal(30, 6)
+  createdAt         DateTime       @default(now())
+  expenseVoucher    ExpenseVoucher @relation(fields: [expenseVoucherId], references: [id], onDelete: Cascade)
+  expenseAccount    AccountingAccount @relation(fields: [expenseAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseVoucherId, position])
+  @@index([expenseAccountId])
+  @@map("expense_voucher_line")
+}
+
+model ExpenseVoucherSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("expense_voucher_sequence")
+}
+
+model TreasuryTransfer {
+  id                    String                 @id @default(uuid())
+  number                String                 @unique
+  transferDate          DateTime               @db.Date
+  sourceTreasuryAccountId String
+  destinationTreasuryAccountId String
+  amount                Decimal                @db.Decimal(30, 6)
+  referenceNumber       String?
+  notes                 String?
+  status                TreasuryTransferStatus @default(DRAFT)
+  createdByUserId       String
+  postedByUserId        String?
+  postedAt              DateTime?
+  cancelledByUserId     String?
+  cancelledAt           DateTime?
+  cancellationReason    String?
+  reversalOfId          String?                 @unique
+  reversalReason        String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  sourceTreasuryAccount TreasuryAccount        @relation("TreasuryTransferSource", fields: [sourceTreasuryAccountId], references: [id], onDelete: Restrict)
+  destinationTreasuryAccount TreasuryAccount   @relation("TreasuryTransferDestination", fields: [destinationTreasuryAccountId], references: [id], onDelete: Restrict)
+  createdBy             User                   @relation("TreasuryTransferCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy              User?                  @relation("TreasuryTransferPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy           User?                  @relation("TreasuryTransferCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  reversalOf            TreasuryTransfer?      @relation("TreasuryTransferReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalTransfer      TreasuryTransfer?      @relation("TreasuryTransferReversal")
+
+  @@index([transferDate, status])
+  @@index([sourceTreasuryAccountId, transferDate])
+  @@index([destinationTreasuryAccountId, transferDate])
+  @@map("treasury_transfer")
+}
+
+model TreasuryTransferSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("treasury_transfer_sequence")
+}
+
+model AccountingPostingBlock {
+  id              String   @id @default(uuid())
+  sourceKey       String   @unique
+  sourceType      String
+  sourceId        String
+  reasonCode      String
+  description     String
+  resolvedAt      DateTime?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  createdBy       User     @relation("AccountingPostingBlockCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([resolvedAt, sourceType, createdAt])
+  @@map("accounting_posting_block")
 }

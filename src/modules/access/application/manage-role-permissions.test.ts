@@ -50,7 +50,7 @@ describe("role permission administration", () => {
         store,
       ),
     ).resolves.toEqual({ ok: true });
-    expect(store.replaceRolePermissions).toHaveBeenCalledWith("VIEWER", [
+    expect(store.replaceRolePermissions).toHaveBeenCalledWith("admin", "VIEWER", [
       "dashboard.view",
       "reports.view",
     ]);

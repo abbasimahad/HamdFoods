@@ -34,6 +34,7 @@ import {
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
 import { valueManualInventoryMovement } from "@/server/costing/prisma-inventory-valuation-repository";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 
 export class PrismaInventoryRepository implements InventoryRepository {
   async listWarehouses(query: string, page: number): Promise<PageResult<WarehouseRecord>> {
@@ -169,6 +170,26 @@ export class PrismaInventoryRepository implements InventoryRepository {
         command.unitCost,
         command.actorUserId,
       );
+      await recordAuditEvent(transaction, {
+        actorUserId: command.actorUserId,
+        action: "ADJUST",
+        entityType: "INVENTORY_ADJUSTMENT",
+        entityId: movement.id,
+        entityReference: command.referenceId ?? movement.id,
+        module: "inventory",
+        description: `Posted ${command.movementType.toLowerCase().replaceAll("_", " ")} inventory adjustment.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason: command.reason,
+        metadata: {
+          itemId: command.itemId,
+          warehouseId: command.warehouseId,
+          status: command.status,
+          quantity: signed(normalized.amount, sign),
+          canonicalUnitId: normalized.unitId,
+          referenceType: command.referenceType,
+        },
+        controlEvent: true,
+      });
       return movement.id;
     });
   }
@@ -217,6 +238,26 @@ export class PrismaInventoryRepository implements InventoryRepository {
           }),
         ],
       });
+      await recordAuditEvent(transaction, {
+        actorUserId: command.actorUserId,
+        action: "POST",
+        entityType: "INVENTORY_TRANSFER",
+        entityId: groupId,
+        entityReference: command.referenceId ?? groupId,
+        module: "inventory",
+        description: "Posted warehouse inventory transfer.",
+        metadata: {
+          itemId: command.itemId,
+          sourceWarehouseId: command.sourceWarehouseId,
+          destinationWarehouseId: command.destinationWarehouseId,
+          status: command.status,
+          quantity: normalized.amount,
+          canonicalUnitId: normalized.unitId,
+        },
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason: command.reason,
+        controlEvent: true,
+      });
       return groupId;
     });
   }
@@ -255,6 +296,26 @@ export class PrismaInventoryRepository implements InventoryRepository {
             groupId,
           }),
         ],
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId: command.actorUserId,
+        action: "ADJUST",
+        entityType: "INVENTORY_TRANSFER",
+        entityId: groupId,
+        entityReference: command.referenceId ?? groupId,
+        module: "inventory",
+        description: "Posted inventory status transfer.",
+        metadata: {
+          itemId: command.itemId,
+          warehouseId: command.warehouseId,
+          sourceStatus: command.sourceStatus,
+          destinationStatus: command.destinationStatus,
+          quantity: normalized.amount,
+          canonicalUnitId: normalized.unitId,
+        },
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason: command.reason,
+        controlEvent: true,
       });
       return groupId;
     });

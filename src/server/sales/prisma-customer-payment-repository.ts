@@ -4,6 +4,8 @@ import Decimal from "decimal.js";
 import { Prisma } from "@/generated/prisma/client";
 import { SALES_ORDER_PAGE_SIZE } from "@/modules/sales/domain/sales-orders";
 import { prisma } from "@/server/db/prisma";
+import { postCustomerPaymentAccounting } from "@/server/accounting/transactional-accounting-posting";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { CustomerPaymentRepositoryError } from "@/modules/sales/application/customer-payment-contracts";
 import type {
   CustomerAging,
@@ -62,7 +64,7 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
     return serializable(async (transaction) => {
       const payment = await transaction.customerPayment.findUnique({
         where: { id: input.id },
-        select: { status: true },
+        select: { status: true, number: true },
       });
       if (!payment) throw problem("not-found", "Payment no longer exists.");
       if (payment.status !== "DRAFT")
@@ -154,6 +156,25 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },
       });
+      await postCustomerPaymentAccounting(transaction, payment.id, actorUserId);
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "CUSTOMER_PAYMENT",
+        entityId: payment.id,
+        entityReference: payment.number,
+        module: "sales",
+        description: `Posted customer payment ${payment.number}.`,
+        metadata: {
+          totalAmount: payment.totalAmount.toString(),
+          allocatedAmount: sum(
+            payment.allocations.map((allocation) => allocation.allocatedAmount),
+          ).toFixed(),
+        },
+        beforeSnapshot: { status: payment.status },
+        afterSnapshot: { status: "POSTED" },
+        controlEvent: true,
+      });
     });
   }
 
@@ -161,7 +182,7 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
     await serializable(async (transaction) => {
       const payment = await transaction.customerPayment.findUnique({
         where: { id },
-        select: { status: true },
+        select: { status: true, number: true },
       });
       if (!payment) throw problem("not-found", "Payment no longer exists.");
       if (payment.status !== "DRAFT")
@@ -174,6 +195,18 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "CUSTOMER_PAYMENT",
+        entityId: id,
+        entityReference: payment.number,
+        module: "sales",
+        description: `Cancelled draft customer payment ${payment.number}.`,
+        reasonCode: "OTHER",
+        reason,
+        controlEvent: true,
       });
     });
   }
@@ -206,6 +239,21 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
           allocatedAmount: allocation.allocatedAmount,
           createdByUserId: actorUserId,
         })),
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "ALLOCATE",
+        entityType: "CUSTOMER_PAYMENT",
+        entityId: payment.id,
+        entityReference: payment.number,
+        module: "sales",
+        description: `Allocated posted customer payment ${payment.number}.`,
+        metadata: {
+          allocationCount: additions.length,
+          allocatedAmount: totalAdditions.toFixed(),
+          totalAllocatedAfter: existing.add(totalAdditions).toFixed(),
+        },
+        controlEvent: true,
       });
     });
   }

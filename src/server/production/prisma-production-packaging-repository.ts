@@ -15,6 +15,7 @@ import {
 import { reconcilePackaging } from "@/modules/production/domain/packaging-reconciliation";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { postProductionMaterialInventory } from "@/server/inventory/transactional-inventory-posting";
 import { valueProductionConsumption } from "@/server/costing/prisma-inventory-valuation-repository";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
@@ -156,6 +157,29 @@ export class PrismaProductionPackagingRepository implements ProductionPackagingR
         where: { id },
         data: { status: "POSTED", postedByUserId: actorUserId, postedAt: new Date() },
       });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "POST",
+        entityType: "PACKAGING_TRANSACTION",
+        entityId: row.id,
+        entityReference: row.transactionNumber,
+        module: "production",
+        description: `Posted ${row.transactionType.toLowerCase()} packaging transaction ${row.transactionNumber}.`,
+        metadata: {
+          transactionType: row.transactionType,
+          itemId: line.itemId,
+          quantity: line.normalizedQuantity.toString(),
+          damageReason: row.damageReason,
+        },
+        beforeSnapshot: { status: row.status },
+        afterSnapshot: { status: "POSTED" },
+        related: {
+          entityType: "PRODUCTION_BATCH",
+          entityId: row.productionBatchId,
+          reference: row.productionBatch.batchNumber,
+        },
+        controlEvent: true,
+      });
     });
   }
 
@@ -176,6 +200,20 @@ export class PrismaProductionPackagingRepository implements ProductionPackagingR
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "PACKAGING_TRANSACTION",
+        entityId: current.id,
+        entityReference: current.transactionNumber,
+        module: "production",
+        description: `Cancelled draft packaging transaction ${current.transactionNumber}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: current.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }

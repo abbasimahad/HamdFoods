@@ -21,6 +21,7 @@ import type {
 } from "@/modules/sales/application/sales-order-contracts";
 import { SalesOrderRepositoryError } from "@/modules/sales/application/sales-order-contracts";
 import { postSalesOrderReservationInventory } from "@/server/inventory/transactional-inventory-posting";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { assertCreditAvailable, CreditExposureError } from "@/server/sales/credit-exposure";
 import { prisma } from "@/server/db/prisma";
 
@@ -195,6 +196,19 @@ export class PrismaSalesOrderRepository implements SalesOrderRepository {
           approvedAt: new Date(),
         },
       });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "APPROVE",
+        entityType: "SALES_ORDER",
+        entityId: order.id,
+        entityReference: order.number,
+        module: "sales",
+        description: `Approved sales order ${order.number}.`,
+        metadata: { grandTotal: prepared.totals.grandTotal },
+        beforeSnapshot: { status: order.status },
+        afterSnapshot: { status: "APPROVED" },
+        controlEvent: true,
+      });
     });
   }
 
@@ -259,6 +273,24 @@ export class PrismaSalesOrderRepository implements SalesOrderRepository {
           "This sales order has no unreserved quantity awaiting redelivery.",
         );
       await postSalesOrderReservationInventory(transaction, commands);
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "ADJUST",
+        entityType: "SALES_ORDER",
+        entityId: order.id,
+        entityReference: order.number,
+        module: "sales",
+        description: `Reserved inventory for redelivery on ${order.number}.`,
+        reasonCode: "CUSTOMER_REQUEST",
+        reason: "Manager-authorized redelivery reservation after dispatch refusal.",
+        metadata: {
+          reservationLines: commands.length,
+          totalPieces: commands
+            .reduce((total, command) => total.add(command.quantity), new Decimal(0))
+            .toFixed(),
+        },
+        controlEvent: true,
+      });
     });
   }
 
@@ -305,6 +337,18 @@ export class PrismaSalesOrderRepository implements SalesOrderRepository {
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "SALES_ORDER",
+        entityId: order.id,
+        entityReference: order.number,
+        module: "sales",
+        description: `Cancelled sales order ${order.number}.`,
+        reasonCode: "OTHER",
+        reason,
+        controlEvent: true,
       });
     });
   }

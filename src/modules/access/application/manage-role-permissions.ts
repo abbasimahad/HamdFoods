@@ -3,7 +3,11 @@ import { hasPermission, type ApplicationPrincipal } from "../domain/principal";
 
 export type RolePermissionStore = {
   roleExists(roleCode: string): Promise<boolean>;
-  replaceRolePermissions(roleCode: string, permissions: readonly PermissionCode[]): Promise<void>;
+  replaceRolePermissions(
+    actorId: string,
+    roleCode: string,
+    permissions: readonly PermissionCode[],
+  ): Promise<void>;
 };
 
 export type RolePermissionResult =
@@ -21,6 +25,6 @@ export async function replaceRolePermissions(
   if (!submittedCodes.every(isPermissionCode)) return { ok: false, reason: "invalid-permission" };
   if (!(await store.roleExists(roleCode))) return { ok: false, reason: "not-found" };
   const permissions = [...new Set(submittedCodes)] as PermissionCode[];
-  await store.replaceRolePermissions(roleCode, permissions);
+  await store.replaceRolePermissions(actor.id, roleCode, permissions);
   return { ok: true };
 }

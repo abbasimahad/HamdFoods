@@ -9,6 +9,7 @@ import type {
   BootstrapUser,
 } from "@/modules/access/application/ports";
 import { provisioningAuth } from "@/server/auth/auth";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { prisma } from "@/server/db/prisma";
 
 export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
@@ -49,7 +50,7 @@ export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
     return (await prisma.role.count({ where: { code: roleCode } })) === 1;
   }
 
-  async createUser(input: ManagedUserInput) {
+  async createUser(actorId: string, input: ManagedUserInput) {
     const created = await provisioningAuth.api.signUpEmail({
       body: { name: input.name, email: input.email, password: input.password },
     });
@@ -60,16 +61,30 @@ export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
       });
       if (roles.length !== input.roleCodes.length)
         throw new Error("A selected role no longer exists");
-      await prisma.$transaction([
-        prisma.user.update({ where: { id: created.user.id }, data: { active: input.active } }),
-        prisma.userRole.createMany({
+      await prisma.$transaction(async (transaction) => {
+        await transaction.user.update({
+          where: { id: created.user.id },
+          data: { active: input.active },
+        });
+        await transaction.userRole.createMany({
           data: roles.map((role) => ({ userId: created.user.id, roleId: role.id })),
           skipDuplicates: true,
-        }),
-        ...(!input.active
-          ? [prisma.session.deleteMany({ where: { userId: created.user.id } })]
-          : []),
-      ]);
+        });
+        if (!input.active)
+          await transaction.session.deleteMany({ where: { userId: created.user.id } });
+        await recordAuditEvent(transaction, {
+          actorUserId: actorId,
+          action: "CREATE",
+          entityType: "USER",
+          entityId: created.user.id,
+          entityReference: created.user.email,
+          module: "administration",
+          description: `Created managed user ${created.user.email}.`,
+          metadata: { roleCodes: input.roleCodes },
+          afterSnapshot: { active: input.active, email: created.user.email },
+          controlEvent: true,
+        });
+      });
     } catch (error) {
       await prisma.$transaction([
         prisma.user.update({ where: { id: created.user.id }, data: { active: false } }),
@@ -123,6 +138,19 @@ export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
           data: roles.map((role) => ({ userId, roleId: role.id })),
           skipDuplicates: true,
         });
+        await recordAuditEvent(transaction, {
+          actorUserId: actorId,
+          action: "UPDATE",
+          entityType: "USER",
+          entityId: userId,
+          module: "administration",
+          description: "Replaced managed-user role assignments.",
+          metadata: {
+            beforeRoleCodes: target.roles.map(({ role }) => role.code),
+            afterRoleCodes: roleCodes,
+          },
+          controlEvent: true,
+        });
         return "updated" as const;
       },
       { isolationLevel: "Serializable" },
@@ -165,6 +193,17 @@ export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
         }
         await transaction.user.update({ where: { id: userId }, data: { active } });
         if (!active) await transaction.session.deleteMany({ where: { userId } });
+        await recordAuditEvent(transaction, {
+          actorUserId: actorId,
+          action: active ? "ACTIVATE" : "DEACTIVATE",
+          entityType: "USER",
+          entityId: userId,
+          module: "administration",
+          description: `${active ? "Activated" : "Deactivated"} a managed user.`,
+          beforeSnapshot: { active: target.active },
+          afterSnapshot: { active },
+          controlEvent: true,
+        });
         return "updated" as const;
       },
       { isolationLevel: "Serializable" },
@@ -227,7 +266,23 @@ export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
     });
   }
 
-  async replaceRolePermissions(roleCode: string, permissionCodes: readonly PermissionCode[]) {
+  async replaceRolePermissions(
+    roleCode: string,
+    permissionCodes: readonly PermissionCode[],
+  ): Promise<void>;
+  async replaceRolePermissions(
+    actorId: string,
+    roleCode: string,
+    permissionCodes: readonly PermissionCode[],
+  ): Promise<void>;
+  async replaceRolePermissions(
+    actorOrRoleCode: string,
+    roleOrPermissionCodes: string | readonly PermissionCode[],
+    submittedPermissionCodes?: readonly PermissionCode[],
+  ) {
+    const actorId = submittedPermissionCodes ? actorOrRoleCode : null;
+    const roleCode = submittedPermissionCodes ? (roleOrPermissionCodes as string) : actorOrRoleCode;
+    const permissionCodes = submittedPermissionCodes ?? (roleOrPermissionCodes as PermissionCode[]);
     const role = await prisma.role.findUniqueOrThrow({ where: { code: roleCode } });
     const permissions = await prisma.permission.findMany({
       where: { code: { in: [...permissionCodes] } },
@@ -236,16 +291,37 @@ export class PrismaAccessRepository implements AccessSeedStore, BootstrapStore {
     if (permissions.length !== permissionCodes.length) {
       throw new Error(`Cannot seed unknown permissions for role ${roleCode}`);
     }
-    await prisma.$transaction([
-      prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
-      prisma.rolePermission.createMany({
+    await prisma.$transaction(async (transaction) => {
+      const before = actorId
+        ? await transaction.rolePermission.findMany({
+            where: { roleId: role.id },
+            select: { permission: { select: { code: true } } },
+          })
+        : [];
+      await transaction.rolePermission.deleteMany({ where: { roleId: role.id } });
+      await transaction.rolePermission.createMany({
         data: permissions.map((permission) => ({
           roleId: role.id,
           permissionId: permission.id,
         })),
         skipDuplicates: true,
-      }),
-    ]);
+      });
+      if (actorId)
+        await recordAuditEvent(transaction, {
+          actorUserId: actorId,
+          action: "UPDATE",
+          entityType: "ROLE",
+          entityId: role.id,
+          entityReference: role.code,
+          module: "administration",
+          description: `Replaced permissions for role ${role.code}.`,
+          metadata: {
+            beforePermissionCodes: before.map((row) => row.permission.code),
+            afterPermissionCodes: permissionCodes,
+          },
+          controlEvent: true,
+        });
+    });
   }
 
   async findUserByEmail(email: string): Promise<BootstrapUser | null> {

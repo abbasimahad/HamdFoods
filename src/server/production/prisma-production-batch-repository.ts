@@ -13,6 +13,7 @@ import type {
 import { ProductionBatchRepositoryError } from "@/modules/production/application/batch-contracts";
 import { calculateProductionBatch } from "@/modules/production/domain/batch-calculations";
 import { prisma } from "@/server/db/prisma";
+import { recordAuditEvent } from "@/server/audit/audit-event";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
 
 const PAGE_SIZE = 25;
@@ -161,7 +162,7 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
     });
   }
 
-  async planBatch(id: string) {
+  async planBatch(id: string, actorUserId: string) {
     await serializable(async (transaction) => {
       const batch = await transaction.productionBatch.findUnique({
         where: { id },
@@ -174,6 +175,18 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
         );
       await validateLifecycleReferences(transaction, batch);
       await transaction.productionBatch.update({ where: { id }, data: { status: "PLANNED" } });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "UPDATE",
+        entityType: "PRODUCTION_BATCH",
+        entityId: batch.id,
+        entityReference: batch.batchNumber,
+        module: "production",
+        description: `Planned production batch ${batch.batchNumber}.`,
+        beforeSnapshot: { status: batch.status },
+        afterSnapshot: { status: "PLANNED" },
+        controlEvent: true,
+      });
     });
   }
 
@@ -199,6 +212,19 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
         where: { id },
         data: { status: "RELEASED", releasedByUserId: actorUserId, releasedAt: new Date() },
       });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "RELEASE",
+        entityType: "PRODUCTION_BATCH",
+        entityId: batch.id,
+        entityReference: batch.batchNumber,
+        module: "production",
+        description: `Released production batch ${batch.batchNumber}.`,
+        metadata: { shortageAcknowledged: hasShortage && acknowledgeShortage },
+        beforeSnapshot: { status: batch.status },
+        afterSnapshot: { status: "RELEASED" },
+        controlEvent: true,
+      });
       return hasShortage;
     });
   }
@@ -219,6 +245,20 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
           cancelledAt: new Date(),
           cancellationReason: reason,
         },
+      });
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "CANCEL",
+        entityType: "PRODUCTION_BATCH",
+        entityId: batch.id,
+        entityReference: batch.batchNumber,
+        module: "production",
+        description: `Cancelled production batch ${batch.batchNumber}.`,
+        reasonCode: "OPERATIONAL_CORRECTION",
+        reason,
+        beforeSnapshot: { status: batch.status },
+        afterSnapshot: { status: "CANCELLED" },
+        controlEvent: true,
       });
     });
   }
