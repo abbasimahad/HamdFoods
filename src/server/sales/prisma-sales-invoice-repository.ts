@@ -23,14 +23,16 @@ import { prisma } from "@/server/db/prisma";
 import { postSalesInvoiceOutflowInventory } from "@/server/inventory/transactional-inventory-posting";
 import { valueSalesInvoiceOutflow } from "@/server/costing/prisma-inventory-valuation-repository";
 import { postSalesInvoiceAccounting } from "@/server/accounting/transactional-accounting-posting";
+import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effectiveness";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { assertCreditAvailable, CreditExposureError } from "./credit-exposure";
+import { customerInvoiceSettlement } from "./customer-invoice-settlement";
 
 const postedInvoiceLines = {
   where: { salesInvoice: { status: "POSTED" as const } },
   include: { allocations: true },
 };
-const postedPaymentAllocations = { where: { customerPayment: { status: "POSTED" as const } } };
+const postedPaymentAllocations = { where: { customerPayment: effectiveCustomerPaymentWhere() } };
 const completedReturns = {
   where: { status: "COMPLETED" as const },
   include: { ledgerEntry: true },
@@ -613,14 +615,7 @@ async function closeSalesOrderWhenComplete(
 }
 
 function mapInvoice(invoice: InvoiceRow): SalesInvoiceRecord {
-  const paid = sum(invoice.paymentAllocations.map((allocation) => allocation.allocatedAmount));
-  const credits = sum(
-    invoice.salesReturns.map((salesReturn) =>
-      salesReturn.ledgerEntry?.signedAmount
-        ? new Decimal(salesReturn.ledgerEntry.signedAmount.toString()).negated()
-        : new Decimal(0),
-    ),
-  );
+  const settlement = customerInvoiceSettlement(invoice);
   return {
     id: invoice.id,
     number: invoice.number,
@@ -643,9 +638,7 @@ function mapInvoice(invoice: InvoiceRow): SalesInvoiceRecord {
     discountTotal: invoice.discountTotal.toString(),
     taxTotal: invoice.taxTotal.toString(),
     grandTotal: invoice.grandTotal.toString(),
-    outstandingAmount: nonNegative(
-      new Decimal(invoice.grandTotal.toString()).sub(paid).sub(credits),
-    ).toFixed(),
+    outstandingAmount: settlement.presentationOutstanding.toFixed(),
     createdByName: invoice.createdBy.name,
     postedByName: invoice.postedBy?.name ?? null,
     postedAt: invoice.postedAt,

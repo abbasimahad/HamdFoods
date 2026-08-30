@@ -3,6 +3,10 @@ import "server-only";
 import Decimal from "decimal.js";
 import { type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
+import {
+  effectiveSupplierPaymentWhere,
+  isEffectivePostedPayment,
+} from "@/server/accounting/payment-effectiveness";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import {
   AccountingPostingError,
@@ -257,18 +261,13 @@ export async function reverseSupplierPayment(
       where: { id },
       include: {
         treasuryAccount: { include: { glAccount: true } },
-        allocations: true,
         reversalPayment: true,
       },
     });
     if (!original || original.status !== "POSTED")
       throw new Phase23AccountingError("Only posted supplier payments can be reversed.");
-    if (original.reversalPayment)
+    if (original.reversalOfId || original.reversalPayment)
       throw new Phase23AccountingError("This supplier payment already has a reversal.");
-    if (original.allocations.length)
-      throw new Phase23AccountingError(
-        "Allocated supplier payments cannot be reversed directly; resolve the allocations first.",
-      );
     const reversalReason = requiredReason(reason, "Reversal reason");
     await validateTreasury(tx, original.treasuryAccountId);
     const apAccountId = await mappedAccount(tx, "ACCOUNTS_PAYABLE");
@@ -353,10 +352,12 @@ export async function allocatePostedSupplierPayment(
   return serializable(async (tx) => {
     const payment = await tx.supplierPayment.findUnique({
       where: { id },
-      include: { allocations: true },
+      include: { allocations: true, reversalPayment: true },
     });
-    if (!payment || payment.status !== "POSTED")
-      throw new Phase23AccountingError("Only posted supplier-payment advances can be allocated.");
+    if (!payment || !isEffectivePostedPayment(payment))
+      throw new Phase23AccountingError(
+        "Only effective posted supplier-payment advances can be allocated.",
+      );
     const additions = await prepareAllocations(tx, payment.supplierId, allocations);
     const alreadyAllocated = sum(payment.allocations.map((line) => line.allocatedAmount));
     if (
@@ -550,7 +551,7 @@ export async function reverseExpenseVoucher(
     });
     if (!original || original.status !== "POSTED")
       throw new Phase23AccountingError("Only posted expenses can be reversed.");
-    if (original.reversalVoucher)
+    if (original.reversalOfId || original.reversalVoucher)
       throw new Phase23AccountingError("This expense voucher already has a reversal.");
     const reversalReason = requiredReason(reason, "Reversal reason");
     await validateTreasury(tx, original.treasuryAccountId);
@@ -722,7 +723,7 @@ export async function reverseTreasuryTransfer(
     });
     if (!original || original.status !== "POSTED")
       throw new Phase23AccountingError("Only posted treasury transfers can be reversed.");
-    if (original.reversalTransfer)
+    if (original.reversalOfId || original.reversalTransfer)
       throw new Phase23AccountingError("This treasury transfer already has a reversal.");
     const reversalReason = requiredReason(reason, "Reversal reason");
     await validateTreasury(tx, original.destinationTreasuryAccountId);
@@ -826,7 +827,14 @@ export async function saveTreasuryTransfer(
 export async function supplierPaymentPage() {
   const [payments, suppliers, treasuries] = await Promise.all([
     prisma.supplierPayment.findMany({
-      include: { supplier: true, treasuryAccount: true, postedBy: true, allocations: true },
+      include: {
+        supplier: true,
+        treasuryAccount: true,
+        postedBy: true,
+        allocations: true,
+        reversalOf: true,
+        reversalPayment: true,
+      },
       orderBy: [{ paymentDate: "desc" }, { number: "desc" }],
       take: 100,
     }),
@@ -839,7 +847,9 @@ export async function supplierPaymentPage() {
       return {
         ...payment,
         allocated: allocated.toFixed(6),
-        unallocated: new Decimal(payment.totalAmount.toString()).sub(allocated).toFixed(6),
+        unallocated: isEffectivePostedPayment(payment)
+          ? new Decimal(payment.totalAmount.toString()).sub(allocated).toFixed(6)
+          : "0",
       };
     }),
     suppliers,
@@ -889,8 +899,15 @@ export async function expenseVoucherPage(query: {
 
 export async function supplierOpenItems(supplierId: string) {
   const entries = await prisma.supplierPayableLedgerEntry.findMany({
-    where: { supplierId, signedAmount: { gt: 0 } },
-    include: { allocations: { where: { supplierPayment: { status: "POSTED" } } }, supplier: true },
+    where: {
+      supplierId,
+      signedAmount: { gt: 0 },
+      sourceType: { not: "SUPPLIER_PAYMENT_REVERSAL" },
+    },
+    include: {
+      allocations: { where: { supplierPayment: effectiveSupplierPaymentWhere() } },
+      supplier: true,
+    },
     orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
   });
   return entries
@@ -908,9 +925,9 @@ export async function supplierOpenItems(supplierId: string) {
 export async function oldestFirstAllocationProposal(paymentId: string) {
   const payment = await prisma.supplierPayment.findUnique({
     where: { id: paymentId },
-    include: { allocations: true },
+    include: { allocations: true, reversalPayment: true },
   });
-  if (!payment || payment.status !== "POSTED") return [];
+  if (!payment || !isEffectivePostedPayment(payment)) return [];
   let remaining = new Decimal(payment.totalAmount.toString()).sub(
     sum(payment.allocations.map((line) => line.allocatedAmount)),
   );
@@ -979,8 +996,9 @@ async function prepareAllocations(
       id: { in: allocations.map((line) => line.payableLedgerEntryId) },
       supplierId,
       signedAmount: { gt: 0 },
+      sourceType: { not: "SUPPLIER_PAYMENT_REVERSAL" },
     },
-    include: { allocations: { where: { supplierPayment: { status: "POSTED" } } } },
+    include: { allocations: { where: { supplierPayment: effectiveSupplierPaymentWhere() } } },
   });
   if (targets.length !== allocations.length)
     throw new Phase23AccountingError("Allocations must use open payable items for this supplier.");

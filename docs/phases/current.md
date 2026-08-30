@@ -27,7 +27,7 @@
 ### Scope boundaries
 
 - Reports disclose source/GL differences and manual cash movement instead of silently repairing them. No bank-statement import or reconciliation, refunds, credit notes/debit notes engine, fixed assets, payroll, budgeting/forecasting, multi-currency, tax filing, or new transaction-posting engine was introduced.
-- Aging is based on posted open invoices/payables net of posted payment allocations at the selected as-of date. Inventory historical views reconstruct the last valuation state per item from valuation entries at that date.
+- Aging is based on posted open invoices/payables net of economically effective payment allocations at the selected as-of date; completed Sales Return credits also reduce customer invoice outstanding. Historical allocations attached to reversed payments remain immutable but no longer settle their target. Inventory historical views reconstruct the last valuation state per item from valuation entries at that date.
 
 ### Prior Phase 24 verification evidence
 
@@ -39,7 +39,7 @@
 
 ### Phase 25 completion evidence
 
-- The customer-payment correction adds one linked posted reversal only, retaining the original receipt and allocations while creating opposite customer-ledger/GL entries and excluding the reversed receipt's allocations from current and as-of settlement views. The direct application seam has focused authorization/delegation coverage.
+- The payment-settlement correction uses one exact customer-invoice calculation including completed return credits, makes reversed customer/supplier payment allocations historical but economically ineffective in current and as-of views, permits allocated supplier-payment reversal without a second cash movement, and blocks reversal-of-reversal chains for customer/supplier payments, expenses, and treasury transfers. The direct application seam has focused authorization/delegation coverage.
 - `corepack pnpm verify` passed Prettier, ESLint, Vitest (16 files and 48 tests), Prisma validation/client generation, TypeScript, and the 75-page production build on the corrected Phase 25 source state.
 - `corepack pnpm prisma migrate deploy` applied `20260831080000_phase25_payment_reversal_integrity`; `corepack pnpm prisma migrate status` then reported 37 migrations and a schema up to date. `corepack pnpm db:check` completed a PostgreSQL query successfully.
 - A read-only `prisma db execute` assertion confirmed the non-internal `audit_event_append_only` trigger is installed. `git diff --check` passed.

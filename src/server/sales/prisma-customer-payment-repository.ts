@@ -8,7 +8,10 @@ import {
   postCustomerPaymentAccounting,
   reverseCustomerPaymentAccounting,
 } from "@/server/accounting/transactional-accounting-posting";
-import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effectiveness";
+import {
+  effectiveCustomerPaymentWhere,
+  isEffectivePostedPayment,
+} from "@/server/accounting/payment-effectiveness";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { customerInvoiceSettlement } from "@/server/sales/customer-invoice-settlement";
 import { CustomerPaymentRepositoryError } from "@/modules/sales/application/customer-payment-contracts";
@@ -298,11 +301,11 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
     await serializable(async (transaction) => {
       const payment = await transaction.customerPayment.findUnique({
         where: { id },
-        include: { allocations: true },
+        include: { allocations: true, reversalPayment: true },
       });
       if (!payment) throw problem("not-found", "Payment no longer exists.");
-      if (payment.status !== "POSTED")
-        throw problem("invalid-state", "Only posted payment credit can be allocated.");
+      if (!isEffectivePostedPayment(payment))
+        throw problem("invalid-state", "Only effective posted payment credit can be allocated.");
       const existing = sum(payment.allocations.map((allocation) => allocation.allocatedAmount));
       const additions = await preparedAllocations(transaction, payment.customerId, allocations);
       const totalAdditions = sum(additions.map((allocation) => allocation.allocatedAmount));
@@ -513,7 +516,7 @@ async function preparedAllocations(
     throw problem("allocation", "An invoice can appear only once in an allocation request.");
   const invoices = await transaction.salesInvoice.findMany({
     where: { id: { in: invoiceIds }, customerId, status: "POSTED" },
-    include: { paymentAllocations: postedAllocations },
+    include: { paymentAllocations: postedAllocations, salesReturns: completedReturns },
   });
   if (invoices.length !== invoiceIds.length)
     throw problem(
@@ -523,11 +526,7 @@ async function preparedAllocations(
   return allocations.map((allocation) => {
     const amount = exactPositive(allocation.allocatedAmount, "Allocation amount");
     const invoice = invoices.find((candidate) => candidate.id === allocation.salesInvoiceId)!;
-    const outstanding = nonNegative(
-      new Decimal(invoice.grandTotal.toString()).sub(
-        sum(invoice.paymentAllocations.map((entry) => entry.allocatedAmount)),
-      ),
-    );
+    const outstanding = customerInvoiceSettlement(invoice).presentationOutstanding;
     if (amount.gt(outstanding))
       throw problem(
         "allocation",

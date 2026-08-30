@@ -1,7 +1,10 @@
 import "server-only";
 
 import Decimal from "decimal.js";
-import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effectiveness";
+import {
+  effectiveCustomerPaymentWhere,
+  effectiveSupplierPaymentWhere,
+} from "@/server/accounting/payment-effectiveness";
 import { customerInvoiceSettlement } from "@/server/sales/customer-invoice-settlement";
 import { prisma } from "@/server/db/prisma";
 
@@ -191,10 +194,14 @@ export async function receivableAging(asOf: Date) {
 
 export async function payableAging(asOf: Date) {
   const entries = await prisma.supplierPayableLedgerEntry.findMany({
-    where: { signedAmount: { gt: 0 }, entryDate: { lte: asOf } },
+    where: {
+      signedAmount: { gt: 0 },
+      sourceType: { not: "SUPPLIER_PAYMENT_REVERSAL" },
+      entryDate: { lte: asOf },
+    },
     include: {
       supplier: true,
-      allocations: { where: { supplierPayment: { status: "POSTED", paymentDate: { lte: asOf } } } },
+      allocations: { where: { supplierPayment: effectiveSupplierPaymentWhere(asOf) } },
     },
     orderBy: [{ entryDate: "asc" }, { sourceNumber: "asc" }],
   });

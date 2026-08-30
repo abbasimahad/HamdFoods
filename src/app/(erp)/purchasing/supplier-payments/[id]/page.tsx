@@ -22,6 +22,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       treasuryAccount: true,
       allocations: { include: { payableLedgerEntry: true } },
       postedBy: true,
+      reversalOf: true,
       reversalPayment: true,
     },
   });
@@ -47,6 +48,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           {new Decimal(payment.totalAmount.toString()).sub(allocated).toFixed(6)}
         </p>
         <p>Reference: {payment.referenceNumber ?? "—"}</p>
+        {payment.reversalOf ? <p>Reversal of: {payment.reversalOf.number}</p> : null}
+        {payment.reversalPayment ? <p>Reversed by: {payment.reversalPayment.number}</p> : null}
         {payment.status === "DRAFT" && hasPermission(principal, "accounting.manage") ? (
           <div className="mt-3">
             <PostDocumentForm id={payment.id} type="payment" />
@@ -77,15 +80,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </Card>
       {payment.status === "POSTED" && hasPermission(principal, "accounting.manage") ? (
         <Card className="space-y-4 p-4">
-          {payment.reversalPayment ? (
-            <p className="text-sm">This payment has a linked reversal.</p>
+          {payment.reversalOf || payment.reversalPayment ? (
+            <p className="text-sm">This payment is part of a linked reversal.</p>
           ) : (
-            <DocumentReversalForm id={payment.id} type="payment" />
+            <>
+              <DocumentReversalForm id={payment.id} type="payment" />
+              <div>
+                <h2 className="mb-2 font-semibold">Allocate remaining supplier advance</h2>
+                <SupplierPaymentAllocationForm paymentId={payment.id} proposal={proposal} />
+              </div>
+            </>
           )}
-          <div>
-            <h2 className="mb-2 font-semibold">Allocate remaining supplier advance</h2>
-            <SupplierPaymentAllocationForm paymentId={payment.id} proposal={proposal} />
-          </div>
         </Card>
       ) : null}
     </ResponsiveContainer>

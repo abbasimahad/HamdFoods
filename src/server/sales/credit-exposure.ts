@@ -1,4 +1,6 @@
 import Decimal from "decimal.js";
+import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effectiveness";
+import { customerInvoiceSettlement } from "./customer-invoice-settlement";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 
@@ -89,14 +91,14 @@ export async function getCustomerReceivableSnapshot(customerId: string) {
     prisma.salesInvoice.findMany({
       where: { customerId, status: "POSTED" },
       include: {
-        paymentAllocations: { where: { customerPayment: { status: "POSTED" } } },
+        paymentAllocations: { where: { customerPayment: effectiveCustomerPaymentWhere() } },
         salesReturns: { where: { status: "COMPLETED" }, include: { ledgerEntry: true } },
       },
       orderBy: { invoiceDate: "desc" },
       take: 20,
     }),
     prisma.customerPayment.findMany({
-      where: { customerId, status: "POSTED" },
+      where: { customerId, ...effectiveCustomerPaymentWhere() },
       include: { allocations: true },
       orderBy: { paymentDate: "desc" },
       take: 10,
@@ -115,25 +117,7 @@ export async function getCustomerReceivableSnapshot(customerId: string) {
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
     amount: invoice.grandTotal.toString(),
-    outstanding: Decimal.max(
-      0,
-      new Decimal(invoice.grandTotal.toString())
-        .sub(
-          invoice.paymentAllocations.reduce(
-            (total, allocation) => total.add(allocation.allocatedAmount.toString()),
-            new Decimal(0),
-          ),
-        )
-        .sub(
-          invoice.salesReturns
-            .reduce(
-              (total, salesReturn) =>
-                total.add(salesReturn.ledgerEntry?.signedAmount.toString() ?? "0"),
-              new Decimal(0),
-            )
-            .negated(),
-        ),
-    ).toFixed(),
+    outstanding: customerInvoiceSettlement(invoice).presentationOutstanding.toFixed(),
     daysDue: Math.max(0, Math.floor((today.valueOf() - invoice.dueDate.valueOf()) / 86_400_000)),
   }));
   const unallocatedCredit = payments.reduce(

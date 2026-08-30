@@ -19,6 +19,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     include: {
       sourceTreasuryAccount: true,
       destinationTreasuryAccount: true,
+      reversalOf: true,
       reversalTransfer: true,
     },
   });
@@ -41,6 +42,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             Print-friendly transfer
           </Link>
         </p>
+        {transfer.reversalOf ? <p>Reversal of: {transfer.reversalOf.number}</p> : null}
+        {transfer.reversalTransfer ? <p>Reversed by: {transfer.reversalTransfer.number}</p> : null}
         {transfer.status === "DRAFT" && hasPermission(principal, "accounting.manage") ? (
           <div className="mt-3">
             <PostDocumentForm id={transfer.id} type="transfer" />
@@ -48,8 +51,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </div>
         ) : null}
         {transfer.status === "POSTED" && hasPermission(principal, "accounting.manage") ? (
-          transfer.reversalTransfer ? (
-            <p className="mt-3">This transfer has a linked reversal.</p>
+          transfer.reversalOf || transfer.reversalTransfer ? (
+            <p className="mt-3">This transfer is part of a linked reversal.</p>
           ) : (
             <DocumentReversalForm id={transfer.id} type="transfer" />
           )
