@@ -19,8 +19,8 @@
 ### Completed Phase 25 audit/control boundary
 
 - Migration `20260831060000_phase25_audit_control_framework` adds typed, append-only `AuditEvent` records with server-resolved actor identity, stable actions/entity types/reason codes, indexed search fields, sensitive-field scrubbing, and a PostgreSQL update/delete rejection trigger.
-- High-risk lifecycle coverage is complete for managed users and role permissions; manual inventory adjustments and transfers; purchase orders, receipts, QC, returns, and quarantine; recipes, batches, material/packaging/output transactions; valuation and costing; sales orders, dispatch/delivery, invoices, customer payments/allocations, and returns; supplier payments, expenses, treasury transfers, journals, accounting periods, and mapping controls. Cancellation, reversal, reopen, and override events require a meaningful server-validated reason.
-- Source repositories own operational lifecycle events. Automatic accounting records a distinct JOURNAL event linked to its source; missing settings, open period, tax-policy support, or usable account mappings produce an attributable CONTROL_BLOCKED event and persistent posting block. Supplier-payment, expense, treasury-transfer, and manual-journal reversals create linked compensating documents/journals instead of mutating posted truth.
+- High-risk lifecycle coverage is complete for managed users and role permissions; manual inventory adjustments and transfers; purchase orders, receipts, QC, returns, and quarantine; recipes, batches, material/packaging/output transactions; valuation and costing; sales orders, dispatch/delivery, invoices, customer payments/allocations/reversals, and returns; supplier payments, expenses, treasury transfers, journals, accounting periods, and mapping controls. Cancellation, reversal, reopen, and override events require a meaningful server-validated reason.
+- Source repositories own operational lifecycle events. Automatic accounting records a distinct JOURNAL event linked to its source; missing settings, open period, tax-policy support, or usable account mappings produce an attributable CONTROL_BLOCKED event and persistent posting block. Customer-payment, supplier-payment, expense, treasury-transfer, and manual-journal reversals create linked compensating documents/journals instead of mutating posted truth.
 - Database-backed document sequences provide unique operational and financial references, while PostgreSQL immutability guards prevent posted document headers, lines, allocations, journals, and audit history from being rewritten or deleted through supported workflows.
 - `/administration/audit-log` provides protected server-backed search, detail, and recent-control visibility. Audit metadata recursively removes credential-like fields, and PostgreSQL rejects audit-event updates and deletes.
 
@@ -39,8 +39,9 @@
 
 ### Phase 25 completion evidence
 
-- `corepack pnpm verify` passed Prettier, ESLint, Vitest (15 files and 46 tests), Prisma validation/client generation, TypeScript, and the 75-page production build on the completed Phase 25 source state.
-- `corepack pnpm prisma migrate deploy` reported no pending migrations; `corepack pnpm prisma migrate status` reported 36 migrations and a schema up to date. `corepack pnpm db:check` completed a PostgreSQL query successfully.
+- The customer-payment correction adds one linked posted reversal only, retaining the original receipt and allocations while creating opposite customer-ledger/GL entries and excluding the reversed receipt's allocations from current and as-of settlement views. The direct application seam has focused authorization/delegation coverage.
+- `corepack pnpm verify` passed Prettier, ESLint, Vitest (16 files and 48 tests), Prisma validation/client generation, TypeScript, and the 75-page production build on the corrected Phase 25 source state.
+- `corepack pnpm prisma migrate deploy` applied `20260831080000_phase25_payment_reversal_integrity`; `corepack pnpm prisma migrate status` then reported 37 migrations and a schema up to date. `corepack pnpm db:check` completed a PostgreSQL query successfully.
 - A read-only `prisma db execute` assertion confirmed the non-internal `audit_event_append_only` trigger is installed. `git diff --check` passed.
 
 ## Next gate

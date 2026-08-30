@@ -483,6 +483,36 @@ export async function postCustomerPaymentAccounting(
   });
 }
 
+export async function reverseCustomerPaymentAccounting(
+  tx: Client,
+  reversalPaymentId: string,
+  actorUserId: string,
+) {
+  const payment = await tx.customerPayment.findUnique({ where: { id: reversalPaymentId } });
+  if (!payment || payment.status !== "POSTED" || !payment.reversalOfId) return;
+  const cashMapping = payment.method === "CASH" ? "DEFAULT_CASH" : "DEFAULT_BANK";
+  return postAutomaticJournal(tx, {
+    sourceType: "CUSTOMER_PAYMENT_REVERSAL",
+    sourceId: payment.id,
+    sourceNumber: payment.number,
+    accountingDate: payment.paymentDate,
+    description: `Customer-payment reversal: ${payment.number}. ${payment.reversalReason ?? ""}`,
+    actorUserId,
+    lines: [
+      {
+        mapping: "ACCOUNTS_RECEIVABLE",
+        debit: payment.totalAmount.toString(),
+        customerId: payment.customerId,
+      },
+      {
+        mapping: cashMapping,
+        credit: payment.totalAmount.toString(),
+        customerId: payment.customerId,
+      },
+    ],
+  });
+}
+
 export async function postGoodsReceiptAcceptanceAccounting(
   tx: Client,
   receiptId: string,
@@ -1179,7 +1209,8 @@ function inventoryMapping(itemType: string): AccountingMappingKey {
 export function accountingSourceAuditEntityType(sourceType: AccountingSourceType) {
   if (sourceType === "SALES_INVOICE_REVENUE" || sourceType === "SALES_INVOICE_COGS")
     return "SALES_INVOICE" as const;
-  if (sourceType === "CUSTOMER_PAYMENT") return "CUSTOMER_PAYMENT" as const;
+  if (sourceType === "CUSTOMER_PAYMENT" || sourceType === "CUSTOMER_PAYMENT_REVERSAL")
+    return "CUSTOMER_PAYMENT" as const;
   if (sourceType === "SALES_RETURN_RECEIPT" || sourceType === "SALES_RETURN_CREDIT")
     return "SALES_RETURN" as const;
   if (sourceType === "GOODS_RECEIPT" || sourceType === "GOODS_RECEIPT_ACCEPTANCE")

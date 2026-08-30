@@ -4,8 +4,13 @@ import Decimal from "decimal.js";
 import { Prisma } from "@/generated/prisma/client";
 import { SALES_ORDER_PAGE_SIZE } from "@/modules/sales/domain/sales-orders";
 import { prisma } from "@/server/db/prisma";
-import { postCustomerPaymentAccounting } from "@/server/accounting/transactional-accounting-posting";
+import {
+  postCustomerPaymentAccounting,
+  reverseCustomerPaymentAccounting,
+} from "@/server/accounting/transactional-accounting-posting";
+import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effectiveness";
 import { recordAuditEvent } from "@/server/audit/audit-event";
+import { customerInvoiceSettlement } from "@/server/sales/customer-invoice-settlement";
 import { CustomerPaymentRepositoryError } from "@/modules/sales/application/customer-payment-contracts";
 import type {
   CustomerAging,
@@ -20,7 +25,7 @@ import type {
 } from "@/modules/sales/application/customer-payment-contracts";
 
 const postedAllocations = {
-  where: { customerPayment: { status: "POSTED" as const } },
+  where: { customerPayment: effectiveCustomerPaymentWhere() },
   include: { customerPayment: true },
 };
 const completedReturns = {
@@ -32,6 +37,8 @@ const paymentInclude = {
   createdBy: true,
   postedBy: true,
   cancelledBy: true,
+  reversalOf: { select: { number: true } },
+  reversalPayment: { select: { number: true } },
   allocations: {
     include: {
       salesInvoice: {
@@ -208,6 +215,78 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
         reason,
         controlEvent: true,
       });
+    });
+  }
+
+  async reverseCustomerPayment(
+    id: string,
+    actorUserId: string,
+    reversalDate: Date,
+    reason: string,
+  ) {
+    return serializable(async (transaction) => {
+      const effectiveReversalDate = validDate(reversalDate, "Reversal date");
+      const original = await transaction.customerPayment.findUnique({
+        where: { id },
+        include: { reversalPayment: true },
+      });
+      if (!original || original.status !== "POSTED")
+        throw problem("invalid-state", "Only posted customer payments can be reversed.");
+      if (original.reversalOfId || original.reversalPayment)
+        throw problem("conflict", "This customer payment already has a reversal.");
+      const reversalReason = requiredReason(reason, "Reversal reason");
+      const reversal = await transaction.customerPayment.create({
+        data: {
+          number: await nextPaymentNumber(transaction, effectiveReversalDate),
+          customerId: original.customerId,
+          paymentDate: effectiveReversalDate,
+          method: original.method,
+          totalAmount: original.totalAmount,
+          referenceNumber: original.referenceNumber,
+          bankName: original.bankName,
+          chequeNumber: original.chequeNumber,
+          chequeDate: original.chequeDate,
+          notes: `Reversal of ${original.number}.`,
+          status: "POSTED",
+          reversalOfId: original.id,
+          reversalReason,
+          createdByUserId: actorUserId,
+          postedByUserId: actorUserId,
+          postedAt: new Date(),
+        },
+      });
+      await transaction.customerLedgerEntry.create({
+        data: {
+          customerId: original.customerId,
+          entryType: "ADJUSTMENT",
+          entryDate: effectiveReversalDate,
+          signedAmount: original.totalAmount,
+          customerPaymentId: reversal.id,
+          referenceType: "CUSTOMER_PAYMENT_REVERSAL",
+          referenceId: reversal.id,
+          description: `Reversal of customer payment ${original.number}.`,
+          createdByUserId: actorUserId,
+        },
+      });
+      await reverseCustomerPaymentAccounting(transaction, reversal.id, actorUserId);
+      await recordAuditEvent(transaction, {
+        actorUserId,
+        action: "REVERSE",
+        entityType: "CUSTOMER_PAYMENT",
+        entityId: reversal.id,
+        entityReference: reversal.number,
+        module: "sales",
+        description: `Reversed customer payment ${original.number}.`,
+        reasonCode: "ACCOUNTING_CORRECTION",
+        reason: reversalReason,
+        related: {
+          entityType: "CUSTOMER_PAYMENT",
+          entityId: original.id,
+          reference: original.number,
+        },
+        controlEvent: true,
+      });
+      return reversal.id;
     });
   }
 
@@ -396,15 +475,11 @@ async function savePayment(
     });
     return input.id;
   }
-  const sequence = await transaction.customerPaymentSequence.upsert({
-    where: { year: paymentDate.getUTCFullYear() },
-    create: { year: paymentDate.getUTCFullYear(), nextValue: 2 },
-    update: { nextValue: { increment: 1 } },
-  });
+  const number = await nextPaymentNumber(transaction, paymentDate);
   return (
     await transaction.customerPayment.create({
       data: {
-        number: `RCPT-${paymentDate.getUTCFullYear()}-${String(sequence.nextValue - 1).padStart(6, "0")}`,
+        number,
         ...header,
         createdByUserId: input.actorUserId,
         allocations: {
@@ -419,6 +494,15 @@ async function savePayment(
   ).id;
 }
 
+async function nextPaymentNumber(transaction: Prisma.TransactionClient, paymentDate: Date) {
+  const sequence = await transaction.customerPaymentSequence.upsert({
+    where: { year: paymentDate.getUTCFullYear() },
+    create: { year: paymentDate.getUTCFullYear(), nextValue: 2 },
+    update: { nextValue: { increment: 1 } },
+  });
+  return `RCPT-${paymentDate.getUTCFullYear()}-${String(sequence.nextValue - 1).padStart(6, "0")}`;
+}
+
 async function preparedAllocations(
   transaction: Prisma.TransactionClient,
   customerId: string,
@@ -429,7 +513,7 @@ async function preparedAllocations(
     throw problem("allocation", "An invoice can appear only once in an allocation request.");
   const invoices = await transaction.salesInvoice.findMany({
     where: { id: { in: invoiceIds }, customerId, status: "POSTED" },
-    include: { paymentAllocations: { where: { customerPayment: { status: "POSTED" } } } },
+    include: { paymentAllocations: postedAllocations },
   });
   if (invoices.length !== invoiceIds.length)
     throw problem(
@@ -481,31 +565,23 @@ async function openInvoices(
   });
   return invoices
     .map((invoice) => {
-      const paid = sum(invoice.paymentAllocations.map((allocation) => allocation.allocatedAmount));
-      const credits = sum(
-        invoice.salesReturns.map((salesReturn) =>
-          salesReturn.ledgerEntry?.signedAmount
-            ? new Decimal(salesReturn.ledgerEntry.signedAmount.toString()).negated()
-            : new Decimal(0),
-        ),
-      );
-      const outstanding = nonNegative(
-        new Decimal(invoice.grandTotal.toString()).sub(paid).sub(credits),
-      );
+      const settlement = customerInvoiceSettlement(invoice);
       return {
         id: invoice.id,
         number: invoice.number,
         invoiceDate: invoice.invoiceDate,
         dueDate: invoice.dueDate,
         originalAmount: invoice.grandTotal.toString(),
-        alreadyPaid: paid.toFixed(),
-        outstandingAmount: outstanding.toFixed(),
+        alreadyPaid: settlement.effectivePayments.toFixed(),
+        outstandingAmount: settlement.presentationOutstanding.toFixed(),
       };
     })
     .filter((invoice) => new Decimal(invoice.outstandingAmount).gt(0));
 }
 function mapPayment(payment: PaymentRow): CustomerPaymentRecord {
   const allocatedAmount = sum(payment.allocations.map((allocation) => allocation.allocatedAmount));
+  const isEffective =
+    payment.status === "POSTED" && !payment.reversalOf && !payment.reversalPayment;
   return {
     id: payment.id,
     number: payment.number,
@@ -516,9 +592,9 @@ function mapPayment(payment: PaymentRow): CustomerPaymentRecord {
     method: payment.method,
     totalAmount: payment.totalAmount.toString(),
     allocatedAmount: allocatedAmount.toFixed(),
-    unallocatedAmount: nonNegative(
-      new Decimal(payment.totalAmount.toString()).sub(allocatedAmount),
-    ).toFixed(),
+    unallocatedAmount: isEffective
+      ? nonNegative(new Decimal(payment.totalAmount.toString()).sub(allocatedAmount)).toFixed()
+      : "0",
     referenceNumber: payment.referenceNumber,
     bankName: payment.bankName,
     chequeNumber: payment.chequeNumber,
@@ -531,27 +607,19 @@ function mapPayment(payment: PaymentRow): CustomerPaymentRecord {
     cancelledByName: payment.cancelledBy?.name ?? null,
     cancelledAt: payment.cancelledAt,
     cancellationReason: payment.cancellationReason,
+    reversalOfNumber: payment.reversalOf?.number ?? null,
+    reversalPaymentNumber: payment.reversalPayment?.number ?? null,
+    reversalReason: payment.reversalReason,
     allocations: payment.allocations.map((allocation) => {
-      const paid = sum(
-        allocation.salesInvoice.paymentAllocations.map((entry) => entry.allocatedAmount),
-      );
-      const credits = sum(
-        allocation.salesInvoice.salesReturns.map((salesReturn) =>
-          salesReturn.ledgerEntry?.signedAmount
-            ? new Decimal(salesReturn.ledgerEntry.signedAmount.toString()).negated()
-            : new Decimal(0),
-        ),
-      );
+      const settlement = customerInvoiceSettlement(allocation.salesInvoice);
       return {
         id: allocation.salesInvoiceId,
         number: allocation.salesInvoice.number,
         invoiceDate: allocation.salesInvoice.invoiceDate,
         dueDate: allocation.salesInvoice.dueDate,
         originalAmount: allocation.salesInvoice.grandTotal.toString(),
-        alreadyPaid: paid.toFixed(),
-        outstandingAmount: nonNegative(
-          new Decimal(allocation.salesInvoice.grandTotal.toString()).sub(paid).sub(credits),
-        ).toFixed(),
+        alreadyPaid: settlement.effectivePayments.toFixed(),
+        outstandingAmount: settlement.presentationOutstanding.toFixed(),
         allocatedAmount: allocation.allocatedAmount.toString(),
       };
     }),
@@ -591,6 +659,17 @@ function problem(
   message: string,
 ) {
   return new CustomerPaymentRepositoryError(reason, message);
+}
+function requiredReason(value: string, label: string) {
+  const reason = value.trim();
+  if (reason.length < 3 || reason.length > 1000)
+    throw problem("invalid-reference", `${label} must be between 3 and 1000 characters.`);
+  return reason;
+}
+function validDate(value: Date, label: string) {
+  if (!(value instanceof Date) || Number.isNaN(value.valueOf()))
+    throw problem("invalid-reference", `${label} is invalid.`);
+  return value;
 }
 async function serializable<T>(operation: (transaction: Prisma.TransactionClient) => Promise<T>) {
   for (let attempt = 1; attempt <= 3; attempt += 1)

@@ -6,6 +6,7 @@ import {
   allocateCustomerCredit,
   cancelCustomerPayment,
   postCustomerPayment,
+  reverseCustomerPayment,
   saveCustomerPayment,
 } from "@/modules/sales/application/manage-customer-payments";
 import { requirePermission } from "@/server/auth/server-guards";
@@ -73,9 +74,45 @@ export async function allocateCustomerCreditAction(
   if (result.ok) refresh(id, String(form.get("customerId") ?? ""));
   return { ok: result.ok, message: result.ok ? "Customer credit allocated." : result.message };
 }
+export async function reverseCustomerPaymentAction(
+  _: { ok: boolean; message: string },
+  form: FormData,
+) {
+  const id = String(form.get("id") ?? "");
+  let date: Date;
+  try {
+    date = reversalDate(String(form.get("reversalDate") ?? ""));
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Reversal is invalid." };
+  }
+  const result = await reverseCustomerPayment(
+    await requirePermission("sales.manage"),
+    id,
+    date,
+    String(form.get("reason") ?? ""),
+    repository,
+  );
+  if (typeof result === "string") {
+    refresh(id, String(form.get("customerId") ?? ""));
+    refresh(result, String(form.get("customerId") ?? ""));
+    return { ok: true, message: "Customer payment reversed." };
+  }
+  if (!result.ok) return { ok: false, message: result.message };
+  return { ok: true, message: "Customer payment reversed." };
+}
 export async function postCustomerPaymentFormAction(form: FormData): Promise<void> {
   await postCustomerPaymentAction({ ok: false, message: "" }, form);
 }
 export async function cancelCustomerPaymentFormAction(form: FormData): Promise<void> {
   await cancelCustomerPaymentAction({ ok: false, message: "" }, form);
+}
+export async function reverseCustomerPaymentFormAction(form: FormData): Promise<void> {
+  await reverseCustomerPaymentAction({ ok: false, message: "" }, form);
+}
+function reversalDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Reversal date is invalid.");
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value)
+    throw new Error("Reversal date is invalid.");
+  return date;
 }

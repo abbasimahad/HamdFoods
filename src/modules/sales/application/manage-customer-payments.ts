@@ -85,6 +85,17 @@ export async function cancelCustomerPayment(
     return failure(error, "Payment could not be cancelled.");
   }
 }
+export async function reverseCustomerPayment(
+  actor: ApplicationPrincipal,
+  id: string,
+  reversalDate: Date,
+  reason: string,
+  repository: CustomerPaymentRepository,
+): Promise<string | CustomerPaymentMutationResult> {
+  const denied = requireCustomerPaymentManager(actor);
+  if (denied) return denied;
+  return repository.reverseCustomerPayment(id, actor.id, reversalDate, reason);
+}
 export async function allocateCustomerCredit(
   actor: ApplicationPrincipal,
   id: string,

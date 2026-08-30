@@ -1,6 +1,8 @@
 import "server-only";
 
 import Decimal from "decimal.js";
+import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effectiveness";
+import { customerInvoiceSettlement } from "@/server/sales/customer-invoice-settlement";
 import { prisma } from "@/server/db/prisma";
 
 export type ReportRange = { from: Date; to: Date };
@@ -160,18 +162,17 @@ export async function receivableAging(asOf: Date) {
     include: {
       customer: true,
       paymentAllocations: {
-        where: { customerPayment: { status: "POSTED", paymentDate: { lte: asOf } } },
+        where: { customerPayment: effectiveCustomerPaymentWhere(asOf) },
+      },
+      salesReturns: {
+        where: { status: "COMPLETED", ledgerEntry: { entryDate: { lte: asOf } } },
+        include: { ledgerEntry: true },
       },
     },
     orderBy: [{ dueDate: "asc" }, { number: "asc" }],
   });
   const rows = invoices.flatMap((invoice) => {
-    const paid = sum(
-      invoice.paymentAllocations.map(
-        (allocation) => new Decimal(allocation.allocatedAmount.toString()),
-      ),
-    );
-    const outstanding = new Decimal(invoice.grandTotal.toString()).sub(paid);
+    const outstanding = customerInvoiceSettlement(invoice).presentationOutstanding;
     return outstanding.gt(0)
       ? [{ invoice, outstanding, bucket: agingBucket(invoice.dueDate, asOf) }]
       : [];

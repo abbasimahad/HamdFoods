@@ -475,6 +475,7 @@ enum AccountingSourceType {
   SALES_INVOICE_REVENUE
   SALES_INVOICE_COGS
   CUSTOMER_PAYMENT
+  CUSTOMER_PAYMENT_REVERSAL
   SALES_RETURN_RECEIPT
   SALES_RETURN_CREDIT
   MANUAL_JOURNAL
@@ -1549,12 +1550,16 @@ model CustomerPayment {
   cancelledByUserId  String?
   cancelledAt        DateTime?
   cancellationReason String?
+  reversalOfId       String?                     @unique
+  reversalReason     String?
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
   customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   createdBy          User                        @relation("CustomerPaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   postedBy           User?                       @relation("CustomerPaymentPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
   cancelledBy        User?                       @relation("CustomerPaymentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  reversalOf         CustomerPayment?            @relation("CustomerPaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversalPayment    CustomerPayment?            @relation("CustomerPaymentReversal")
   allocations        CustomerPaymentAllocation[]
   ledgerEntry        CustomerLedgerEntry?
 

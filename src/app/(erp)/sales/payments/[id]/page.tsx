@@ -11,6 +11,7 @@ import {
   allocateCustomerCreditAction,
   cancelCustomerPaymentFormAction,
   postCustomerPaymentFormAction,
+  reverseCustomerPaymentFormAction,
 } from "../actions";
 export default async function CustomerPaymentDetailPage({
   params,
@@ -30,7 +31,7 @@ export default async function CustomerPaymentDetailPage({
     <ResponsiveContainer>
       <PageHeader
         title={payment.number}
-        description={`Customer payment ${payment.status}; it has no inventory, sales-revenue, or General Ledger effect.`}
+        description={`Customer payment ${payment.status}; its receivable and treasury effects are server-posted and auditable.`}
       />
       <p className="mb-4 flex gap-3">
         <Link className="rounded border px-4 py-2" href={`/sales/payments/${payment.id}/print`}>
@@ -58,6 +59,9 @@ export default async function CustomerPaymentDetailPage({
         </p>
         <p>Allocated: {payment.allocatedAmount}</p>
         <p>Unallocated customer credit: {payment.unallocatedAmount}</p>
+        {payment.reversalOfNumber ? <p>Reversal of: {payment.reversalOfNumber}</p> : null}
+        {payment.reversalPaymentNumber ? <p>Reversed by: {payment.reversalPaymentNumber}</p> : null}
+        {payment.reversalReason ? <p>Reversal reason: {payment.reversalReason}</p> : null}
         <p>Created by: {payment.createdByName}</p>
         <p>
           Posted:{" "}
@@ -100,17 +104,21 @@ export default async function CustomerPaymentDetailPage({
           </p>
         )}
       </Card>
-      {canManage && payment.status === "POSTED" && Number(payment.unallocatedAmount) > 0 && (
-        <Card className="mt-4 p-5">
-          <CustomerCreditAllocationForm
-            action={allocateCustomerCreditAction}
-            availableCredit={payment.unallocatedAmount}
-            customerId={payment.customerId}
-            invoices={openInvoices}
-            paymentId={payment.id}
-          />
-        </Card>
-      )}
+      {canManage &&
+        payment.status === "POSTED" &&
+        !payment.reversalOfNumber &&
+        !payment.reversalPaymentNumber &&
+        Number(payment.unallocatedAmount) > 0 && (
+          <Card className="mt-4 p-5">
+            <CustomerCreditAllocationForm
+              action={allocateCustomerCreditAction}
+              availableCredit={payment.unallocatedAmount}
+              customerId={payment.customerId}
+              invoices={openInvoices}
+              paymentId={payment.id}
+            />
+          </Card>
+        )}
       {canManage && payment.status === "DRAFT" && (
         <Card className="mt-4 flex gap-3 p-5">
           <form action={postCustomerPaymentFormAction}>
@@ -128,6 +136,25 @@ export default async function CustomerPaymentDetailPage({
           </form>
         </Card>
       )}
+      {canManage &&
+        payment.status === "POSTED" &&
+        !payment.reversalOfNumber &&
+        !payment.reversalPaymentNumber && (
+          <Card className="mt-4 p-5">
+            <h2 className="font-semibold">Reverse posted payment</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              This creates a linked opposite receivable and cash entry; it does not alter the
+              receipt.
+            </p>
+            <form action={reverseCustomerPaymentFormAction} className="mt-3 flex flex-wrap gap-3">
+              <input name="id" type="hidden" value={payment.id} />
+              <input name="customerId" type="hidden" value={payment.customerId} />
+              <input name="reversalDate" required type="date" />
+              <input name="reason" minLength={3} placeholder="Reason for reversal" required />
+              <button className="rounded border px-4 py-2">Reverse payment</button>
+            </form>
+          </Card>
+        )}
     </ResponsiveContainer>
   );
 }

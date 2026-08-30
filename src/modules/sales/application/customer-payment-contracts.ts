@@ -50,6 +50,9 @@ export type CustomerPaymentRecord = {
   cancelledByName: string | null;
   cancelledAt: Date | null;
   cancellationReason: string | null;
+  reversalOfNumber: string | null;
+  reversalPaymentNumber: string | null;
+  reversalReason: string | null;
   allocations: readonly CustomerPaymentAllocationRecord[];
 };
 export type CustomerPaymentQuery = {
@@ -102,6 +105,12 @@ export interface CustomerPaymentRepository {
   ): Promise<CustomerPaymentPage<Omit<CustomerPaymentRecord, "allocations">>>;
   postCustomerPayment(id: string, actorUserId: string): Promise<void>;
   cancelCustomerPayment(id: string, reason: string, actorUserId: string): Promise<void>;
+  reverseCustomerPayment(
+    id: string,
+    actorUserId: string,
+    reversalDate: Date,
+    reason: string,
+  ): Promise<string>;
   allocatePostedCustomerCredit(
     id: string,
     allocations: readonly CustomerPaymentAllocationInput[],
