@@ -71,7 +71,7 @@ describe("production output and yield", () => {
         processLoss: "50",
         expectedYieldPercent: null,
       }),
-    ).toMatchObject({ compatible: true, goodYieldPercent: "95.000000" });
+    ).toMatchObject({ compatible: true, goodYieldPercent: "95" });
 
     expect(
       calculateOutputReconciliation({

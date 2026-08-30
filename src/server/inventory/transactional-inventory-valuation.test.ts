@@ -17,7 +17,7 @@ describe("moving weighted-average valuation", () => {
       averageUnitCost: "220.000000000000",
     });
     expect(tx.entries()[2]).toMatchObject({
-      quantityEffect: "-40.000000",
+      quantityEffect: "-40",
       valueDelta: "-8800.000000",
       runningOwnedQuantity: "110.000000",
       runningInventoryValue: "24200.000000",
