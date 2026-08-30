@@ -210,7 +210,9 @@ function accountingTx() {
     },
     accountingAccount,
     accountingSettings: { findUnique: vi.fn(async () => ({ mappings })) },
-    accountingPeriod: { findFirst: vi.fn(async () => ({ id: "period-1" })) },
+    accountingPeriod: {
+      findFirst: vi.fn(async (): Promise<{ id: string } | null> => ({ id: "period-1" })),
+    },
     accountingPostingBlock: {
       updateMany: vi.fn(async () => ({ count: 0 })),
       upsert: vi.fn(async () => ({})),

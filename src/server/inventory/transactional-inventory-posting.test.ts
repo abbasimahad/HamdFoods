@@ -24,6 +24,8 @@ const reservationCommand = {
   actorUserId: "actor-1",
 };
 
+type CreateManyArgs = { data: Record<string, unknown>[] };
+
 describe("inventory reservation and dispatch", () => {
   it("moves AVAILABLE to RESERVED without changing physical quantity", async () => {
     const tx = finishedGoodsTx({ available: "500", reserved: "0" });
@@ -101,7 +103,7 @@ describe("inventory reservation and dispatch", () => {
   });
 
   it("blocks invoice quantity beyond the remaining dispatch allocation atomically", async () => {
-    const createMany = vi.fn(async () => ({ count: 1 }));
+    const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 1 }));
     const tx = {
       inventoryMovement: {
         aggregate: vi.fn(async () => ({ _sum: { quantity: "200" } })),
@@ -209,7 +211,7 @@ function finishedGoodsTx({
   reserved: string;
   expiryDate?: Date;
 }) {
-  const createMany = vi.fn(async () => ({ count: 2 }));
+  const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 2 }));
   const client = {
     item: {
       findMany: vi.fn(async () => [
@@ -243,12 +245,12 @@ function finishedGoodsTx({
   return {
     client,
     createMany,
-    created: () => (createMany.mock.calls[0]?.[0] as { data: Record<string, unknown>[] }).data,
+    created: () => createMany.mock.calls[0]?.[0].data ?? [],
   };
 }
 
 function receiptTx(balance: string) {
-  const createMany = vi.fn(async () => ({ count: 2 }));
+  const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 2 }));
   const client = {
     item: {
       findMany: vi.fn(async () => [
@@ -272,13 +274,12 @@ function receiptTx(balance: string) {
   return {
     client,
     createMany,
-    calls: () =>
-      createMany.mock.calls.map((call) => (call[0] as { data: Record<string, unknown>[] }).data),
+    calls: () => createMany.mock.calls.map((call) => call[0].data),
   };
 }
 
 function productionMaterialTx(balance: string) {
-  const createMany = vi.fn(async () => ({ count: 2 }));
+  const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 2 }));
   const create = vi.fn(async () => ({}));
   const client = {
     item: {
@@ -310,7 +311,7 @@ function productionMaterialTx(balance: string) {
     client,
     createMany,
     create,
-    created: () => (createMany.mock.calls[0]?.[0] as { data: Record<string, unknown>[] }).data,
+    created: () => createMany.mock.calls[0]?.[0].data ?? [],
   };
 }
 

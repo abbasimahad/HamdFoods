@@ -2,12 +2,12 @@
 
 ## Phase 26 - Core Automated Test & Integrity Foundation
 
-**Status:** PARTIAL
+**Status:** COMPLETE
 
 ### Phase 26 final-correction verification
 
-- The production-yield and valuation quantity-effect expectations now match the established canonical Decimal serialization. The final Vitest run passed all 28 files and 118 tests.
-- The single full `corepack pnpm verify` pass then reached TypeScript and stopped on seven test-double typing errors in `accounting-integrity.test.ts` and `transactional-inventory-posting.test.ts`; the production build was therefore not reached. Phase 26 remains partial until those compile errors are corrected and a fresh authorized verification passes.
+- The production-yield and valuation quantity-effect expectations match the established canonical Decimal serialization. The final Vitest run passed all 28 files and 118 tests.
+- Nullable accounting-period behavior and Prisma-style `createMany` arguments are modeled explicitly in the test doubles. The final `corepack pnpm verify` pass completed Prettier, ESLint, Vitest, Prisma validation/client generation, TypeScript, and the 75-page production build.
 
 ### Completed Phase 26 testing boundary
 
@@ -60,4 +60,4 @@
 
 ## Next gate
 
-**Phase 27 is NOT READY and is not started.** Phase 26 must first clear the remaining test-double TypeScript errors and complete the production-build verification. Any later scope must preserve the tested server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, and test-database safety boundaries.
+**Phase 27 is the next gate and is not started.** Its scope must preserve the tested server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, and test-database safety boundaries.
