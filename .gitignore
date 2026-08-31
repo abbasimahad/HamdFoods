@@ -16,6 +16,7 @@ src/generated/
 .env
 .env.*
 !.env.example
+.env.production
 
 # Logs and local editor files
 *.log
@@ -29,3 +30,4 @@ Thumbs.db
 *.db-journal
 .test-data/
 .backups/
+.backups-production/

@@ -1,8 +1,29 @@
 # Current phase
 
-## Phase 29 - PWA, Mobile Installability & Responsive Hardening
+## Phase 30 - Production Docker Deployment & Local Server Operations
 
-**Status:** COMPLETE
+**Status:** PARTIAL - DEPLOYMENT DRILL BLOCKED
+
+### Implemented Phase 30 boundary
+
+- `compose.production.yaml` is a separate `hamd-foods-erp-prod` Compose stack. It keeps PostgreSQL private to the Compose network with a project-namespaced named volume, exposes the standalone Next.js application only on `127.0.0.1:${APP_PORT}:3000`, applies `pg_isready` and application health checks, and uses `unless-stopped` only for app/database services.
+- The multi-stage Node 24 Dockerfile uses a frozen pnpm install, deterministic Prisma generation, Next standalone output, a non-root application runtime, one non-restarting `prisma migrate deploy` runner, and an explicit operations profile that reuses Phase 28 backup tooling with PostgreSQL 18 client utilities.
+- Production environment validation requires non-empty Compose PostgreSQL settings and the internal `database` hostname while development/test flows remain unchanged. `.env.production` remains ignored; its committed template contains placeholders only.
+- `GET /api/health` is dynamic and non-cached. It reports only `{"status":"ok"}` when the Prisma database probe succeeds or `{"status":"unavailable"}` with 503 when it does not; it exposes no internal error information.
+- The Windows-oriented runbook documents environment setup, local-only operation, explicit seed/bootstrap removal, health/PWA/auth smoke checks, upgrades, volume safety, and Phase 28-compatible backup/verification commands. Tailscale, firewall changes, proxies, public exposure, and Phase 31 remain out of scope.
+
+### Phase 30 verification evidence
+
+- Focused production-environment tests first failed because the server accepted missing Compose PostgreSQL settings and a loopback production database URL; after the one implementation pass, focused environment/health tests passed (3 files, 10 tests).
+- The single final `corepack pnpm verify` pass stopped at Prettier before lint/tests/build because `docs/plans/2026-08-31-phase30-production-deployment.md` needs formatting. In accordance with the one-pass boundary, the full command was not retried.
+- The single final `corepack pnpm test:integration` pass reset the isolated database, applied all 39 migrations, and passed 2 files and 7 database-backed tests.
+- The single final `corepack pnpm test:e2e` pass reset and seeded the disposable database and passed all 10 single-worker Chromium checks, including Better Auth, authorization, PWA offline safety, and responsive mobile behavior.
+- Docker is not installed on this factory development PC (`docker` is not a recognized command). Consequently `docker compose --env-file .env.production.example -f compose.production.yaml config`, Docker image build, migration/app health checks, local-only port inspection, persistence/recreation checks, production-built auth/PWA smoke, and Phase 28 production-drill backup/verification are blocked and have not been claimed.
+- `git diff --check` passed after the implementation state. The phase remains partial until Docker is installed and the documented isolated production drill succeeds; do not begin Phase 31 first.
+
+### Completed Phase 29 baseline
+
+**Phase 29 status:** COMPLETE
 
 ### Implemented Phase 29 boundary
 
@@ -114,4 +135,4 @@
 
 ## Next gate
 
-**Phase 30 is not started and is now the next gate.** Any future work must preserve server-authoritative transaction, authorization, audit, backup/restore, online-only mutation, conservative-cache, and responsive-shell boundaries.
+**Phase 30 remains the active gate.** Install Docker Desktop/Engine with Compose v2, then run the documented isolated production drill and its Phase 28-compatible backup verification before Phase 31 begins. Preserve server-authoritative transaction, authorization, audit, backup/restore, online-only mutation, conservative-cache, and responsive-shell boundaries.

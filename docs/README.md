@@ -24,6 +24,7 @@ This directory is the durable source of project context. Read only the documents
 ## Operations
 
 - [`operations/backup-and-recovery.md`](operations/backup-and-recovery.md): Phase 28 logical backups, guarded restore, retention, and restore drills
+- [`operations/production-deployment.md`](operations/production-deployment.md): Phase 30 localhost-only Docker deployment and factory-PC operations
 - [`pwa/mobile-pwa.md`](pwa/mobile-pwa.md): Phase 29 installability, conservative caching, offline boundaries, and responsive mobile use
 
 ## Project control

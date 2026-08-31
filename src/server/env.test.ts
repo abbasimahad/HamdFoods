@@ -29,4 +29,45 @@ describe("parseServerEnv", () => {
       }),
     ).toThrowError(/BETTER_AUTH_URL/);
   });
+
+  it("rejects production configuration without Compose database settings", () => {
+    // Defect caught: a production container could start without the values Compose needs to keep its database private.
+    expect(() =>
+      parseServerEnv({
+        APP_ENV: "production",
+        DATABASE_URL: "postgresql://factory_app:password@database:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3000",
+      }),
+    ).toThrowError(/POSTGRES_USER/);
+  });
+
+  it("rejects a loopback database URL in production", () => {
+    // Defect caught: an application container would otherwise target itself rather than the private Compose database service.
+    expect(() =>
+      parseServerEnv({
+        APP_ENV: "production",
+        DATABASE_URL: "postgresql://factory_app:password@localhost:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3000",
+        POSTGRES_USER: "factory_app",
+        POSTGRES_PASSWORD: "password",
+        POSTGRES_DB: "factory_erp",
+      }),
+    ).toThrowError(/DATABASE_URL/);
+  });
+
+  it("accepts the private Compose database URL in production", () => {
+    expect(
+      parseServerEnv({
+        APP_ENV: "production",
+        DATABASE_URL: "postgresql://factory_app:password@database:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3000",
+        POSTGRES_USER: "factory_app",
+        POSTGRES_PASSWORD: "password",
+        POSTGRES_DB: "factory_erp",
+      }),
+    ).toMatchObject({ APP_ENV: "production" });
+  });
 });

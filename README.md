@@ -1,10 +1,10 @@
 # Factory ERP
 
-A production-oriented modular-monolith foundation for a food manufacturing ERP. The completed Phase 8 foundation includes RBAC-protected master data, an immutable inventory ledger, suppliers, purchase orders, goods receiving, purchase QC, and supplier-lot traceability.
+A production-oriented modular-monolith ERP for food manufacturing, with server-authoritative transactions, PostgreSQL-ledger integrity, auditability, backup/recovery controls, and responsive PWA support.
 
 ## Current status
 
-Phase 8 is complete: approved POs support partial GRNs into QUALITY_HOLD, exact QC acceptance into AVAILABLE, rejection into QUARANTINE, and derived PO fulfilment without accounting effects. See [`docs/phases/current.md`](docs/phases/current.md) for exact evidence.
+Phase 29 is complete. Phase 30 establishes the localhost-only production Docker deployment foundation; see [`docs/phases/current.md`](docs/phases/current.md) for the active production-readiness gate. Keep [local development](#local-setup) distinct from the [production deployment runbook](docs/operations/production-deployment.md).
 
 ## Prerequisites
 
