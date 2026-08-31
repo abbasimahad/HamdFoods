@@ -2,7 +2,7 @@
 
 ## Phase 28 - Backup, Restore & Disaster Recovery
 
-**Status:** PARTIAL — TYPE DECLARATIONS REQUIRED
+**Status:** COMPLETE
 
 ### Implemented Phase 28 boundary
 
@@ -14,11 +14,12 @@
 
 ### Phase 28 verification evidence
 
-- `corepack pnpm verify` passed Prettier, ESLint with zero warnings, 29 Vitest files and 132 tests, Prisma validation, and Prisma client generation. It then failed at TypeScript because the installed `pg` runtime package has no declaration package (`TS7016`); the production build was therefore not reached. The suite was not fixed or rerun under the one-pass verification rule.
+- The initial verification pass stopped at TypeScript because the `pg` runtime dependency lacked directly installed declarations. The narrow final correction adds official `@types/pg` declarations without changing backup/restore production behavior.
+- The final `corepack pnpm verify` passed Prettier, ESLint with zero warnings, 29 Vitest files and 132 tests, Prisma validation/client generation, strict TypeScript, and the 75-route production build.
 - `corepack pnpm test:integration` reset the isolated source database, applied all 39 migrations, and passed 2 files and 7 database-backed tests.
 - `corepack pnpm backup:drill` created and verified a custom-format backup, rejected unsafe targets and a bad checksum before mutation, retained only eligible backup pairs, restored into `factory_erp_restore_test`, matched migrations/source facts, and passed journal, AR, AP, inventory, WIP, inventory-health, and audit checks.
 - Chromium E2E was not rerun because Phase 28 changes only server-side operational scripts; the unchanged Phase 27 baseline remains 7 passing checks.
-- Phase 28 remains partial until PostgreSQL TypeScript declarations are added and the normal verification gate passes in a future authorized pass. Scheduling, off-site copying, and production promotion also remain manual operational boundaries.
+- Phase 28 is complete. Scheduling, off-site copying, production recovery promotion, and the provisional RTO remain manual operational boundaries rather than automated guarantees.
 
 ### Completed Phase 27 baseline
 
@@ -93,4 +94,4 @@
 
 ## Next gate
 
-**Phase 29 is not started.** It may become the next gate only after Phase 28's final verification evidence is recorded; it must preserve the server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, backup, restore, and test-database safety boundaries.
+**Phase 29 is not started and is now the next gate.** It must preserve the server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, backup, restore, and test-database safety boundaries.
