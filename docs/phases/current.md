@@ -1,8 +1,28 @@
 # Current phase
 
-## Phase 28 - Backup, Restore & Disaster Recovery
+## Phase 29 - PWA, Mobile Installability & Responsive Hardening
 
 **Status:** COMPLETE
+
+### Implemented Phase 29 boundary
+
+- A Next.js App Router manifest provides Hamd Foods ERP install identity, `/login` launch behavior, standalone display, theme metadata, and optimized 192px, 512px, Apple touch, and maskable icons.
+- The same-origin service worker caches only icons, the non-sensitive offline fallback, and immutable Next static assets. Authenticated navigation stays network-only, non-GET requests are untouched, and no ERP HTML/data, permission state, mutation response, ledger, or financial truth is persisted for offline use.
+- A root connection lifecycle announces offline state, prevents form submission before dispatch, states that nothing was sent, never queues/replays mutations, and offers an explicit retry. Waiting worker updates require an explicit `Update now` action followed by one guarded controller-change reload.
+- The existing shell preserves its desktop rail while tightening phone header controls, active nested navigation, focus handling, safe-area padding, touch targets, representative form labels/actions, and scroll-contained exact-value tables. Finished-goods carton/loose display remains derived from canonical pieces.
+- Focused Playwright coverage now exercises manifest/icons, service-worker control/static caching, offline fallback, offline submission rejection, mobile login and nested navigation, inventory table scrolling/carton display, customer payment, and manual journal layouts.
+
+### Phase 29 verification evidence
+
+- The initial desktop E2E failure was caused by the first service-worker activation claiming the page, which emitted `controllerchange` and reloaded `/login` before Better Auth received its sign-in request. The lifecycle now reloads only after the user explicitly selects `Update now` for a waiting worker; initial installation never reloads the page.
+- The final `corepack pnpm verify` pass completed Prettier, ESLint, 29 Vitest files and 132 tests, Prisma validation/client generation, strict TypeScript, and the 76-route production build.
+- The final `corepack pnpm test:integration` pass reset the isolated database, applied all 39 migrations, and passed 2 files and 7 database-backed tests.
+- The final `corepack pnpm test:e2e` pass reset and seeded the disposable database, then passed all 10 single-worker Chromium checks: Better Auth login/failure/logout, protected routing, RBAC, desktop navigation/print pages, manifest/icons, service-worker static/offline fallback behavior, offline submission rejection, and the complete 360px/390px/430px/tablet responsive workflow. The four captured responsive renders were visually inspected.
+- The Phase 28 backup drill was not rerun because Phase 29 did not change backup/restore production code.
+
+### Completed Phase 28 baseline
+
+**Phase 28 status:** COMPLETE
 
 ### Implemented Phase 28 boundary
 
@@ -94,4 +114,4 @@
 
 ## Next gate
 
-**Phase 29 is not started and is now the next gate.** It must preserve the server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, backup, restore, and test-database safety boundaries.
+**Phase 30 is not started and is now the next gate.** Any future work must preserve server-authoritative transaction, authorization, audit, backup/restore, online-only mutation, conservative-cache, and responsive-shell boundaries.

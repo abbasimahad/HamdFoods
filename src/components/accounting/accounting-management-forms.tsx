@@ -57,13 +57,23 @@ export function ManualJournalForm({
   return (
     <form action={action} className="space-y-3">
       <div className="grid gap-2 md:grid-cols-2">
-        <input className="rounded border px-3 py-2" name="date" type="date" required />
-        <input
-          className="rounded border px-3 py-2"
-          name="description"
-          placeholder="Journal memo"
-          required
-        />
+        <label className="text-sm font-medium">
+          Journal date
+          <input
+            className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+            name="date"
+            type="date"
+            required
+          />
+        </label>
+        <label className="text-sm font-medium">
+          Journal memo
+          <input
+            className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+            name="description"
+            required
+          />
+        </label>
       </div>
       <textarea
         className="min-h-52 w-full rounded border p-3 font-mono text-xs"
@@ -76,7 +86,10 @@ export function ManualJournalForm({
         Use exact account UUIDs from the permitted account list. Each line needs one positive debit
         or credit; control accounts are rejected.
       </p>
-      <button className="rounded bg-[var(--accent)] px-3 py-2 text-white" disabled={pending}>
+      <button
+        className="min-h-11 rounded bg-[var(--accent)] px-3 py-2 text-white"
+        disabled={pending}
+      >
         Post manual journal
       </button>
       {state && !state.ok ? <p className="text-sm text-red-700">{state.message}</p> : null}
@@ -204,16 +217,26 @@ export function AccountingBackfillForm() {
 export function ManualJournalReversalForm({ journalId }: { journalId: string }) {
   const [state, action, pending] = useActionState(reverseManualJournalAction, undefined);
   return (
-    <form action={action} className="mt-4 grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+    <form action={action} className="mt-4 grid gap-2 md:grid-cols-[1fr_2fr_auto] md:items-end">
       <input name="journalId" type="hidden" value={journalId} />
-      <input className="rounded border px-3 py-2" name="date" type="date" required />
-      <input
-        className="rounded border px-3 py-2"
-        name="reason"
-        placeholder="Reason for reversal"
-        required
-      />
-      <button className="rounded bg-red-700 px-3 py-2 text-white" disabled={pending}>
+      <label className="text-sm font-medium">
+        Reversal date
+        <input
+          className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+          name="date"
+          type="date"
+          required
+        />
+      </label>
+      <label className="text-sm font-medium">
+        Reason for reversal
+        <input
+          className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+          name="reason"
+          required
+        />
+      </label>
+      <button className="min-h-11 rounded bg-red-700 px-3 py-2 text-white" disabled={pending}>
         Reverse journal
       </button>
       {state && !state.ok ? (

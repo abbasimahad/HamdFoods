@@ -64,7 +64,7 @@ export function CustomerPaymentForm({
       <label className="block text-sm font-medium">
         Customer
         <select
-          className="ml-2 min-h-11 rounded-lg border border-[var(--border)] bg-white px-3"
+          className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3 sm:max-w-xl"
           defaultValue={selectedCustomerId}
           disabled={Boolean(initial)}
           onChange={(event) => {
@@ -166,10 +166,10 @@ export function CustomerPaymentForm({
       </label>
       {initial?.customerId || invoices.length ? (
         <>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-semibold">Invoice allocation</h2>
             <button
-              className="rounded-lg border px-3 py-2 text-sm"
+              className="min-h-11 rounded-lg border px-3 py-2 text-sm"
               onClick={autoAllocate}
               type="button"
             >
@@ -223,7 +223,7 @@ export function CustomerPaymentForm({
         <p className="text-sm text-[var(--muted)]">Select a customer to load open invoices.</p>
       )}
       <button
-        className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+        className="min-h-11 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
         disabled={pending}
         type="submit"
       >

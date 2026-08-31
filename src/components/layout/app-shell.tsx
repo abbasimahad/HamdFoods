@@ -15,11 +15,11 @@ function Brand({ compact = false }: { compact?: boolean }) {
       className={`flex h-16 items-center gap-3 border-b border-[var(--sidebar-border)] px-4 ${compact ? "justify-center" : ""}`}
     >
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--accent-bright)] text-sm font-black text-white">
-        FE
+        HF
       </span>
       {!compact && (
         <span>
-          <span className="block text-sm font-bold text-white">Factory ERP</span>
+          <span className="block text-sm font-bold text-white">Hamd Foods ERP</span>
           <span className="block text-[0.6875rem] text-[var(--sidebar-muted)]">
             Operations control
           </span>
@@ -122,7 +122,7 @@ export function AppShell({
           <aside
             aria-label="Mobile navigation"
             aria-modal="true"
-            className="relative flex h-full w-[min(88vw,22rem)] flex-col bg-[var(--sidebar)] shadow-2xl"
+            className="relative flex h-full w-[min(88vw,22rem)] flex-col bg-[var(--sidebar)] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl"
             ref={drawerRef}
             role="dialog"
           >

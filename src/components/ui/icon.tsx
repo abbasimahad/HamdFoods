@@ -2,7 +2,8 @@ import type { ReactNode, SVGProps } from "react";
 
 import type { NavigationIcon } from "@/config/navigation";
 
-export type IconName = NavigationIcon | "bell" | "chevron" | "close" | "collapse" | "menu" | "user";
+export type IconName =
+  NavigationIcon | "bell" | "chevron" | "close" | "collapse" | "logout" | "menu" | "user";
 
 type IconProps = SVGProps<SVGSVGElement> & { name: IconName };
 
@@ -71,6 +72,12 @@ const iconPaths: Record<IconName, ReactNode> = {
     <>
       <path d="m14 18-6-6 6-6" />
       <path d="M20 4v16" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M10 5H5v14h5" />
+      <path d="m14 8 4 4-4 4M18 12H9" />
     </>
   ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,

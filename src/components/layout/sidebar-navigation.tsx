@@ -80,11 +80,14 @@ export function SidebarNavigation({
                   className="ml-5 border-l border-[var(--sidebar-border)] py-1 pl-3"
                   id={`nav-children-${item.id}`}
                 >
-                  {item.children.map((child) =>
-                    child.status === "active" ? (
+                  {item.children.map((child) => {
+                    const childActive =
+                      pathname === child.href || pathname.startsWith(`${child.href}/`);
+                    return child.status === "active" ? (
                       <li key={child.href}>
                         <Link
-                          className="flex min-h-9 items-center rounded-md px-2 text-xs text-[var(--sidebar-ink)] outline-none hover:bg-[var(--sidebar-hover)] focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus)]"
+                          aria-current={childActive ? "page" : undefined}
+                          className={`flex min-h-11 items-center rounded-md px-2 text-xs outline-none hover:bg-[var(--sidebar-hover)] focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus)] ${childActive ? "bg-[var(--sidebar-active)] font-semibold text-white" : "text-[var(--sidebar-ink)]"}`}
                           href={child.href}
                           onClick={() => onNavigate?.()}
                         >
@@ -102,8 +105,8 @@ export function SidebarNavigation({
                           Planned
                         </span>
                       </li>
-                    ),
-                  )}
+                    );
+                  })}
                 </ul>
               )}
             </li>

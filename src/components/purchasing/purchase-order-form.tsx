@@ -213,7 +213,7 @@ export function PurchaseOrderForm({
       </div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <button
-          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"
+          className="min-h-11 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"
           onClick={() => setLines((current) => [...current, emptyLine()])}
           type="button"
         >
@@ -230,7 +230,7 @@ export function PurchaseOrderForm({
           <dd className="text-right font-bold">{formatMoney(totals.grand)}</dd>
         </dl>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           className="min-h-11 rounded-lg bg-[var(--accent)] px-5 font-semibold text-white disabled:opacity-60"
           disabled={pending}

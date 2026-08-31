@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport" />
+    <meta content="#176b45" name="theme-color" />
+    <title>Offline | Hamd Foods ERP</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: #f3f5f3;
+        color: #18211b;
+        font-family: Arial, "Helvetica Neue", sans-serif;
+      }
+      main {
+        display: grid;
+        min-height: 100dvh;
+        place-items: center;
+        padding: 24px;
+      }
+      section {
+        width: 100%;
+        max-width: 560px;
+        border: 1px solid #d4dbd6;
+        border-radius: 12px;
+        background: white;
+        padding: 28px;
+      }
+      .mark {
+        display: grid;
+        width: 48px;
+        height: 48px;
+        place-items: center;
+        border-radius: 10px;
+        background: #176b45;
+        color: white;
+        font-weight: 800;
+      }
+      h1 {
+        margin: 20px 0 8px;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+      p {
+        margin: 0;
+        color: #56635b;
+        line-height: 1.6;
+      }
+      a {
+        display: inline-flex;
+        min-height: 44px;
+        margin-top: 20px;
+        align-items: center;
+        border-radius: 8px;
+        background: #176b45;
+        color: white;
+        font-weight: 700;
+        padding: 0 18px;
+        text-decoration: none;
+      }
+      a:focus-visible {
+        outline: 3px solid #168054;
+        outline-offset: 3px;
+      }
+      @media (max-width: 480px) {
+        main {
+          padding: 16px;
+        }
+        section {
+          border-radius: 8px;
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section aria-labelledby="offline-title">
+        <div aria-hidden="true" class="mark">HF</div>
+        <h1 id="offline-title">You are offline</h1>
+        <p>
+          Hamd Foods ERP needs a connection for live inventory, production, sales, and accounting
+          operations. No business transaction has been queued.
+        </p>
+        <a href="/login">Try again</a>
+      </section>
+    </main>
+  </body>
+</html>

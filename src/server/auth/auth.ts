@@ -12,7 +12,7 @@ import { createActiveSessionBeforeHook } from "./active-session-policy";
 function createFactoryAuth(allowSignUp: boolean) {
   return betterAuth({
     ...createAuthOptions({ allowSignUp }),
-    appName: "Factory ERP",
+    appName: "Hamd Foods ERP",
     baseURL: serverEnv.BETTER_AUTH_URL,
     secret: serverEnv.BETTER_AUTH_SECRET,
     trustedOrigins: [serverEnv.BETTER_AUTH_URL],

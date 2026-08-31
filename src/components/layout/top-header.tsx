@@ -16,7 +16,7 @@ export function TopHeader({
   principal: ApplicationPrincipal;
 }) {
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[color:var(--raised-translucent)] px-4 backdrop-blur-sm sm:px-6 xl:px-8">
+    <header className="pwa-safe-header sticky top-0 z-20 flex min-h-16 items-center justify-between gap-2 border-b border-[var(--border)] bg-[color:var(--raised-translucent)] px-3 py-2 backdrop-blur-sm sm:px-6 xl:px-8">
       <div className="flex min-w-0 items-center gap-3">
         <button
           aria-label="Open navigation menu"
@@ -27,8 +27,8 @@ export function TopHeader({
         >
           <Icon className="size-5" name="menu" />
         </button>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[var(--ink)]">Operations workspace</p>
+        <div className="hidden min-w-0 min-[430px]:block">
+          <p className="truncate text-sm font-semibold text-[var(--ink)]">Hamd ERP</p>
           <p className="hidden truncate text-xs text-[var(--muted)] sm:block">
             Food manufacturing ERP
           </p>
@@ -37,7 +37,7 @@ export function TopHeader({
       <div className="flex items-center gap-2">
         <button
           aria-label="Notifications placeholder; notifications are not available yet"
-          className="grid size-11 place-items-center rounded-lg text-[var(--muted)] outline-none hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+          className="hidden size-11 place-items-center rounded-lg text-[var(--muted)] outline-none hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] sm:grid"
           title="Notifications are coming in a later phase"
           type="button"
         >

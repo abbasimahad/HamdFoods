@@ -6,7 +6,7 @@ import { initialPurchasingActionState, type PurchasingAction } from "./action-st
 export function ApproveOrderForm({ action, id }: { action: PurchasingAction; id: string }) {
   const [state, formAction, pending] = useActionState(action, initialPurchasingActionState);
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input name="id" type="hidden" value={id} />
       <button
         className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"

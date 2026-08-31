@@ -34,4 +34,6 @@ The Phase 27 lifecycle owns a fixed isolated PostgreSQL cluster at `127.0.0.1:55
 
 Playwright owns browser E2E only. Chromium runs a real Better Auth session against the Next.js application, with one worker, no retries, semantic locators, and failure artifacts outside the repository. See `docs/testing/e2e-test-strategy.md` for lifecycle commands, covered workflows, and boundaries.
 
+Phase 29 Playwright coverage also verifies the manifest and icon contract, active service-worker control, static-asset availability offline, the non-sensitive offline navigation fallback, explicit rejection of offline form submission, and representative phone/tablet shell, table, form, and safety-action layouts. Browser-controlled install-prompt presentation is not asserted because Chromium does not expose it as a stable ordinary page contract.
+
 The Phase 28 backup drill resets the Phase 27 source test database, restores its golden workflow into the separate `factory_erp_restore_test`, and verifies checksums, source/restored facts, migrations, journals, control accounts, inventory valuation, WIP, and audit preservation. It never targets the normal `.env` database.

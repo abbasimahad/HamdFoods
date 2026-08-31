@@ -19,7 +19,7 @@ export default async function PrintPurchaseOrderPage({
       </div>
       <header className="mb-8 flex justify-between border-b-2 border-slate-900 pb-5">
         <div>
-          <h1 className="text-2xl font-bold">Factory ERP</h1>
+          <h1 className="text-2xl font-bold">Hamd Foods ERP</h1>
           <p>Purchase Order</p>
         </div>
         <div className="text-right">

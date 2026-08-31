@@ -54,9 +54,33 @@ input,
 textarea,
 select {
   font: inherit;
+  max-width: 100%;
 }
 button {
   cursor: pointer;
+}
+form,
+main,
+.erp-content {
+  min-width: 0;
+}
+:where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.pwa-safe-header {
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+.erp-content .overflow-x-auto {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+.erp-content table {
+  font-variant-numeric: tabular-nums;
 }
 ::selection {
   background: var(--accent);
@@ -71,6 +95,18 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 640px), (pointer: coarse) {
+  button,
+  [role="button"] {
+    min-height: 44px;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  select,
+  textarea {
+    min-height: 44px;
   }
 }
 

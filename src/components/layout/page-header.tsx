@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 export function PageHeader({
   title,
   description,
-  eyebrow = "Factory ERP",
+  eyebrow = "Hamd Foods ERP",
 }: {
   title: string;
   description: string;
@@ -23,7 +23,7 @@ export function PageHeader({
         </p>
       </div>
       <div className="shrink-0">
-        <StatusBadge tone="info">Phase 2 shell</StatusBadge>
+        <StatusBadge tone="info">Server-authoritative</StatusBadge>
       </div>
     </header>
   );
