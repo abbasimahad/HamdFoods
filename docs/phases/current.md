@@ -1,8 +1,26 @@
 # Current phase
 
-## Phase 27 - Database Integration, Browser E2E & Full Workflow Regression
+## Phase 28 - Backup, Restore & Disaster Recovery
 
-**Status:** COMPLETED
+**Status:** PARTIAL — TYPE DECLARATIONS REQUIRED
+
+### Implemented Phase 28 boundary
+
+- PostgreSQL custom-format backups use one exported database snapshot and publish a SHA-256 manifest only after `pg_dump` and `pg_restore --list` succeed. Manifests include non-secret server/tool/application/migration metadata plus representative exact source facts.
+- Restore verifies identifier/path safety, manifest structure, byte size, and checksum before any destructive action. Automated targets must contain both restore and test markers and cannot equal the source, development, or PostgreSQL system databases.
+- Post-restore inspection verifies expected tables and migrations, exact source/restored counts and totals, posted journal balance, AR/AP controls, inventory GL/valuation agreement, completed-batch WIP, inventory health, and audit preservation.
+- Retention operates only on validated regular-file backup pairs directly inside the configured backup root. The managed drill uses `factory_erp_test` as source and the separate `factory_erp_restore_test` target, including checksum-corruption and invalid-target rejection.
+- Scheduling, production promotion, deployment, PWA, Tailscale, and off-site/cloud transport remain outside Phase 28. Operator guidance is in `docs/operations/backup-and-recovery.md`.
+
+### Phase 28 verification evidence
+
+- `corepack pnpm verify` passed Prettier, ESLint with zero warnings, 29 Vitest files and 132 tests, Prisma validation, and Prisma client generation. It then failed at TypeScript because the installed `pg` runtime package has no declaration package (`TS7016`); the production build was therefore not reached. The suite was not fixed or rerun under the one-pass verification rule.
+- `corepack pnpm test:integration` reset the isolated source database, applied all 39 migrations, and passed 2 files and 7 database-backed tests.
+- `corepack pnpm backup:drill` created and verified a custom-format backup, rejected unsafe targets and a bad checksum before mutation, retained only eligible backup pairs, restored into `factory_erp_restore_test`, matched migrations/source facts, and passed journal, AR, AP, inventory, WIP, inventory-health, and audit checks.
+- Chromium E2E was not rerun because Phase 28 changes only server-side operational scripts; the unchanged Phase 27 baseline remains 7 passing checks.
+- Phase 28 remains partial until PostgreSQL TypeScript declarations are added and the normal verification gate passes in a future authorized pass. Scheduling, off-site copying, and production promotion also remain manual operational boundaries.
+
+### Completed Phase 27 baseline
 
 ### Implemented Phase 27 boundary
 
@@ -75,4 +93,4 @@
 
 ## Next gate
 
-**Phase 28 is not started.** It may become the next gate only after Phase 27's final verification evidence is recorded; it must preserve the server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, and test-database safety boundaries.
+**Phase 29 is not started.** It may become the next gate only after Phase 28's final verification evidence is recorded; it must preserve the server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, backup, restore, and test-database safety boundaries.

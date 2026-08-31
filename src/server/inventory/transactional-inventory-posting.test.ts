@@ -103,7 +103,7 @@ describe("inventory reservation and dispatch", () => {
   });
 
   it("blocks invoice quantity beyond the remaining dispatch allocation atomically", async () => {
-    const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 1 }));
+    const createMany = createManyMock(1);
     const tx = {
       inventoryMovement: {
         aggregate: vi.fn(async () => ({ _sum: { quantity: "200" } })),
@@ -211,7 +211,7 @@ function finishedGoodsTx({
   reserved: string;
   expiryDate?: Date;
 }) {
-  const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 2 }));
+  const createMany = createManyMock(2);
   const client = {
     item: {
       findMany: vi.fn(async () => [
@@ -250,7 +250,7 @@ function finishedGoodsTx({
 }
 
 function receiptTx(balance: string) {
-  const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 2 }));
+  const createMany = createManyMock(2);
   const client = {
     item: {
       findMany: vi.fn(async () => [
@@ -279,7 +279,7 @@ function receiptTx(balance: string) {
 }
 
 function productionMaterialTx(balance: string) {
-  const createMany = vi.fn(async (_args: CreateManyArgs) => ({ count: 2 }));
+  const createMany = createManyMock(2);
   const create = vi.fn(async () => ({}));
   const client = {
     item: {
@@ -332,6 +332,10 @@ function packagingDamage(quantity: string) {
     reason: "Production usage",
     actorUserId: "actor-1",
   };
+}
+
+function createManyMock(count: number) {
+  return vi.fn<(args: CreateManyArgs) => Promise<{ count: number }>>(async () => ({ count }));
 }
 
 function total(movements: readonly Record<string, unknown>[]) {

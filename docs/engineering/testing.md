@@ -27,8 +27,11 @@ Database-backed tests are also separate and may run only with a disposable Postg
 ```powershell
 corepack pnpm test:integration
 corepack pnpm test:e2e
+corepack pnpm backup:drill
 ```
 
 The Phase 27 lifecycle owns a fixed isolated PostgreSQL cluster at `127.0.0.1:55433/factory_erp_test`. Each full suite recreates, migrates, and seeds that database. The integration guard rejects the normal `DATABASE_URL`, non-PostgreSQL URLs, and database names without a `test` token; managed commands also reject custom endpoints.
 
 Playwright owns browser E2E only. Chromium runs a real Better Auth session against the Next.js application, with one worker, no retries, semantic locators, and failure artifacts outside the repository. See `docs/testing/e2e-test-strategy.md` for lifecycle commands, covered workflows, and boundaries.
+
+The Phase 28 backup drill resets the Phase 27 source test database, restores its golden workflow into the separate `factory_erp_restore_test`, and verifies checksums, source/restored facts, migrations, journals, control accounts, inventory valuation, WIP, and audit preservation. It never targets the normal `.env` database.

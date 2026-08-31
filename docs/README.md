@@ -21,6 +21,10 @@ This directory is the durable source of project context. Read only the documents
 - [`testing/core-test-strategy.md`](testing/core-test-strategy.md): Phase 26 invariant coverage and safe integration-database boundary
 - [`testing/e2e-test-strategy.md`](testing/e2e-test-strategy.md): Phase 27 disposable PostgreSQL and Chromium regression layers
 
+## Operations
+
+- [`operations/backup-and-recovery.md`](operations/backup-and-recovery.md): Phase 28 logical backups, guarded restore, retention, and restore drills
+
 ## Project control
 
 - [`decisions/README.md`](decisions/README.md): accepted architectural decisions

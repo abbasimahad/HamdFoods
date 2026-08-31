@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 
 import {
   PHASE27_TEST_DATABASE_URL,
+  PHASE28_RESTORE_DATABASE_URL,
   phase27TestDatabaseUrl,
   phase27TestEnvironment,
 } from "../src/test/test-environment";
@@ -17,7 +18,16 @@ const testPort = "55433";
 const testHost = "127.0.0.1";
 const testDatabase = "factory_erp_test";
 
-type Action = "start" | "stop" | "migrate" | "reset" | "seed" | "integration" | "e2e" | "serve";
+type Action =
+  | "start"
+  | "stop"
+  | "migrate"
+  | "reset"
+  | "seed"
+  | "integration"
+  | "e2e"
+  | "backup-drill"
+  | "serve";
 
 const action = process.argv[2] as Action | undefined;
 if (!action) throw new Error("A test-database action is required.");
@@ -60,6 +70,14 @@ switch (action) {
     resetAndSeed();
     runPackage(["exec", "tsx", "--conditions=react-server", "scripts/seed-e2e-workflow.ts"]);
     runPackage(["exec", "playwright", "test"]);
+    break;
+  case "backup-drill":
+    resetAndSeed();
+    runPackage(["exec", "tsx", "--conditions=react-server", "scripts/seed-e2e-workflow.ts"]);
+    runPackage(["exec", "tsx", "scripts/backup-restore-drill.ts"], {
+      ...environment,
+      RESTORE_DATABASE_URL: PHASE28_RESTORE_DATABASE_URL,
+    });
     break;
   case "serve":
     startCluster();
