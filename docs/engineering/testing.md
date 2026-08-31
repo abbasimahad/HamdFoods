@@ -25,10 +25,10 @@ pnpm db:check
 Database-backed tests are also separate and may run only with a disposable PostgreSQL database whose name is explicitly test-only:
 
 ```powershell
-$env:TEST_DATABASE_URL = "postgresql://.../factory_erp_test"
-pnpm test:integration
+corepack pnpm test:integration
+corepack pnpm test:e2e
 ```
 
-The integration guard rejects a missing URL, the normal `DATABASE_URL`, non-PostgreSQL URLs, and database names without a `test` token. See `docs/testing/core-test-strategy.md` for the Phase 26 boundary and remaining database-backed gaps.
+The Phase 27 lifecycle owns a fixed isolated PostgreSQL cluster at `127.0.0.1:55433/factory_erp_test`. Each full suite recreates, migrates, and seeds that database. The integration guard rejects the normal `DATABASE_URL`, non-PostgreSQL URLs, and database names without a `test` token; managed commands also reject custom endpoints.
 
-Playwright is reserved for a later E2E phase. Do not add it until end-to-end workflows exist.
+Playwright owns browser E2E only. Chromium runs a real Better Auth session against the Next.js application, with one worker, no retries, semantic locators, and failure artifacts outside the repository. See `docs/testing/e2e-test-strategy.md` for lifecycle commands, covered workflows, and boundaries.

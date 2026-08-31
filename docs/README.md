@@ -19,6 +19,7 @@ This directory is the durable source of project context. Read only the documents
 - [`engineering/testing.md`](engineering/testing.md): test layers and verification commands
 - [`engineering/security.md`](engineering/security.md): trust boundaries and secret handling
 - [`testing/core-test-strategy.md`](testing/core-test-strategy.md): Phase 26 invariant coverage and safe integration-database boundary
+- [`testing/e2e-test-strategy.md`](testing/e2e-test-strategy.md): Phase 27 disposable PostgreSQL and Chromium regression layers
 
 ## Project control
 

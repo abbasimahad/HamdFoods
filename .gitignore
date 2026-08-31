@@ -27,3 +27,4 @@ Thumbs.db
 # Local database artifacts
 *.db
 *.db-journal
+.test-data/

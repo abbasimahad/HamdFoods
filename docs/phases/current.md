@@ -1,8 +1,23 @@
 # Current phase
 
-## Phase 26 - Core Automated Test & Integrity Foundation
+## Phase 27 - Database Integration, Browser E2E & Full Workflow Regression
 
-**Status:** COMPLETE
+**Status:** COMPLETED
+
+### Implemented Phase 27 boundary
+
+- An isolated native PostgreSQL 16 cluster runs at `127.0.0.1:55433/factory_erp_test`, with ignored storage under `.test-data/`. Managed lifecycle commands cannot target a custom or development endpoint and reset only the explicitly test-named database.
+- Deterministic seeding creates test identities and required master/accounting references without directly inserting completed operational transactions. The shared golden workflow uses supported repositories and posting services for purchasing/QC, transfer, production/costing, sales/dispatch/invoice, customer payment/reversal/return, and supplier payment/reversal.
+- Serial database integration checks control-account reconciliation, journal balance, PostgreSQL immutability, reversal-chain rejection, over-return protection, and representative idempotency/atomicity.
+- Playwright Chromium covers real Better Auth login/logout/failure, protected routing, restricted-viewer RBAC, major desktop routes, printable documents/reports, and the mobile navigation shell. It uses one worker, no retries, semantic locators, and temporary-directory failure artifacts.
+- Docker was unavailable, so the equivalent disposable lifecycle uses installed PostgreSQL server binaries. Fresh resets also identified two PostgreSQL migration defects: an earlier idempotent enum migration fixes the Phase 13 enum-order issue without changing the historical migration, and the Phase 27 packaging-integrality migration replaces an impossible fixed-scale `scale(...) = 0` check with an equivalent whole-piece value check.
+
+### Phase 27 completion evidence
+
+- `corepack pnpm verify` passed Prettier, ESLint (with four existing non-fatal unused-argument warnings), Vitest (28 files and 118 tests), Prisma validation/client generation, strict TypeScript, and the 75-route production build.
+- `corepack pnpm test:integration` reset the isolated `factory_erp_test` database, applied all 39 migrations, and passed 2 files and 7 database-backed tests covering the golden workflow, reconciliation, immutability, reversal, idempotency, and over-return protection.
+- `corepack pnpm test:e2e` reset the same isolated database, seeded the supported workflow, and passed all 7 single-worker Chromium checks: authentication, protected routing, logout, RBAC, desktop navigation and printable pages, and mobile navigation.
+- `git diff --check` passed after the final documentation update.
 
 ### Phase 26 final-correction verification
 
@@ -60,4 +75,4 @@
 
 ## Next gate
 
-**Phase 27 is the next gate and is not started.** Its scope must preserve the tested server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, and test-database safety boundaries.
+**Phase 28 is not started.** It may become the next gate only after Phase 27's final verification evidence is recorded; it must preserve the server-authoritative accounting, inventory, valuation, sequencing, reversal, immutability, audit, and test-database safety boundaries.

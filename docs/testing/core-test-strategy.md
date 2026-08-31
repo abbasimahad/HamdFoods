@@ -12,21 +12,20 @@ Vitest remains the single automated test framework. Fast `src/**/*.test.ts` file
 
 ## Integration database
 
-Database integration tests use `vitest.integration.config.ts` and require an explicit `TEST_DATABASE_URL`. The guard rejects a missing URL, a URL equal to `DATABASE_URL`, a non-PostgreSQL URL, or a database name that is not explicitly test-only. The normal development database must never be used as a shortcut.
+Database integration tests use `vitest.integration.config.ts` and the Phase 27 disposable PostgreSQL lifecycle. The guard rejects a URL equal to `DATABASE_URL`, a non-PostgreSQL URL, or a database name that is not explicitly test-only. Managed commands are restricted to the fixed isolated cluster and the normal development database must never be used as a shortcut.
 
 ```powershell
-$env:TEST_DATABASE_URL = "postgresql://.../factory_erp_test"
 corepack pnpm test:integration
 ```
 
-The safety/configuration foundation is ready, but no dedicated test database is configured in the repository environment, so database-backed workflow and PostgreSQL-trigger suites remain a later execution gap.
+The integration suite recreates and migrates the test database, seeds reference data, and creates representative completed transactions only through supported repositories and posting services. It exercises multi-ledger workflows and PostgreSQL immutability triggers that in-memory tests cannot prove.
 
 ## Verification and remaining gaps
 
-Run `corepack pnpm verify` for formatting, lint, unit/service tests, Prisma validation and generation, TypeScript, and the production build. Database-backed end-to-end workflow coverage remains blocked until a disposable migrated test database is provisioned. Browser E2E remains outside Phase 26.
+Run `corepack pnpm verify` for formatting, lint, unit/service tests, Prisma validation and generation, TypeScript, and the production build. Run `corepack pnpm test:integration` and `corepack pnpm test:e2e` separately because they reset and mutate only the disposable database.
 
 No production defect was proven during the constrained implementation pass. The costing and return-inspection calculations were extracted into domain seams without changing their established rules so their exact behavior can be tested directly.
 
-Remaining database-backed gaps are full warehouse-transfer and internal-carrying-value workflows; supplier payment/allocation/reversal ledger reconciliation; combined AR/AP/inventory/WIP source-ledger-to-GL reconciliation; and execution of PostgreSQL append-only triggers. These are not run against the development database.
+Phase 27 closes the previously listed warehouse-transfer, supplier reversal, combined control reconciliation, and PostgreSQL-trigger execution gaps for a representative golden workflow. Remaining breadth is exhaustive form permutations, concurrent posting races, and cross-browser coverage; those are not implied by the golden regression.
 
-Phase 27 may start only after Phase 26 verification passes; it must not weaken the server-authoritative, ledger, reversal, audit, or test-database safety boundaries.
+The database and browser suites preserve the server-authoritative, ledger, reversal, audit, and test-database safety boundaries. See `e2e-test-strategy.md` for Phase 27 details.

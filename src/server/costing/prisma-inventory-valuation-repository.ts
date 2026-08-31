@@ -702,11 +702,6 @@ export async function valuePurchaseReturn(
       actorUserId,
       quantity: line.normalizedQuantity.toString(),
     });
-    const valuation = await tx.inventoryValuationEntry.findUnique({
-      where: { sourceKey: `PRODUCTION-CONSUMPTION-COST:${line.id}` },
-      select: { id: true },
-    });
-    if (valuation) await postValuationAccounting(tx, valuation.id, actorUserId, historical);
   }
 }
 
@@ -752,6 +747,11 @@ export async function valueProductionConsumption(
       actorUserId,
       quantity: line.normalizedQuantity.toString(),
     });
+    const valuation = await tx.inventoryValuationEntry.findUnique({
+      where: { sourceKey: `PRODUCTION-CONSUMPTION-COST:${line.id}` },
+      select: { id: true },
+    });
+    if (valuation) await postValuationAccounting(tx, valuation.id, actorUserId, historical);
   }
 }
 
@@ -776,7 +776,7 @@ export async function valueSalesInvoiceOutflow(
       const movement = await tx.inventoryMovement.findUnique({
         where: {
           sourceKey_movementType: {
-            sourceKey: `SI:${allocation.id}:OUT`,
+            sourceKey: `INV:${allocation.id}:IN_TRANSIT`,
             movementType: "SALES_INVOICE_OUT",
           },
         },
