@@ -6,7 +6,7 @@ import path from "node:path";
 import { config } from "dotenv";
 import { Client } from "pg";
 
-import { parseServerEnv } from "../src/server/env";
+import { parseNativeProductionEnv } from "../src/server/env";
 import { resolvePostgresTool } from "../src/server/operations/database-backup";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -21,6 +21,9 @@ try {
       runPackage(["exec", "prisma", "generate"], environment);
       runPackage(["exec", "next", "build"], environment);
       runPackage(["exec", "tsx", "scripts/prepare-production-runtime.ts"], environment);
+      break;
+    case "start":
+      startStandaloneServer(environment);
       break;
     case "migrate":
       runPackage(["exec", "prisma", "migrate", "deploy"], environment);
@@ -52,9 +55,12 @@ try {
     case "preflight":
       await preflight(environment);
       break;
+    case "validate":
+      console.log("Production startup configuration is valid.");
+      break;
     default:
       throw new Error(
-        "Usage: production.ts <build|migrate|seed|bootstrap|backup|health|preflight>.",
+        "Usage: production.ts <build|start|migrate|seed|bootstrap|backup|health|preflight|validate>.",
       );
   }
 } catch (error) {
@@ -69,8 +75,8 @@ function loadProductionEnvironment() {
     );
   const result = config({ path: productionEnvPath, quiet: true, override: true });
   if (result.error) throw new Error(".env.production could not be loaded.");
-  const serverEnv = parseServerEnv(process.env);
-  return { ...process.env, ...serverEnv, NODE_ENV: "production" };
+  const serverEnv = parseNativeProductionEnv(process.env);
+  return { ...process.env, ...serverEnv, NODE_ENV: "production" as const };
 }
 
 function runPackage(args: string[], environment: NodeJS.ProcessEnv) {
@@ -86,6 +92,20 @@ function runPackage(args: string[], environment: NodeJS.ProcessEnv) {
     throw new Error(`Production command failed with exit code ${result.status ?? "unknown"}.`);
 }
 
+function startStandaloneServer(environment: NodeJS.ProcessEnv) {
+  const runtimePath = path.join(repositoryRoot, ".next", "standalone", "server.js");
+  if (!existsSync(runtimePath))
+    throw new Error("Standalone runtime is missing. Run pnpm production:build first.");
+  const result = spawnSync(process.execPath, [runtimePath], {
+    cwd: repositoryRoot,
+    env: environment,
+    stdio: "inherit",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0)
+    throw new Error(`Production server stopped with exit code ${result.status ?? "unknown"}.`);
+}
+
 function requireBackupAction(value: string | undefined) {
   if (value === "create" || value === "list" || value === "verify") return value;
   throw new Error("Backup usage: production.ts backup <create|list|verify> [backup-id].");
@@ -97,11 +117,7 @@ async function preflight(environment: NodeJS.ProcessEnv) {
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor !== 24) throw new Error("Node.js 24 is required for native production hosting.");
   const hostname = environment.HOSTNAME;
-  const port = Number(environment.PORT);
-  if (!isLoopbackHost(hostname))
-    throw new Error("HOSTNAME must be a loopback address in Phase 30.");
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65535)
-    throw new Error("PORT must be an integer between 1 and 65535.");
+  const port = environment.PORT;
 
   for (const tool of ["pg_isready", "psql", "pg_dump", "pg_restore", "createdb", "dropdb"])
     resolvePostgresTool(tool);
@@ -129,8 +145,4 @@ async function checkHealth(environment: NodeJS.ProcessEnv) {
 
 function isOkHealthResponse(value: unknown): value is { status: "ok" } {
   return Boolean(value && typeof value === "object" && "status" in value && value.status === "ok");
-}
-
-function isLoopbackHost(value: string | undefined) {
-  return value === "127.0.0.1" || value === "localhost" || value === "::1";
 }

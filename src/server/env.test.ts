@@ -38,6 +38,8 @@ describe("parseServerEnv", () => {
         DATABASE_URL: "postgresql://factory_app:password@127.0.0.1:5432/factory_erp",
         BETTER_AUTH_SECRET: "a".repeat(32),
         BETTER_AUTH_URL: "http://127.0.0.1:3000",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3000",
       }),
     ).toMatchObject({ APP_ENV: "production" });
   });
@@ -50,6 +52,8 @@ describe("parseServerEnv", () => {
         DATABASE_URL: "postgresql://factory_app:password@database:5432/factory_erp",
         BETTER_AUTH_SECRET: "a".repeat(32),
         BETTER_AUTH_URL: "http://127.0.0.1:3000",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3000",
       }),
     ).toThrowError(/DATABASE_URL/);
   });
@@ -62,6 +66,8 @@ describe("parseServerEnv", () => {
         DATABASE_URL: "postgresql://factory_app:password@10.0.0.25:5432/factory_erp",
         BETTER_AUTH_SECRET: "a".repeat(32),
         BETTER_AUTH_URL: "http://127.0.0.1:3000",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3000",
       }),
     ).toThrowError(/DATABASE_URL/);
   });
@@ -74,6 +80,8 @@ describe("parseServerEnv", () => {
         DATABASE_URL: "postgresql://factory_app:password@localhost:5432/factory_erp",
         BETTER_AUTH_SECRET: "a".repeat(32),
         BETTER_AUTH_URL: "http://factory.example.test:3000",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3000",
       }),
     ).toThrowError(/BETTER_AUTH_URL/);
   });
@@ -86,7 +94,23 @@ describe("parseServerEnv", () => {
         DATABASE_URL: "postgresql://factory_app:password@[::1]:5432/factory_erp",
         BETTER_AUTH_SECRET: "a".repeat(32),
         BETTER_AUTH_URL: "https://factory.tailnet.example",
+        HOSTNAME: "::1",
+        PORT: "3000",
       }),
     ).toMatchObject({ APP_ENV: "production" });
+  });
+
+  it("rejects an unsafe production server bind before startup", () => {
+    // Defect caught: the standalone server could otherwise bind to every network interface even though preflight was loopback-only.
+    expect(() =>
+      parseServerEnv({
+        APP_ENV: "production",
+        DATABASE_URL: "postgresql://factory_app:password@127.0.0.1:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3000",
+        HOSTNAME: "0.0.0.0",
+        PORT: "3000",
+      }),
+    ).toThrowError(/HOSTNAME/);
   });
 });

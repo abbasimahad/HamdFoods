@@ -30,7 +30,7 @@ Run the non-secret preflight before deployment:
 corepack pnpm production:preflight
 ```
 
-It checks Windows, Node 24, the protected environment file, loopback-only host settings, Better Auth validation, native PostgreSQL tool discovery, database connectivity, and reports only the PostgreSQL version.
+It checks Windows, Node 24, the protected environment file, loopback-only host settings, Better Auth validation, native PostgreSQL tool discovery, database connectivity, and reports only the PostgreSQL version. The actual startup path independently runs the same configuration validation before binding the server; malformed values or a non-loopback `HOSTNAME` such as `0.0.0.0` fail closed without requiring database tools or connectivity.
 
 ## Initial deployment
 
@@ -52,7 +52,13 @@ The bootstrap action does not overwrite an existing password. Remove all tempora
 
 ## Background hosting, logs, and health
 
-Install the built-in Windows Task Scheduler task from an elevated PowerShell session, then start it. The task runs as `SYSTEM`, starts at boot, uses the explicit repository working directory and `.env.production`, and asks Windows to restart a failed task. It never puts database or Better Auth secrets in the scheduled command.
+Install Node 24 machine-wide so `SYSTEM` can use it. Runtime discovery checks only an absolute machine-level `NODE_EXE`, absolute entries from the machine `PATH`, and the standard Program Files Node installation; every candidate must report Node major 24. If Node is installed in another machine-accessible location, set the machine environment variable from an elevated shell:
+
+```powershell
+[Environment]::SetEnvironmentVariable("NODE_EXE", "C:\Program Files\nodejs\node.exe", "Machine")
+```
+
+Install the built-in Windows Task Scheduler task from an elevated PowerShell session, then start it. Installation first requires `.env.production`, the standalone server, the production runner/validator, and a resolvable Node 24 executable. The task runs as `SYSTEM`, starts at boot, uses the explicit repository working directory and `.env.production`, and asks Windows to restart a failed task. It never puts database or Better Auth secrets in the scheduled command.
 
 ```powershell
 corepack pnpm production:install-task
