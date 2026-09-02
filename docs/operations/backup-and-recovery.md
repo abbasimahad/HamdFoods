@@ -25,7 +25,7 @@ corepack pnpm backup:list
 corepack pnpm backup:verify -- <backup-id>
 ```
 
-The normal commands read `DATABASE_URL` from the ignored `.env`. Configure `BACKUP_DIRECTORY` when the default is unsuitable. PostgreSQL executables are discovered from `POSTGRES_BIN` and standard Windows PostgreSQL installations. `PG_DUMP_PATH` and `PG_RESTORE_PATH` may identify explicit executables for a future container/deployment wrapper.
+The normal commands read `DATABASE_URL` from the ignored `.env`. Configure `BACKUP_DIRECTORY` when the default is unsuitable. PostgreSQL executables are discovered from `POSTGRES_BIN` and standard Windows PostgreSQL installations. `PG_DUMP_PATH` and `PG_RESTORE_PATH` may identify explicit executables when the standard discovery locations are unsuitable.
 
 Restore requires an explicit isolated target URL supplied by the operator:
 

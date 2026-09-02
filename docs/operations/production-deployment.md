@@ -1,134 +1,93 @@
-# Production Docker deployment
+# Native Windows production deployment
 
-Phase 30 provides a local, single-host production deployment foundation. It is deliberately **localhost-only**: the ERP is available at `http://127.0.0.1:3000` on the factory PC and is not exposed to the LAN, Internet, Tailscale, a reverse proxy, or public DNS.
+Phase 30 hosts Hamd Foods ERP directly on the Windows factory server. Docker is not required and is not a fallback production architecture. The server runs native PostgreSQL, the Next.js standalone runtime, and one Windows Scheduled Task named `HamdFoodsERP`.
 
-The production stack is separate from local development. Never run production commands with `.env`, and never run development commands with `.env.production`.
+The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3000`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for the dedicated local application role and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
 
 ## Prerequisites
 
-- Docker Desktop or Docker Engine running on the factory PC, with Docker Compose v2;
-- Node.js 24, Corepack, and the repository's pinned pnpm for host-side quality checks;
-- a checked-out, reviewed Git release/commit;
-- an operator-controlled backup directory with sufficient free space.
+- Windows 10/11 or an appropriate Windows Server factory host;
+- Node.js 24, Corepack, and the pinned pnpm version;
+- native PostgreSQL with `pg_isready`, `psql`, `pg_dump`, `pg_restore`, `createdb`, and `dropdb` available either on `PATH` or through `POSTGRES_BIN`;
+- a dedicated non-superuser application role such as `hamd_erp`, its `hamd_foods_erp` database, and a reviewed repository release.
 
-Docker must be running again after Windows restarts before its `unless-stopped` containers can recover. Phase 30 does not install startup tasks, modify Windows Firewall rules, or configure Docker Desktop startup.
+The application role needs only its database/schema and migration permissions. PostgreSQL provisioning is an operator/DBA task in Phase 30; Phase 32 may automate first installation.
 
-## Production environment
+## Environment and preflight
 
-From PowerShell, create the ignored production file and set unique values:
+Copy the placeholder-only template, then restrict the real file so only Administrators and `SYSTEM` can read it:
 
 ```powershell
 Copy-Item .env.production.example .env.production
-$secretBytes = New-Object byte[] 48
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($secretBytes)
-[Convert]::ToBase64String($secretBytes)
+icacls .env.production /inheritance:r /grant:r "Administrators:F" "SYSTEM:F"
 ```
 
-Put the generated value into `BETTER_AUTH_SECRET`; do not echo the completed file, commit it, reuse a development/E2E secret, or change it during ordinary restarts and upgrades. Changing this secret unexpectedly can invalidate Better Auth sessions and assumptions.
+Set `APP_ENV=production`, loopback `HOSTNAME` and `PORT`, a loopback `DATABASE_URL`, and a unique Better Auth secret. Store backups outside the checkout, for example `C:\ProgramData\HamdFoodsERP\backups`. Do not print or commit the completed file. Phase 30 accepts `http://127.0.0.1:3000`; a future private origin must use HTTPS. Do not configure Tailscale yet.
 
-Set a separate strong `POSTGRES_PASSWORD`, a dedicated `POSTGRES_USER`/`POSTGRES_DB`, and a `PRODUCTION_BACKUP_DIRECTORY` such as `./.backups-production`. The Compose file constructs the internal `DATABASE_URL` with the private hostname `database:5432`; do not add a `DATABASE_URL` value pointing to `localhost`.
-
-For the local Phase 30 smoke check, retain:
-
-```text
-BETTER_AUTH_URL=http://127.0.0.1:3000
-```
-
-Phase 31 may change that value to the authoritative private HTTPS Tailscale origin without an application code rewrite. Do not configure a Tailscale hostname in Phase 30.
-
-Validate configuration before building. It expands values locally, so run it only in a trusted PowerShell session and do not paste its output containing real values into tickets or commits.
+Run the non-secret preflight before deployment:
 
 ```powershell
-corepack pnpm production:config
+corepack pnpm production:preflight
 ```
 
-## Initial setup and startup
+It checks Windows, Node 24, the protected environment file, loopback-only host settings, Better Auth validation, native PostgreSQL tool discovery, database connectivity, and reports only the PostgreSQL version.
 
-`production:start` starts PostgreSQL, waits for `pg_isready`, runs one `prisma migrate deploy` service, and starts the standalone Next.js container only after migrations succeed. Migration failure leaves the migrator exited and the application stopped; inspect logs and correct the release/configuration rather than resetting the database.
+## Initial deployment
+
+The build runs Prisma generation, `next build`, and copies `public` plus `.next/static` into `.next/standalone`; no secrets or backups enter that runtime. Migrations are explicit and always use `prisma migrate deploy`.
 
 ```powershell
 corepack pnpm production:build
-corepack pnpm production:start
-corepack pnpm production:status
+corepack pnpm production:migrate
+corepack pnpm production:seed
 ```
 
-Migrations are the only automatic database operation. Access/master-data reconciliation and SUPER_ADMIN bootstrap are explicit one-off operations:
+To create the first SUPER_ADMIN, temporarily add all three `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD` values to `.env.production`, then run:
 
 ```powershell
-corepack pnpm production:seed
-# Temporarily add BOOTSTRAP_ADMIN_NAME, BOOTSTRAP_ADMIN_EMAIL, and BOOTSTRAP_ADMIN_PASSWORD to .env.production.
 corepack pnpm production:bootstrap
 ```
 
-After confirming the administrator can log in, remove all three `BOOTSTRAP_ADMIN_*` values from `.env.production`. The bootstrap command will not reset an existing SUPER_ADMIN password, and neither it nor broad seeding runs when containers restart.
+The bootstrap action does not overwrite an existing password. Remove all temporary bootstrap values immediately after confirming the administrator can sign in.
 
-Use these normal operations commands:
+## Background hosting, logs, and health
+
+Install the built-in Windows Task Scheduler task from an elevated PowerShell session, then start it. The task runs as `SYSTEM`, starts at boot, uses the explicit repository working directory and `.env.production`, and asks Windows to restart a failed task. It never puts database or Better Auth secrets in the scheduled command.
 
 ```powershell
+corepack pnpm production:install-task
+corepack pnpm production:task:start
 corepack pnpm production:status
-corepack pnpm production:logs
-corepack pnpm production:restart
-corepack pnpm production:stop
+corepack pnpm production:health
 ```
 
-`production:stop` stops containers without deleting the project-namespaced `hamd_factory_postgres_data` volume. Never use `docker compose down --volumes` for the production project unless an explicitly authorized retirement/recovery procedure has already preserved the data.
-
-## Health and local smoke check
-
-The application container health check calls unauthenticated `GET /api/health` internally. It returns only `{"status":"ok"}` with HTTP 200 when the app and database probe are ready; it returns `{"status":"unavailable"}` with HTTP 503 otherwise. It never returns credentials, connection strings, records, or stack traces.
-
-From the factory PC, verify:
+For a supervised foreground diagnostic start, use `corepack pnpm production:start`; it writes stdout/stderr to `C:\ProgramData\HamdFoodsERP\logs\application.log`. View the latest lines without exposing environment values:
 
 ```powershell
-Invoke-WebRequest http://127.0.0.1:3000/api/health | Select-Object StatusCode, Content
-Invoke-WebRequest http://127.0.0.1:3000/manifest.webmanifest | Select-Object StatusCode
-Invoke-WebRequest http://127.0.0.1:3000/sw.js | Select-Object StatusCode
-Invoke-WebRequest http://127.0.0.1:3000/offline.html | Select-Object StatusCode
+Get-Content C:\ProgramData\HamdFoodsERP\logs\application.log -Tail 100
 ```
 
-Then use a private browser session to confirm: unauthenticated `/dashboard` redirects to `/login`; the temporary administrator can sign in; a representative protected ERP page renders; and logout removes protected access. Localhost qualifies as a secure service-worker context, but Phase 29's conservative online-only cache and mutation policy remains unchanged.
-
-`docker compose ... ps` must show no database host port and an app binding of `127.0.0.1:3000->3000/tcp`. Do not open Windows Firewall ports, bind `0.0.0.0`, add a LAN mapping, install Tailscale, or configure a proxy/tunnel in this phase.
-
-## Backups and recovery boundary
-
-The explicit `operations` Compose profile runs the existing Phase 28 `scripts/database-backup.ts` implementation with PostgreSQL 18 client tools on the private Compose network. It retains the existing custom dump, manifest, SHA-256 verification, retention, and safety rules; it is not a separate backup implementation.
-
-With the stack running:
+Stop or remove the task only for maintenance:
 
 ```powershell
-corepack pnpm production:backup -- create
-corepack pnpm production:backup -- list
+corepack pnpm production:task:stop
+corepack pnpm production:uninstall-task
+```
+
+The health endpoint returns only `200 {"status":"ok"}` or `503 {"status":"unavailable"}`. After it succeeds, confirm the login, one protected ERP page, logout, `/manifest.webmanifest`, `/sw.js`, and `/offline.html` from the factory server browser.
+
+## Backups and updates
+
+Phase 28's native backup implementation remains authoritative; it preserves its custom dump, manifest, checksum, retention, and restore protections.
+
+```powershell
+corepack pnpm production:backup
+corepack pnpm production:backup:list
 corepack pnpm production:backup:verify -- <backup-id>
 ```
 
-Before every production application/schema upgrade, create and verify a backup first. Keep completed `.dump` and `.manifest.json` pairs in the selected backup directory and copy them to separately controlled storage according to the Phase 28 recovery policy.
+For each reviewed update: confirm the desired commit, create and verify a backup, stop the background task, install locked dependencies for the checkout, run preflight, build, migrate, intentionally seed only when needed, start the task, check health, and perform the authenticated smoke test. Never use `migrate dev`, `db push`, a reset, or an automated restore over production. Application rollback is allowed only when schema-compatible; database recovery follows the separate verified Phase 28 process.
 
-The automated restore command intentionally rejects production-named targets. For a real production recovery, follow [backup and recovery](backup-and-recovery.md): restore and verify an isolated database first, obtain operational approval, stop writes, then use DBA-controlled promotion/copy procedures. Do not invent automatic down migrations or restore over the live production volume.
+## Safe native production drill
 
-## Update and rollback
-
-For a reviewed new release:
-
-1. Confirm the desired clean Git commit.
-2. Create and verify a production backup.
-3. Update the working tree to the approved release.
-4. Run `corepack pnpm production:build`.
-5. Run `corepack pnpm production:start`; migrations deploy before the app can become healthy.
-6. Check `production:status`, `/api/health`, and the authenticated local smoke check.
-
-An application rollback may be possible by rebuilding/redeploying an older approved image only when its schema is compatible with the already-deployed database. Database rollback is never automatic; use the verified Phase 28 recovery workflow only when explicitly required.
-
-## Isolated production drill
-
-When Docker is available, use a separate project name and `.env.production.drill` copied from the example with distinct credentials/database/backup directory:
-
-```powershell
-docker compose --project-name hamd-foods-erp-prod-drill --env-file .env.production.drill -f compose.production.yaml build
-docker compose --project-name hamd-foods-erp-prod-drill --env-file .env.production.drill -f compose.production.yaml up -d
-docker compose --project-name hamd-foods-erp-prod-drill --env-file .env.production.drill -f compose.production.yaml ps
-```
-
-Run the explicit seed/bootstrap steps against that drill project, verify health/login/protected route/logout and manifest/service-worker/offline files, then recreate the app and database containers **without** `--volumes` and verify the seeded/admin state persists. Finally run `operations create` and `operations verify` against the drill backup directory. Do not reset, migrate, restore, or overwrite the development database or any real production volume while proving the drill.
-
-Phase 31 is the boundary for Tailscale installation, private remote HTTPS access, phone access over the tailnet, and Better Auth origin transition. Phase 30 provides none of those capabilities.
+Use a separate native local database named `hamd_foods_erp_prod_drill`, separate role/credentials, separate `BACKUP_DIRECTORY`, and a copy of `.env.production` that is never pointed at development, Phase 27's test database, or real production. The drill proves direct connectivity, migration deploy, idempotent seed, temporary bootstrap, standalone build, loopback start, health, login/protected route/logout, PWA assets, restart persistence, a safely coordinated PostgreSQL restart/reconnect, and native backup creation/verification. Do not reset or overwrite development, test, or production databases. Phase 31 remains the boundary for private remote HTTPS and phone access.

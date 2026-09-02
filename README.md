@@ -4,13 +4,13 @@ A production-oriented modular-monolith ERP for food manufacturing, with server-a
 
 ## Current status
 
-Phase 29 is complete. Phase 30 establishes the localhost-only production Docker deployment foundation; see [`docs/phases/current.md`](docs/phases/current.md) for the active production-readiness gate. Keep [local development](#local-setup) distinct from the [production deployment runbook](docs/operations/production-deployment.md).
+Phase 29 is complete. Phase 30 establishes native Windows, localhost-only production hosting; see [`docs/phases/current.md`](docs/phases/current.md) for the active production-readiness gate. Docker is not required. Keep [local development](#local-setup) distinct from the [production deployment runbook](docs/operations/production-deployment.md).
 
 ## Prerequisites
 
 - Node.js 24 LTS
 - Corepack and pnpm 11.22.0
-- Docker Engine or Docker Desktop with Docker Compose v2
+- Native PostgreSQL and its client tools on the development or factory-server PC
 
 Enable the repository's pinned package manager if needed:
 
@@ -27,19 +27,14 @@ pnpm --version
    Copy-Item .env.example .env
    ```
 
-2. Replace the example password in `.env`. Keep `POSTGRES_PASSWORD` and the password embedded in `DATABASE_URL` identical.
+2. Replace `PASSWORD` in `.env` with the password for the dedicated local PostgreSQL role.
 3. Install exact locked dependencies:
 
    ```powershell
    pnpm install --frozen-lockfile
    ```
 
-4. Start PostgreSQL and inspect its health:
-
-   ```powershell
-   pnpm db:start
-   pnpm db:status
-   ```
+4. Start the local PostgreSQL Windows service using its normal service-management tools. The application never creates or manipulates PostgreSQL's physical data directory.
 
 5. Apply the migration, seed access policy, bootstrap the first SUPER_ADMIN, and prove connectivity:
 
@@ -64,10 +59,6 @@ The database port is published only on the local loopback interface. The browser
 
 | Command                 | Purpose                                                                                                  |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| `pnpm db:start`         | Start the local PostgreSQL container.                                                                    |
-| `pnpm db:stop`          | Stop it without deleting the named volume.                                                               |
-| `pnpm db:status`        | Show container and health status.                                                                        |
-| `pnpm db:logs`          | Follow PostgreSQL logs.                                                                                  |
 | `pnpm db:validate`      | Validate Prisma configuration and schema.                                                                |
 | `pnpm db:generate`      | Generate the ignored Prisma client under `src/generated/`.                                               |
 | `pnpm db:migrate`       | Create/apply a development migration after an intentional schema change.                                 |
@@ -95,21 +86,21 @@ pnpm verify
 
 ## Pinned foundation versions
 
-| Technology       | Version             |
-| ---------------- | ------------------- |
-| Node.js          | 24 LTS (`>=24 <25`) |
-| pnpm             | 11.22.0             |
-| Next.js          | 16.3.2              |
-| React            | 19.2.8              |
-| PostgreSQL image | 18.6 Alpine 3.24    |
-| Prisma ORM       | 7.9.1               |
-| Better Auth      | 1.7.1               |
-| decimal.js       | 10.6.0              |
-| Tailwind CSS     | 4.3.3               |
-| Zod              | 4.4.3               |
-| Vitest           | 4.1.11              |
-| TypeScript       | 6.0.3               |
-| ESLint           | 9.39.5              |
+| Technology   | Version                                                       |
+| ------------ | ------------------------------------------------------------- |
+| Node.js      | 24 LTS (`>=24 <25`)                                           |
+| pnpm         | 11.22.0                                                       |
+| Next.js      | 16.3.2                                                        |
+| React        | 19.2.8                                                        |
+| PostgreSQL   | Native PostgreSQL 18 (or compatible supported local instance) |
+| Prisma ORM   | 7.9.1                                                         |
+| Better Auth  | 1.7.1                                                         |
+| decimal.js   | 10.6.0                                                        |
+| Tailwind CSS | 4.3.3                                                         |
+| Zod          | 4.4.3                                                         |
+| Vitest       | 4.1.11                                                        |
+| TypeScript   | 6.0.3                                                         |
+| ESLint       | 9.39.5                                                        |
 
 TypeScript 6 and ESLint 9 are the newest stable lines compatible with the current Next.js lint dependency graph; the newer stable majors produced peer conflicts and were not retained.
 

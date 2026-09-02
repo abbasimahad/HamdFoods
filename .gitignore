@@ -17,6 +17,7 @@ src/generated/
 .env.*
 !.env.example
 .env.production
+!.env.production.example
 
 # Logs and local editor files
 *.log

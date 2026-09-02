@@ -807,7 +807,7 @@ function toolEnvironment(endpoint?: DatabaseEndpoint): NodeJS.ProcessEnv {
   };
 }
 
-function resolvePostgresTool(tool: string, postgresBin?: string) {
+export function resolvePostgresTool(tool: string, postgresBin?: string) {
   const explicitName =
     tool === "pg_dump" ? "PG_DUMP_PATH" : tool === "pg_restore" ? "PG_RESTORE_PATH" : undefined;
   const explicit = explicitName ? process.env[explicitName] : undefined;

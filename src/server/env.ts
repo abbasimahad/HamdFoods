@@ -25,29 +25,31 @@ const serverEnvSchema = z
       const protocol = new URL(value).protocol;
       return protocol === "http:" || protocol === "https:";
     }, "must use HTTP or HTTPS"),
-    POSTGRES_USER: z.string().trim().min(1).optional(),
-    POSTGRES_PASSWORD: z.string().trim().min(1).optional(),
-    POSTGRES_DB: z.string().trim().min(1).optional(),
   })
   .superRefine((value, context) => {
     if (value.APP_ENV !== "production") return;
 
-    for (const name of ["POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"] as const) {
-      if (!value[name])
-        context.addIssue({
-          code: "custom",
-          message: "is required for production Compose configuration",
-          path: [name],
-        });
-    }
-
-    if (new URL(value.DATABASE_URL).hostname !== "database")
+    const databaseHost = new URL(value.DATABASE_URL).hostname.toLowerCase();
+    if (!isLoopbackHost(databaseHost))
       context.addIssue({
         code: "custom",
-        message: "must use the private Compose database hostname in production",
+        message: "must use a loopback PostgreSQL host in native production",
         path: ["DATABASE_URL"],
       });
+
+    const authUrl = new URL(value.BETTER_AUTH_URL);
+    if (authUrl.protocol === "http:" && !isLoopbackHost(authUrl.hostname.toLowerCase()))
+      context.addIssue({
+        code: "custom",
+        message:
+          "must use loopback for HTTP production origins; use HTTPS for a future private origin",
+        path: ["BETTER_AUTH_URL"],
+      });
   });
+
+function isLoopbackHost(host: string) {
+  return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+}
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
