@@ -34,7 +34,20 @@ It checks Windows, Node 24, the protected environment file, loopback-only host s
 
 ## Initial deployment
 
-The build runs Prisma generation, `next build`, and copies `public` plus `.next/static` into `.next/standalone`; no secrets or backups enter that runtime. Migrations are explicit and always use `prisma migrate deploy`.
+The repository uses pnpm's hoisted linker so Windows builds materialize a flat `node_modules` without dependency symlinks. This keeps the minimized Next standalone runtime portable on an ordinary Windows server without Developer Mode or administrator-only symlink privileges. After first receiving this setting, cleanly rematerialize only the repository dependency directory before rebuilding:
+
+```powershell
+$repositoryRoot = (Resolve-Path .).Path
+$dependencyRoot = (Resolve-Path .\node_modules -ErrorAction Stop).Path
+if ([System.IO.Path]::GetDirectoryName($dependencyRoot) -ne $repositoryRoot) {
+  throw "Refusing to remove node_modules outside the repository root."
+}
+Remove-Item -LiteralPath $dependencyRoot -Recurse -Force
+corepack pnpm install --frozen-lockfile
+corepack pnpm production:build
+```
+
+This removes only installed dependency materialization. It does not remove PostgreSQL data, `.env.production`, backups, application source, or other host data. The build runs Prisma generation, `next build`, copies `public` plus `.next/static` into `.next/standalone`, then requires `next`, `react`, and `react-dom` to resolve physically inside that runtime before declaring it prepared. It never copies the complete development `node_modules` tree. Migrations remain explicit and always use `prisma migrate deploy`.
 
 ```powershell
 corepack pnpm production:build
