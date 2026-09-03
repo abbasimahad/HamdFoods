@@ -8,9 +8,9 @@ import { Client } from "pg";
 
 import { parseNativeProductionEnv } from "../src/server/env";
 import { resolvePostgresTool } from "../src/server/operations/database-backup";
+import { resolveProductionEnvFile } from "../src/server/operations/windows-installer";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const productionEnvPath = path.join(repositoryRoot, ".env.production");
 const action = process.argv[2];
 
 try {
@@ -69,10 +69,14 @@ try {
 }
 
 function loadProductionEnvironment() {
+  const productionEnvPath = resolveProductionEnvFile({
+    repositoryRoot,
+    configuredPath: process.env.HAMDFOODS_ENV_FILE,
+    dataRoot: process.env.HAMDFOODS_DATA_ROOT,
+    programDataRoot: process.env.ProgramData,
+  });
   if (!existsSync(productionEnvPath))
-    throw new Error(
-      ".env.production is required. Copy .env.production.example and protect the real file.",
-    );
+    throw new Error(`Protected production configuration is missing at ${productionEnvPath}.`);
   const result = config({ path: productionEnvPath, quiet: true, override: true });
   if (result.error) throw new Error(".env.production could not be loaded.");
   const serverEnv = parseNativeProductionEnv(process.env);

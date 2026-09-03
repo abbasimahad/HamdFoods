@@ -4,6 +4,8 @@ Phase 30 hosts Hamd Foods ERP directly on the Windows factory server. Docker is 
 
 Phase 31 optionally adds Tailscale Serve as a separate private HTTPS ingress without changing this local runtime. See [Tailscale private remote access](tailscale-private-access.md). Local startup, health, PostgreSQL, and backup/recovery remain independent of Tailscale.
 
+Phase 32 adds a packaged factory-PC path at `C:\Program Files\HamdFoodsERP` with protected mutable state at `C:\ProgramData\HamdFoodsERP`. It preserves this source-checkout workflow for development and existing deployments; the installed task sets validated `HAMDFOODS_ENV_FILE` and `HAMDFOODS_DATA_ROOT` values rather than copying secrets under Program Files. See [Native Windows installer](windows-installer.md).
+
 The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3100`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for the dedicated local application role and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
 
 ## Prerequisites
@@ -24,7 +26,7 @@ Copy-Item .env.production.example .env.production
 icacls .env.production /inheritance:r /grant:r "Administrators:F" "SYSTEM:F"
 ```
 
-Set `APP_ENV=production`, loopback `HOSTNAME` and `PORT`, a loopback `DATABASE_URL`, and a unique Better Auth secret. Store backups outside the checkout, for example `C:\ProgramData\HamdFoodsERP\backups`. Do not print or commit the completed file. Phase 30 uses `http://127.0.0.1:3100`; for loopback HTTP, `BETTER_AUTH_URL` must exactly match `HOSTNAME` and `PORT`, preventing the origin mismatch that previously reset the sign-in request. A future private origin must use HTTPS. Do not configure Tailscale yet.
+Set `APP_ENV=production`, loopback `HOSTNAME` and `PORT`, a loopback `DATABASE_URL`, and a unique Better Auth secret. Store backups outside the checkout, for example `C:\ProgramData\HamdFoodsERP\backups`. Do not print or commit the completed file. Phase 30 uses `http://127.0.0.1:3100`; for loopback HTTP, `BETTER_AUTH_URL` must exactly match `HOSTNAME` and `PORT`, preventing the origin mismatch that previously reset the sign-in request. Configure any optional private HTTPS origin only through the Phase 31 runbook.
 
 Run the non-secret preflight before deployment:
 

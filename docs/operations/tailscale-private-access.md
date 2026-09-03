@@ -96,7 +96,7 @@ Add an authorized user by adding their exact Tailscale identity to `group:hamd-e
 
 ## Phone/laptop acceptance gate
 
-Phase 31 is not complete until a real second device passes this gate:
+The operator deferred this real second-device gate to final project UAT. Server implementation is complete; the following checks remain mandatory at final UAT and must not be fabricated:
 
 1. Install the official Tailscale client and sign into an authorized tailnet identity.
 2. Prefer mobile data or another off-factory network instead of factory Wi-Fi.

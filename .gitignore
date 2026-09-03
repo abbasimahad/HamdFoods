@@ -32,3 +32,14 @@ Thumbs.db
 .test-data/
 .backups/
 .backups-production/
+
+# Phase 32 installer build inputs and outputs
+.installer-cache/
+.installer-work/
+installer/output/
+installer/prerequisites/*.exe
+installer/prerequisites/*.zip
+installer/prerequisites/*.sha256
+installer/signing/
+*.pfx
+*.p12

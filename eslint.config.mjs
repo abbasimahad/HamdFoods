@@ -7,5 +7,14 @@ export default defineConfig([
   ...nextVitals,
   ...nextTypeScript,
   prettier,
-  globalIgnores([".next/**", "coverage/**", "out/**", "src/generated/**", "next-env.d.ts"]),
+  globalIgnores([
+    ".next/**",
+    ".installer-cache/**",
+    ".installer-work/**",
+    "installer/output/**",
+    "coverage/**",
+    "out/**",
+    "src/generated/**",
+    "next-env.d.ts",
+  ]),
 ]);

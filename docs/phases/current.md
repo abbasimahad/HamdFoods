@@ -1,8 +1,26 @@
 # Current phase
 
+## Phase 32 - Native Windows Installer and Factory-PC Setup
+
+**Status:** PARTIAL - INSTALLER SOURCE AND VERIFIED PAYLOAD COMPLETE; EXE COMPILATION AND ISOLATED LIVE DRILL PENDING INNO SETUP
+
+### Implemented Phase 32 boundary
+
+- Inno Setup source installs the product under `C:\Program Files\HamdFoodsERP` and keeps protected config, logs, backups, and state under `C:\ProgramData\HamdFoodsERP`. The installed task uses bundled Node 24.11.1 and never depends on the repository, PATH, pnpm, Corepack, developer tooling, or Docker.
+- Release commands provide non-secret preflight, deterministic payload preparation, payload verification, normal compilation, and isolated drill compilation. Node is downloaded only at build time from its official versioned archive and checked against the pinned official SHA-256; third-party archives, generated EXEs, signing material, secrets, backups, and logs are ignored.
+- Installed setup accepts only canonical production resources or the complete isolated drill resource set. It detects only native PostgreSQL 16, verifies loopback listeners, refuses conflicts, creates a strong random non-superuser role/password and Better Auth secret, applies `prisma migrate deploy`, runs the idempotent seed, securely prompts for the first SUPER_ADMIN, and removes temporary credentials.
+- Setup restricts ProgramData/config ACLs to `SYSTEM` and Administrators, reconciles a boot/restart `SYSTEM` application task, optionally installs a non-overlapping daily 02:00 backup task, and verifies fresh-install health plus one backup. Repair preserves secrets and backs up before migrations. Uninstall removes application assets/tasks but preserves database, role, ProgramData, logs, config, backups, and business data.
+- No firewall rule, PostgreSQL exposure, Tailscale installation, Funnel configuration, or Serve mutation is part of the installer. The Start Menu and optional desktop shortcuts open the loopback ERP URL only.
+
+### Phase 32 current evidence and remaining gate
+
+- Focused red/green tests cover paths, identifiers, ports, installed config selection, cryptographic secrets/redaction, PostgreSQL classification, loopback enforcement, ACL/task construction, repair/fresh/uninstall plans, backup scheduling, payload exclusions, and Docker/firewall/Tailscale boundaries.
+- The prepared payload runs the exact bundled Node version, loads its packaged Prisma configuration and migration CLI, contains no application `.env`, source tests, backups, logs, or signing material, and parses all installed PowerShell files successfully.
+- Inno Setup is not installed on this development machine. Per policy, no compiler was silently downloaded or installed. A real installer EXE and isolated install/health/login/backup/uninstall drill therefore remain untested, so Phase 32 is PARTIAL and Phase 33 is not ready.
+
 ## Phase 31 - Tailscale Private Remote Access
 
-**Status:** PARTIAL - SERVER IMPLEMENTATION COMPLETE, MANUAL REMOTE DEVICE ACCEPTANCE PENDING
+**Status:** SERVER IMPLEMENTATION COMPLETE - REMOTE DEVICE UAT DEFERRED BY OPERATOR TO FINAL UAT
 
 ### Implemented Phase 31 boundary
 
@@ -14,15 +32,13 @@
 
 ### Phase 31 current evidence
 
-- On 2026-09-03 this Windows server had no discoverable Tailscale CLI and no installed `Tailscale` service. No client was installed or node setting changed automatically. The live Serve, Funnel, unattended, remote TLS/health/PWA, persistence, unauthorized-device, and public-internet checks remain untested.
+- On 2026-09-03 the official Tailscale client/service is installed, connected, and configured for unattended operation. The canonical private HTTPS Serve handler proxies only to `http://127.0.0.1:3100`; local and remote health pass and Funnel is disabled.
 - Focused red/green tests cover status JSON parsing, connected/disconnected state, DNS and CGNAT IPv4 extraction, exact Serve target, Funnel detection, background/selective command construction through a mocked process boundary, listener isolation, exact remote URL construction, unattended preference parsing, origin rejection, and non-secret status output.
 - The final software-controlled verification passed the focused Phase 31 suite (2 files / 31 tests), `corepack pnpm verify` (32 files / 166 tests plus Prisma, TypeScript, and the 76-route production build), integration (2 files / 7 tests), E2E (10 Chromium checks), native production preflight, production health, and `git diff --check`. The elevated maintenance window confirmed port 3100 clear during the build, then restarted the canonical task with its sole listener on `127.0.0.1:3100`.
-- `production:remote:status` safely reported the official client and service absent while local ERP health remained passing. Remote preflight and remote health failed closed for that explicit reason; Serve was not configured and no Tailscale setting was changed.
-- Phase 31 cannot be COMPLETE until the official client is installed, the server-side live drill passes, least-privilege Grants are applied, and an authorized second device plus an unauthorized negative case complete the documented acceptance gate.
+- The authorized and unauthorized second-device tests and mobile PWA acceptance were explicitly deferred by the operator to final project UAT. They are not reported as failed or fabricated.
 
-### Manual gate before completion
+### Deferred final-UAT gate
 
-- Install and sign in the official Tailscale Windows client, enable Run Unattended without resetting other preferences, configure the exact discovered `*.ts.net` Better Auth trusted origin while retaining the loopback base URL, apply the port-443-only Grant, and run the server remote commands.
 - From a real authorized phone/laptop outside factory Wi-Fi, verify HTTPS, Better Auth login/dashboard/navigation/logout/login, and PWA assets. Verify an unauthorized device is denied and the service is not reachable publicly without Tailscale.
 
 ## Phase 30 - Native Windows Production Hosting
@@ -161,4 +177,4 @@
 
 ## Next gate
 
-**Phase 31 remains the active gate and is PARTIAL. Phase 32 is not ready.** Complete the documented Tailscale server drill and real remote-device acceptance without weakening the Phase 30 loopback, Better Auth, PostgreSQL, backup/recovery, audit, online-only mutation, or PWA boundaries.
+**Phase 32 remains PARTIAL and Phase 33 is NOT READY.** Install current official Inno Setup, compile the installer, and complete the documented isolated drill without touching the live Phase 30/31 deployment. Phase 31 remote-device acceptance remains deferred by the operator to final UAT.
