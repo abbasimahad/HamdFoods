@@ -40,3 +40,5 @@ Phase 25 Task 3 - production and costing lifecycle coverage: complete
 Phase 25 Task 4 - sales, treasury, and accounting-control coverage: complete
 Phase 25 Task 5 - live control proof, documentation, and completion gate: complete
 Phase 25 completion audit: complete. `corepack pnpm verify` passed Prettier, ESLint, Vitest (15 files and 46 tests), Prisma validation/client generation, TypeScript, and the 75-page production build. Migration deploy/status, PostgreSQL connectivity, append-only trigger assertion, diff whitespace, secret-shape review, and Phase 26 scope scan passed. Phase 26 is READY and not started.
+
+Phase 30 final closeout: complete. From an elevated maintenance window, the protected environment ACL, port-clear stop, diagnostic cleanup, preflight, full verify (31 files / 146 tests), integration (2 files / 7 tests), E2E (10 checks), explicit production build, diff whitespace, canonical task restart, `SYSTEM` listener ownership on `127.0.0.1:3100`, and production health all passed. The prior manual authentication/dashboard, backup create/list/verify, and recovery-drill evidence remains valid. Phase 31 is READY and not started.

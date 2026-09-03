@@ -10,7 +10,8 @@
 
 - No Docker files, Compose files, containers, volumes, or Docker commands remain in the product path.
 - Production `DATABASE_URL` must use `127.0.0.1`, `localhost`, or `::1`; arbitrary LAN/public and historical `database` hosts are rejected.
-- The app binds to `127.0.0.1:3000`; PostgreSQL stays loopback-only. Phase 31, not Phase 30, may add a private HTTPS application origin.
+- The app binds to `127.0.0.1:3100`; PostgreSQL stays loopback-only. Phase 31, not Phase 30, may add a private HTTPS application origin.
+- For the Phase 30 loopback HTTP deployment, `BETTER_AUTH_URL` must exactly match the configured `HOSTNAME` and `PORT`; startup fails closed on a host or port mismatch.
 - `.env.production` is ignored and ACL-protected. Bootstrap secrets are one-time operator inputs and are removed after use.
 - Production migration is `prisma migrate deploy`; backups/recovery retain the Phase 28 manifest, checksum, retention, and restore protections.
 

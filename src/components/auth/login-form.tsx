@@ -14,19 +14,24 @@ export function LoginForm() {
     event.preventDefault();
     setPending(true);
     setError("");
-    const form = new FormData(event.currentTarget);
-    const result = await authClient.signIn.email({
-      email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
-      rememberMe: form.get("rememberMe") === "on",
-    });
-    if (result.error) {
-      setError("Invalid email or password.");
+    try {
+      const form = new FormData(event.currentTarget);
+      const result = await authClient.signIn.email({
+        email: String(form.get("email") ?? ""),
+        password: String(form.get("password") ?? ""),
+        rememberMe: form.get("rememberMe") === "on",
+      });
+      if (result.error) {
+        setError("Invalid email or password.");
+        setPending(false);
+        return;
+      }
+      router.replace("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Unable to sign in. Please try again.");
       setPending(false);
-      return;
     }
-    router.replace("/dashboard");
-    router.refresh();
   }
 
   return (

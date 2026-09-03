@@ -2,7 +2,7 @@
 
 Phase 30 hosts Hamd Foods ERP directly on the Windows factory server. Docker is not required and is not a fallback production architecture. The server runs native PostgreSQL, the Next.js standalone runtime, and one Windows Scheduled Task named `HamdFoodsERP`.
 
-The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3000`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for the dedicated local application role and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
+The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3100`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for the dedicated local application role and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ Copy-Item .env.production.example .env.production
 icacls .env.production /inheritance:r /grant:r "Administrators:F" "SYSTEM:F"
 ```
 
-Set `APP_ENV=production`, loopback `HOSTNAME` and `PORT`, a loopback `DATABASE_URL`, and a unique Better Auth secret. Store backups outside the checkout, for example `C:\ProgramData\HamdFoodsERP\backups`. Do not print or commit the completed file. Phase 30 accepts `http://127.0.0.1:3000`; a future private origin must use HTTPS. Do not configure Tailscale yet.
+Set `APP_ENV=production`, loopback `HOSTNAME` and `PORT`, a loopback `DATABASE_URL`, and a unique Better Auth secret. Store backups outside the checkout, for example `C:\ProgramData\HamdFoodsERP\backups`. Do not print or commit the completed file. Phase 30 uses `http://127.0.0.1:3100`; for loopback HTTP, `BETTER_AUTH_URL` must exactly match `HOSTNAME` and `PORT`, preventing the origin mismatch that previously reset the sign-in request. A future private origin must use HTTPS. Do not configure Tailscale yet.
 
 Run the non-secret preflight before deployment:
 
@@ -71,7 +71,7 @@ Install Node 24 machine-wide so `SYSTEM` can use it. Runtime discovery checks on
 [Environment]::SetEnvironmentVariable("NODE_EXE", "C:\Program Files\nodejs\node.exe", "Machine")
 ```
 
-Install the built-in Windows Task Scheduler task from an elevated PowerShell session, then start it. Installation first requires `.env.production`, the standalone server, the production runner/validator, and a resolvable Node 24 executable. The task runs as `SYSTEM`, starts at boot, uses the explicit repository working directory and `.env.production`, and asks Windows to restart a failed task. It never puts database or Better Auth secrets in the scheduled command.
+Install the built-in Windows Task Scheduler task from an elevated PowerShell session, then start it. Installation first requires `.env.production`, the standalone server, the production runner/validator, and a resolvable Node 24 executable. It creates only `C:\ProgramData\HamdFoodsERP`, its `logs` and `backups` children, and protects that application-owned tree plus `.env.production` for Administrators and `SYSTEM`; it does not alter broad `C:\ProgramData` permissions. The task runs non-interactively as `SYSTEM`, starts at boot, continues across AC/battery transitions, uses the explicit repository working directory and `.env.production`, and asks Windows to restart a failed task. It never puts database or Better Auth secrets in the scheduled command.
 
 ```powershell
 corepack pnpm production:install-task
@@ -92,6 +92,8 @@ Stop or remove the task only for maintenance:
 corepack pnpm production:task:stop
 corepack pnpm production:uninstall-task
 ```
+
+`production:task:start` is idempotent while the task is running and starts it normally after `production:task:stop`, providing the supported restart sequence without an interactive PowerShell window.
 
 The health endpoint returns only `200 {"status":"ok"}` or `503 {"status":"unavailable"}`. After it succeeds, confirm the login, one protected ERP page, logout, `/manifest.webmanifest`, `/sw.js`, and `/offline.html` from the factory server browser.
 

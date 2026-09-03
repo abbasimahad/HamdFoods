@@ -135,7 +135,7 @@ async function preflight(environment: NodeJS.ProcessEnv) {
 
 async function checkHealth(environment: NodeJS.ProcessEnv) {
   const hostname = environment.HOSTNAME ?? "127.0.0.1";
-  const port = environment.PORT ?? "3000";
+  const port = environment.PORT ?? "3100";
   const response = await fetch(`http://${hostname}:${port}/api/health`);
   const body: unknown = await response.json().catch(() => undefined);
   if (response.status !== 200 || !isOkHealthResponse(body))

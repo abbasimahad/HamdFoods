@@ -2,7 +2,7 @@
 
 ## Phase 30 - Native Windows Production Hosting
 
-**Status:** IMPLEMENTED - NATIVE PRODUCTION DRILL PENDING
+**Status:** COMPLETE - PHASE 31 READY, NOT STARTED
 
 ### Implemented Phase 30 boundary
 
@@ -14,10 +14,13 @@
 
 ### Phase 30 verification evidence
 
-- The focused environment test was first observed failing under the Compose-only validation, then passed after the native loopback validation change.
-- The single `corepack pnpm verify` pass completed after formatting; it ran the repository's static checks, Vitest suite, Prisma validation/client generation, strict TypeScript, and production build.
-- The single `corepack pnpm test:integration` pass reset only `factory_erp_test`, applied all 39 migrations, and passed 2 files / 7 tests. The single `corepack pnpm test:e2e` pass reset that same isolated database and passed all 10 Chromium checks.
-- `corepack pnpm production:preflight` correctly stopped before connection attempts because no protected `.env.production` exists in this development workspace. The real production preflight/drill remains pending an operator-provisioned environment file, dedicated local drill database/role, and protected backup location; it must never target development, Phase 27 test, or actual production data.
+- The native drill environment uses `127.0.0.1:3100` consistently for the standalone bind and Better Auth origin. Production validation now rejects a loopback HTTP Better Auth host or port that differs from `HOSTNAME`/`PORT`, preventing recurrence of the sign-in connection reset without weakening authentication errors.
+- Operator-observed live evidence on 2026-09-03 records the standalone Windows runtime listening on `127.0.0.1:3100`, production health passing, Factory Owner/SUPER_ADMIN authentication reaching `/dashboard`, native loopback PostgreSQL connectivity, and no Docker runtime dependency. The elevated closeout independently confirmed that `.env.production` remains ignored, inheritance-protected, and readable only by `SYSTEM` and Administrators.
+- The elevated maintenance window stopped the task and the positively identified temporary diagnostic process tree, then confirmed the task was not running, port 3100 had no listener, and no canonical or diagnostic HamdFoods process remained before building. The temporary launcher file is absent and no diagnostic process remains authoritative.
+- `corepack pnpm test:integration` reset only `factory_erp_test`, applied all 39 migrations, and passed 2 files / 7 tests. `corepack pnpm test:e2e` reset that isolated database and passed all 10 Chromium checks, including Better Auth login, protected navigation, invalid credentials, and logout.
+- The native Phase 30 drill database `hamd_foods_erp_prod_drill` passed backup creation, listing, and SHA-256 verification through the Phase 28 implementation. `corepack pnpm backup:drill` restored only `factory_erp_restore_test` and passed checksum/unsafe-target rejection plus migration, source-fact, accounting, inventory, WIP, and audit integrity checks.
+- From the elevated, port-clear shell, `corepack pnpm production:preflight`, `corepack pnpm verify`, `corepack pnpm test:integration`, `corepack pnpm test:e2e`, `corepack pnpm production:build`, and `git diff --check` all passed. The full verify included 31 Vitest files / 146 tests, Prisma validation/client generation, TypeScript, and the 76-route Next production build.
+- The canonical `HamdFoodsERP` task was reinstalled with battery-safe settings and restarted while the host was on battery. It runs as `SYSTEM`; the listener ancestry is Task Scheduler service to `scripts/windows/run-production.ps1` to `scripts/production.ts start` to `.next/standalone/server.js`. The task is `Running`, `127.0.0.1:3100` is listening, production health passes, and no diagnostic launcher process exists.
 
 ### Completed Phase 29 baseline
 
@@ -133,4 +136,4 @@
 
 ## Next gate
 
-**Phase 30 remains the active gate.** Run the documented isolated native Windows production drill and its Phase 28-compatible backup verification before Phase 31 begins. Preserve server-authoritative transaction, authorization, audit, backup/restore, online-only mutation, conservative-cache, and responsive-shell boundaries.
+**Phase 30 is complete. Phase 31 is ready but has not started.** Preserve server-authoritative transaction, authorization, audit, backup/restore, online-only mutation, conservative-cache, and responsive-shell boundaries when Phase 31 is explicitly authorized.

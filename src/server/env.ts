@@ -48,6 +48,22 @@ const serverEnvSchema = z
         path: ["BETTER_AUTH_URL"],
       });
 
+    if (
+      authUrl.protocol === "http:" &&
+      value.HOSTNAME &&
+      value.PORT &&
+      (authUrl.hostname.toLowerCase() !== normalizeUrlHost(value.HOSTNAME) ||
+        effectivePort(authUrl) !== value.PORT ||
+        authUrl.pathname !== "/" ||
+        authUrl.search !== "" ||
+        authUrl.hash !== "")
+    )
+      context.addIssue({
+        code: "custom",
+        message: "must be the exact loopback HTTP origin defined by HOSTNAME and PORT",
+        path: ["BETTER_AUTH_URL"],
+      });
+
     if (!value.HOSTNAME || !isLoopbackHost(value.HOSTNAME.toLowerCase()))
       context.addIssue({
         code: "custom",
@@ -66,6 +82,16 @@ const serverEnvSchema = z
 
 function isLoopbackHost(host: string) {
   return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+}
+
+function normalizeUrlHost(host: string) {
+  const normalized = host.trim().toLowerCase();
+  return normalized === "::1" ? "[::1]" : normalized;
+}
+
+function effectivePort(url: URL) {
+  if (url.port) return url.port;
+  return url.protocol === "http:" ? "80" : "443";
 }
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
