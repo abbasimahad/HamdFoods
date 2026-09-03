@@ -86,14 +86,15 @@ describe("parseServerEnv", () => {
     ).toThrowError(/BETTER_AUTH_URL/);
   });
 
-  it("accepts an HTTPS Better Auth origin in production for a later private origin", () => {
-    // Defect caught: an otherwise safe HTTPS private-origin rollout could be blocked by Phase 30 validation.
+  it("accepts an exact Tailscale HTTPS trusted origin in production", () => {
+    // Defect caught: an exact tailnet origin could be blocked while preserving the local auth base URL.
     expect(
       parseServerEnv({
         APP_ENV: "production",
         DATABASE_URL: "postgresql://factory_app:password@[::1]:5432/factory_erp",
         BETTER_AUTH_SECRET: "a".repeat(32),
-        BETTER_AUTH_URL: "https://factory.tailnet.example",
+        BETTER_AUTH_URL: "http://[::1]:3100",
+        BETTER_AUTH_TRUSTED_ORIGINS: "https://factory.example-tailnet.ts.net",
         HOSTNAME: "::1",
         PORT: "3100",
       }),
@@ -140,5 +141,44 @@ describe("parseServerEnv", () => {
         PORT: "3100",
       }),
     ).toThrowError(/BETTER_AUTH_URL/);
+  });
+
+  it("parses the exact Tailscale HTTPS origin alongside the local auth base URL", () => {
+    // Defect caught: remote sign-in could be blocked when the exact tailnet origin is configured.
+    expect(
+      parseServerEnv({
+        APP_ENV: "production",
+        DATABASE_URL: "postgresql://factory_app:password@127.0.0.1:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3100",
+        BETTER_AUTH_TRUSTED_ORIGINS: "https://factory-server.example-tailnet.ts.net",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3100",
+      }),
+    ).toMatchObject({
+      BETTER_AUTH_URL: "http://127.0.0.1:3100",
+      BETTER_AUTH_TRUSTED_ORIGINS: ["https://factory-server.example-tailnet.ts.net"],
+    });
+  });
+
+  it.each([
+    ["wildcard", "https://*.example-tailnet.ts.net"],
+    ["malformed", "not-a-url"],
+    ["public HTTP", "http://erp.example.com"],
+    ["non-tailnet HTTPS", "https://erp.example.com"],
+    ["malformed tailnet HTTPS", "https://factory..example-tailnet.ts.net"],
+  ])("rejects a %s trusted origin", (_description, trustedOrigin) => {
+    // Defect caught: a broad or public origin could bypass the intended exact private-origin boundary.
+    expect(() =>
+      parseServerEnv({
+        APP_ENV: "production",
+        DATABASE_URL: "postgresql://factory_app:password@127.0.0.1:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3100",
+        BETTER_AUTH_TRUSTED_ORIGINS: trustedOrigin,
+        HOSTNAME: "127.0.0.1",
+        PORT: "3100",
+      }),
+    ).toThrowError(/BETTER_AUTH_TRUSTED_ORIGINS/);
   });
 });

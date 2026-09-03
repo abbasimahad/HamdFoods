@@ -25,6 +25,22 @@ const serverEnvSchema = z
       const protocol = new URL(value).protocol;
       return protocol === "http:" || protocol === "https:";
     }, "must use HTTP or HTTPS"),
+    BETTER_AUTH_TRUSTED_ORIGINS: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value, context) => {
+        if (!value) return [];
+        const origins = value.split(",").map((origin) => origin.trim());
+        if (origins.some((origin) => !isExactProductionOrigin(origin))) {
+          context.addIssue({
+            code: "custom",
+            message: "must contain only exact loopback HTTP or Tailscale HTTPS origins",
+          });
+          return z.NEVER;
+        }
+        return [...new Set(origins.map((origin) => new URL(origin).origin))];
+      }),
     HOSTNAME: z.string().trim().min(1).optional(),
     PORT: z.string().trim().min(1).optional(),
   })
@@ -40,6 +56,13 @@ const serverEnvSchema = z
       });
 
     const authUrl = new URL(value.BETTER_AUTH_URL);
+    if (!isExactProductionOrigin(value.BETTER_AUTH_URL))
+      context.addIssue({
+        code: "custom",
+        message: "must be an exact loopback HTTP or Tailscale HTTPS origin",
+        path: ["BETTER_AUTH_URL"],
+      });
+
     if (authUrl.protocol === "http:" && !isLoopbackHost(authUrl.hostname.toLowerCase()))
       context.addIssue({
         code: "custom",
@@ -78,6 +101,27 @@ const serverEnvSchema = z
         message: "must be an integer between 1 and 65535 in native production",
         path: ["PORT"],
       });
+
+    if (value.HOSTNAME && value.PORT) {
+      const localOrigin = `http://${normalizeUrlHost(value.HOSTNAME)}:${value.PORT}`;
+      if (authUrl.protocol === "https:" && !value.BETTER_AUTH_TRUSTED_ORIGINS.includes(localOrigin))
+        context.addIssue({
+          code: "custom",
+          message: "must include the exact local maintenance origin",
+          path: ["BETTER_AUTH_TRUSTED_ORIGINS"],
+        });
+
+      if (
+        value.BETTER_AUTH_TRUSTED_ORIGINS.some(
+          (origin) => origin.startsWith("http:") && origin !== localOrigin,
+        )
+      )
+        context.addIssue({
+          code: "custom",
+          message: "loopback HTTP must match HOSTNAME and PORT",
+          path: ["BETTER_AUTH_TRUSTED_ORIGINS"],
+        });
+    }
   });
 
 function isLoopbackHost(host: string) {
@@ -92,6 +136,33 @@ function normalizeUrlHost(host: string) {
 function effectivePort(url: URL) {
   if (url.port) return url.port;
   return url.protocol === "http:" ? "80" : "443";
+}
+
+function isExactProductionOrigin(value: string) {
+  if (value.includes("*")) return false;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash)
+      return false;
+    if (url.protocol === "http:") return isLoopbackHost(url.hostname.toLowerCase());
+    return (
+      url.protocol === "https:" &&
+      effectivePort(url) === "443" &&
+      isTailscaleDnsName(url.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isTailscaleDnsName(value: string) {
+  const labels = value.split(".");
+  return (
+    labels.length > 2 &&
+    labels.at(-2) === "ts" &&
+    labels.at(-1) === "net" &&
+    labels.slice(0, -2).every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  );
 }
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

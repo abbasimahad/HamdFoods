@@ -1,8 +1,33 @@
 # Current phase
 
+## Phase 31 - Tailscale Private Remote Access
+
+**Status:** PARTIAL - SERVER IMPLEMENTATION COMPLETE, MANUAL REMOTE DEVICE ACCEPTANCE PENDING
+
+### Implemented Phase 31 boundary
+
+- The existing Next.js standalone runtime remains bound only to `127.0.0.1:3100`, and PostgreSQL remains loopback-only on port 5432. Tailscale is an optional ingress layer and is not a dependency of local startup, health, or backup/recovery.
+- Five production commands provide remote preflight, persistent private Serve configuration, non-secret status, normal-TLS remote health, and selective ERP root disable. They discover the Windows CLI without bundling or downloading it and never invoke Funnel, reset Serve/node state, alter exit-node/routes/SSH settings, start another Next server, or modify the `HamdFoodsERP` task.
+- Remote preflight fails closed unless local health/listeners, Tailscale service/connection/DNS/IPv4, Windows unattended mode, exact Better Auth origins, and Funnel safety all pass. Configure proxies HTTPS 443 only to `http://127.0.0.1:3100`; disable removes only that root handler and refuses conflicting unrelated configuration.
+- Better Auth remains the application authentication authority. Production origins accept only exact loopback HTTP or exact HTTPS `*.ts.net` origins; wildcard, malformed, arbitrary public HTTP/HTTPS, credential/path/query/fragment, and non-443 remote origins are rejected. Tailscale identity headers never bypass ERP login or RBAC.
+- The same-origin PWA requires no remote-specific application. Tailnet Grants, user/device removal, lost-phone response, private/public distinction, troubleshooting, persistence, local fallback, and the mandatory second-device acceptance procedure are documented in `docs/operations/tailscale-private-access.md`.
+
+### Phase 31 current evidence
+
+- On 2026-09-03 this Windows server had no discoverable Tailscale CLI and no installed `Tailscale` service. No client was installed or node setting changed automatically. The live Serve, Funnel, unattended, remote TLS/health/PWA, persistence, unauthorized-device, and public-internet checks remain untested.
+- Focused red/green tests cover status JSON parsing, connected/disconnected state, DNS and CGNAT IPv4 extraction, exact Serve target, Funnel detection, background/selective command construction through a mocked process boundary, listener isolation, exact remote URL construction, unattended preference parsing, origin rejection, and non-secret status output.
+- The final software-controlled verification passed the focused Phase 31 suite (2 files / 31 tests), `corepack pnpm verify` (32 files / 166 tests plus Prisma, TypeScript, and the 76-route production build), integration (2 files / 7 tests), E2E (10 Chromium checks), native production preflight, production health, and `git diff --check`. The elevated maintenance window confirmed port 3100 clear during the build, then restarted the canonical task with its sole listener on `127.0.0.1:3100`.
+- `production:remote:status` safely reported the official client and service absent while local ERP health remained passing. Remote preflight and remote health failed closed for that explicit reason; Serve was not configured and no Tailscale setting was changed.
+- Phase 31 cannot be COMPLETE until the official client is installed, the server-side live drill passes, least-privilege Grants are applied, and an authorized second device plus an unauthorized negative case complete the documented acceptance gate.
+
+### Manual gate before completion
+
+- Install and sign in the official Tailscale Windows client, enable Run Unattended without resetting other preferences, configure the exact discovered `*.ts.net` Better Auth trusted origin while retaining the loopback base URL, apply the port-443-only Grant, and run the server remote commands.
+- From a real authorized phone/laptop outside factory Wi-Fi, verify HTTPS, Better Auth login/dashboard/navigation/logout/login, and PWA assets. Verify an unauthorized device is denied and the service is not reachable publicly without Tailscale.
+
 ## Phase 30 - Native Windows Production Hosting
 
-**Status:** COMPLETE - PHASE 31 READY, NOT STARTED
+**Status:** COMPLETE
 
 ### Implemented Phase 30 boundary
 
@@ -136,4 +161,4 @@
 
 ## Next gate
 
-**Phase 30 is complete. Phase 31 is ready but has not started.** Preserve server-authoritative transaction, authorization, audit, backup/restore, online-only mutation, conservative-cache, and responsive-shell boundaries when Phase 31 is explicitly authorized.
+**Phase 31 remains the active gate and is PARTIAL. Phase 32 is not ready.** Complete the documented Tailscale server drill and real remote-device acceptance without weakening the Phase 30 loopback, Better Auth, PostgreSQL, backup/recovery, audit, online-only mutation, or PWA boundaries.

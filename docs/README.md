@@ -25,6 +25,7 @@ This directory is the durable source of project context. Read only the documents
 
 - [`operations/backup-and-recovery.md`](operations/backup-and-recovery.md): Phase 28 logical backups, guarded restore, retention, and restore drills
 - [`operations/production-deployment.md`](operations/production-deployment.md): Phase 30 native Windows localhost-only deployment and factory-PC operations
+- [`operations/tailscale-private-access.md`](operations/tailscale-private-access.md): Phase 31 private HTTPS Serve, Grants, remote health, and device acceptance
 - [`pwa/mobile-pwa.md`](pwa/mobile-pwa.md): Phase 29 installability, conservative caching, offline boundaries, and responsive mobile use
 
 ## Project control

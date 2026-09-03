@@ -15,7 +15,9 @@ function createFactoryAuth(allowSignUp: boolean) {
     appName: "Hamd Foods ERP",
     baseURL: serverEnv.BETTER_AUTH_URL,
     secret: serverEnv.BETTER_AUTH_SECRET,
-    trustedOrigins: [serverEnv.BETTER_AUTH_URL],
+    trustedOrigins: [
+      ...new Set([serverEnv.BETTER_AUTH_URL, ...serverEnv.BETTER_AUTH_TRUSTED_ORIGINS]),
+    ],
     database: prismaAdapter(prisma, { provider: "postgresql", transaction: true }),
     databaseHooks: {
       session: {

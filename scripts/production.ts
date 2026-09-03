@@ -76,7 +76,12 @@ function loadProductionEnvironment() {
   const result = config({ path: productionEnvPath, quiet: true, override: true });
   if (result.error) throw new Error(".env.production could not be loaded.");
   const serverEnv = parseNativeProductionEnv(process.env);
-  return { ...process.env, ...serverEnv, NODE_ENV: "production" as const };
+  return {
+    ...process.env,
+    ...serverEnv,
+    BETTER_AUTH_TRUSTED_ORIGINS: serverEnv.BETTER_AUTH_TRUSTED_ORIGINS.join(","),
+    NODE_ENV: "production" as const,
+  };
 }
 
 function runPackage(args: string[], environment: NodeJS.ProcessEnv) {

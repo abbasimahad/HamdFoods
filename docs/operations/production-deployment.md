@@ -2,6 +2,8 @@
 
 Phase 30 hosts Hamd Foods ERP directly on the Windows factory server. Docker is not required and is not a fallback production architecture. The server runs native PostgreSQL, the Next.js standalone runtime, and one Windows Scheduled Task named `HamdFoodsERP`.
 
+Phase 31 optionally adds Tailscale Serve as a separate private HTTPS ingress without changing this local runtime. See [Tailscale private remote access](tailscale-private-access.md). Local startup, health, PostgreSQL, and backup/recovery remain independent of Tailscale.
+
 The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3100`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for the dedicated local application role and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
 
 ## Prerequisites
