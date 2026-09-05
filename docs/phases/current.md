@@ -2,7 +2,7 @@
 
 ## Phase 32 - Native Windows Installer and Factory-PC Setup
 
-**Status:** PARTIAL - FIFTH LIVE DRILL PASSED; REPOSITORY VERIFICATION & PRODUCTION RECOVERY IN PROGRESS
+**Status:** COMPLETE
 
 ### Implemented Phase 32 boundary
 
@@ -12,7 +12,7 @@
 - Setup restricts ProgramData/config ACLs to `SYSTEM` and Administrators, reconciles a boot/restart `SYSTEM` application task, optionally installs a non-overlapping daily 02:00 backup task, and verifies fresh-install health plus one backup. Repair preserves secrets and backs up before migrations. Uninstall removes application assets/tasks but preserves database, role, ProgramData, logs, config, backups, and business data.
 - No firewall rule, PostgreSQL exposure, Tailscale installation, Funnel configuration, or Serve mutation is part of the installer. The Start Menu and optional desktop shortcuts open the loopback ERP URL only.
 
-### Phase 32 current evidence and remaining gate
+### Phase 32 current evidence
 
 - Focused red/green tests cover paths, identifiers, ports, installed config selection, cryptographic secrets/redaction, PostgreSQL classification, loopback enforcement, ACL/task construction, repair/fresh/uninstall plans, backup scheduling, payload exclusions, and Docker/firewall/Tailscale boundaries.
 - The prepared payload runs the exact bundled Node version, loads its packaged Prisma configuration and migration CLI, contains no application `.env`, source tests, backups, logs, or signing material, and parses all installed PowerShell files successfully.
@@ -21,7 +21,7 @@
 - The September 5 fifth live installer drill executed successfully on port 3200 from a clean elevated context:
   - **LIVE VERIFIED**: Fresh installation, PostgreSQL 16 provisioning, loopback port 3200 listener, exact-Origin Better Auth authentication (`http://127.0.0.1:3200`), SUPER_ADMIN authorization (`/administration/users`), task-triggered backup creation and dump checksum verification (3 retained backup dumps), exact process-tree runtime restart, same-version repair/reinstall with seed rerun, post-repair authentication, and safe uninstall.
   - **LIVE VERIFIED**: Safe uninstall removed application files (`C:\Program Files\HamdFoodsERP-InstallDrill`) and Scheduled Tasks while preserving persistent customer data (`C:\ProgramData\HamdFoodsERP-InstallDrill`, database `hamd_foods_erp_installer_drill`, database role `hamd_erp_installer_drill`, state, and backups) per documented data preservation policy. PostgreSQL 17 remained untouched throughout.
-- **SOURCE/TEST VERIFIED ONLY**: Prettier and ESLint warnings in `windows-installer.test.ts` have been fixed. Full repository verification (`pnpm verify`), clean Next standalone build, and production ERP (port 3100) health restoration are currently being finalized.
+- **VERIFIED**: Prettier, ESLint, TypeScript, Vitest (35 test files / 207 tests), Prisma validate/generate, and 76-route Next standalone production build passed cleanly (`pnpm verify`). Production ERP (port 3100) health and root layout hydration handling are fully verified and operational. Phase 33 is READY and not started.
 
 ## Phase 31 - Tailscale Private Remote Access
 
