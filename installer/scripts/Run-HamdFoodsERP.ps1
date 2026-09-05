@@ -22,12 +22,12 @@ Import-HamdFoodsEnvironment -EnvironmentFile $environmentFile
 $env:HAMDFOODS_ENV_FILE = $environmentFile
 $env:HAMDFOODS_DATA_ROOT = $DataRoot
 $env:NODE_ENV = "production"
-$env:NODE_OPTIONS = "--enable-source-maps"
 Set-Location -LiteralPath (Join-Path $AppRoot "app")
 
 try {
-  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @($server) *>> $log
+  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @($server) -SensitiveValues (Get-HamdFoodsSensitiveValues) *>> $log
 } catch {
-  "[$([DateTimeOffset]::Now.ToString('O'))] Installed runtime stopped: $($_.Exception.Message)" | Out-File -LiteralPath $log -Append -Encoding utf8
+  $safeMessage = ConvertTo-HamdFoodsSafeLogText -Text $_.Exception.Message -SensitiveValues (Get-HamdFoodsSensitiveValues)
+  "[$([DateTimeOffset]::Now.ToString('O'))] Installed runtime stopped: $safeMessage" | Out-File -LiteralPath $log -Append -Encoding utf8
   throw
 }

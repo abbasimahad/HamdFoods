@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -19,12 +19,15 @@ import { build } from "esbuild";
 import {
   classifyPort,
   classifyPostgresInstallation,
+  discoverInnoSetupCompiler,
   PINNED_NODE_ARCHIVE,
   PINNED_NODE_SHA256,
   PINNED_NODE_VERSION,
   PRODUCTION_INSTALLER_OPTIONS,
+  runInstallerDrillWorkflow,
   SUPPORTED_POSTGRES_MAJOR,
   validatePayloadFiles,
+  verifyInstallerDrillAuthentication,
   type PostgresCandidate,
 } from "../src/server/operations/windows-installer";
 
@@ -96,12 +99,26 @@ function runPreflight() {
   console.log(
     `PostgreSQL: ${postgres.status === "installed" ? "INSTALLED" : postgres.status.toUpperCase()}`,
   );
+  if (postgres.status === "installed") {
+    console.log(`PostgreSQL Selected Major: ${postgres.major}`);
+    console.log(`PostgreSQL Selected Service: ${postgres.serviceName}`);
+    console.log(`PostgreSQL Selected Tool Path: ${postgres.binPath}`);
+  }
   console.log(`PostgreSQL Tools: ${postgres.status === "installed" ? "PASS" : "FAIL"}`);
+  if (postgres.legacyArtifacts.length) {
+    console.log("Legacy PostgreSQL Artifacts: WARNING");
+    for (const artifact of postgres.legacyArtifacts)
+      console.log(`Legacy PostgreSQL ${artifact.major}: UNMANAGED / IGNORED`);
+  }
   console.log(`Port 3100: ${port.toUpperCase()}`);
   console.log(`Existing HamdFoodsERP: ${existingInstall ? "YES" : "NO"}`);
   console.log(`Existing Scheduled Task: ${existingTask ? "YES" : "NO"}`);
   console.log(`Tailscale: OPTIONAL ${tailscale ? "INSTALLED" : "NOT INSTALLED"}`);
   console.log(`Installer Compiler: ${compiler ? "PASS" : "FAIL"}`);
+  if (compiler) {
+    console.log(`Installer Compiler Version: ${compiler.version}`);
+    console.log(`Installer Compiler Path: ${compiler.path}`);
+  }
 
   if (!windowsSupported || !administrator || architecture !== "x64" || !diskSpace)
     throw new Error("Installer preflight failed a required host check.");
@@ -211,6 +228,8 @@ function compileInstaller(drill: boolean) {
   mkdirSync(outputRoot, { recursive: true });
   const version = readApplicationVersion();
   const args = [
+    "--quiet",
+    "--messages-jsonl",
     `/DAppVersion=${version}`,
     `/DPayloadRoot=${payloadRoot}`,
     ...(!drill && process.env.HAMDFOODS_INSTALLER_PORT
@@ -227,8 +246,13 @@ function compileInstaller(drill: boolean) {
       );
     args.unshift(`/DInstallerSignTool=${signingName}`);
   }
-  const result = run(compiler, args, repositoryRoot);
-  if (result.status !== 0) throw new Error("Inno Setup compilation failed.");
+  const result = run(compiler.path, args, repositoryRoot);
+  const compilerOutput = `${result.stdout}\n${result.stderr}`.trim();
+  if (result.status !== 0)
+    throw new Error(`Inno Setup compilation failed.${compilerOutput ? `\n${compilerOutput}` : ""}`);
+  if (compilerOutput)
+    throw new Error(`Inno Setup compilation emitted a warning.\n${compilerOutput}`);
+  if (compilerOutput) console.log(compilerOutput);
   console.log(
     `${drill ? "Isolated drill" : "Development / unsigned"} installer compiled in ${outputRoot}.`,
   );
@@ -247,16 +271,152 @@ async function runDrill() {
   compileInstaller(true);
   if (process.env.HAMDFOODS_RUN_INSTALLER_DRILL !== "1")
     throw new Error(
-      "Drill installer compiled but was not launched. Set HAMDFOODS_RUN_INSTALLER_DRILL=1 only during an approved isolated interactive drill.",
+      "Drill installer compiled but was not launched. Set HAMDFOODS_RUN_INSTALLER_DRILL=1 only during an approved isolated drill.",
     );
   const installer = newestInstaller("InstallDrill");
-  const result = spawnSync(installer, ["/DRILL=1"], {
-    cwd: outputRoot,
-    stdio: "inherit",
-    windowsHide: false,
-  });
+  const passwordBytes = randomBytes(32);
+  let password: string | undefined = passwordBytes.toString("base64url");
+  const name = "Installer Drill Administrator";
+  const email = "installer-drill-admin@hamdfoods.invalid";
+  try {
+    const environment = {
+      ...process.env,
+      HAMDFOODS_AUTOMATED_INSTALL_DRILL: "1",
+      HAMDFOODS_DRILL_ADMIN_NAME: name,
+      HAMDFOODS_DRILL_ADMIN_EMAIL: email,
+      HAMDFOODS_DRILL_ADMIN_PASSWORD: password,
+    };
+    await runInstallerDrillWorkflow({
+      install: (stage) => runSilentDrillInstaller(installer, environment, stage),
+      authenticate: () => verifyDrillAuthentication(email, password!),
+      backup: () => runElevatedDrillOperation("backup"),
+      restart: () => runElevatedDrillOperation("restart"),
+      uninstall: runSilentDrillUninstaller,
+    });
+    console.log(
+      "Automated InstallDrill recovery, backup, restart, repair, authentication, and uninstall verification passed.",
+    );
+  } finally {
+    passwordBytes.fill(0);
+    password = undefined;
+  }
+}
+
+function runElevatedDrillOperation(operation: "backup" | "restart") {
+  const appRoot = "C:\\Program Files\\HamdFoodsERP-InstallDrill";
+  const dataRoot = "C:\\ProgramData\\HamdFoodsERP-InstallDrill";
+  const taskName =
+    operation === "backup" ? "HamdFoodsERP-InstallDrill-Backup" : "HamdFoodsERP-InstallDrill";
+  const body = `
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+$appRoot = '${escapePowerShellLiteral(appRoot)}'
+$dataRoot = '${escapePowerShellLiteral(dataRoot)}'
+$taskName = '${taskName}'
+$task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+if ($task.Principal.UserId -ne 'SYSTEM' -or @($task.Actions | Where-Object { -not [StringComparer]::OrdinalIgnoreCase.Equals([string]$_.WorkingDirectory, $appRoot) }).Count -ne 0) { throw 'Drill task identity mismatch.' }
+${
+  operation === "backup"
+    ? `$before = (Get-ScheduledTaskInfo -TaskName $taskName).LastRunTime
+Start-ScheduledTask -TaskName $taskName
+$deadline = [DateTime]::UtcNow.AddMinutes(3)
+do {
+  Start-Sleep -Milliseconds 500
+  $current = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+  $info = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction Stop
+} while (($current.State -eq 'Running' -or $info.LastRunTime -le $before) -and [DateTime]::UtcNow -lt $deadline)
+if ($current.State -eq 'Running' -or $info.LastRunTime -le $before -or $info.LastTaskResult -ne 0) { throw 'Drill backup task did not complete successfully.' }
+$manifestFile = Get-ChildItem -LiteralPath (Join-Path $dataRoot 'backups') -Filter '*.manifest.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+if (-not $manifestFile -or $manifestFile.LastWriteTime -lt $before) { throw 'Drill backup did not create a current manifest.' }
+$manifest = Get-Content -Raw -LiteralPath $manifestFile.FullName | ConvertFrom-Json
+if ($manifest.databaseName -ne 'hamd_foods_erp_installer_drill' -or $manifest.status -ne 'complete' -or $manifest.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Drill backup manifest identity or status is invalid.' }
+$dump = Join-Path $manifestFile.DirectoryName ([string]$manifest.dumpFilename)
+if (-not (Test-Path -LiteralPath $dump -PathType Leaf) -or (Get-Item -LiteralPath $dump).Length -ne [long]$manifest.byteSize) { throw 'Drill backup dump size verification failed.' }
+if ((Get-FileHash -LiteralPath $dump -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$manifest.sha256) { throw 'Drill backup SHA-256 verification failed.' }
+& 'C:\\Program Files\\PostgreSQL\\16\\bin\\pg_restore.exe' --list $dump *> $null
+if ($LASTEXITCODE -ne 0) { throw 'Drill backup readability verification failed.' }`
+    : `Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+$listeners = @(Get-NetTCPConnection -State Listen -LocalPort 3200 -ErrorAction SilentlyContinue)
+$expectedNode = Join-Path $appRoot 'runtime\\node\\node.exe'
+foreach ($listener in $listeners) {
+  $process = Get-Process -Id $listener.OwningProcess -ErrorAction Stop
+  if ($listener.LocalAddress -notin @('127.0.0.1', '::1') -or $process.ProcessName -ne 'node' -or -not [StringComparer]::OrdinalIgnoreCase.Equals([string]$process.Path, $expectedNode)) { throw 'Port 3200 is not owned by the exact drill runtime.' }
+  $termination = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\\taskkill.exe') -ArgumentList @('/PID', [string]$listener.OwningProcess, '/T', '/F') -WindowStyle Hidden -Wait -PassThru
+  if ($termination.ExitCode -ne 0) { throw 'Exact drill runtime termination failed.' }
+}
+$closeDeadline = [DateTime]::UtcNow.AddSeconds(30)
+while ((Get-NetTCPConnection -State Listen -LocalPort 3200 -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $closeDeadline) { Start-Sleep -Milliseconds 250 }
+if (Get-NetTCPConnection -State Listen -LocalPort 3200 -ErrorAction SilentlyContinue) { throw 'Port 3200 did not close during drill restart.' }
+Start-ScheduledTask -TaskName $taskName
+$healthDeadline = [DateTime]::UtcNow.AddSeconds(60)
+do {
+  try { $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3200/api/health' -TimeoutSec 5 } catch { $health = $null }
+  if ($health.status -eq 'ok') { break }
+  Start-Sleep -Seconds 2
+} while ([DateTime]::UtcNow -lt $healthDeadline)
+if ($health.status -ne 'ok') { throw 'Drill runtime did not become healthy after restart.' }
+$finalListeners = @(Get-NetTCPConnection -State Listen -LocalPort 3200 -ErrorAction Stop)
+if ($finalListeners.Count -ne 1 -or $finalListeners[0].LocalAddress -ne '127.0.0.1') { throw 'Drill restart did not restore an IPv4 loopback-only listener.' }`
+}
+`;
+  const encoded = Buffer.from(body, "utf16le").toString("base64");
+  const powershell = systemPowerShell();
+  const elevation = `$process = Start-Process -FilePath '${escapePowerShellLiteral(powershell)}' -Verb RunAs -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}') -WindowStyle Hidden -Wait -PassThru; exit $process.ExitCode`;
+  const result = run(
+    powershell,
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", elevation],
+    repositoryRoot,
+  );
   if (result.status !== 0)
-    throw new Error("Isolated installer drill did not complete successfully.");
+    throw new Error(`Elevated InstallDrill ${operation} verification failed.`);
+}
+
+function runSilentDrillUninstaller() {
+  const appRoot = "C:\\Program Files\\HamdFoodsERP-InstallDrill";
+  const uninstaller = path.join(appRoot, "unins000.exe");
+  if (!existsSync(uninstaller)) throw new Error("Isolated installer drill uninstaller is missing.");
+  const result = spawnSync(uninstaller, ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"], {
+    cwd: appRoot,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error("Isolated installer uninstall drill failed.");
+  if (existsSync(appRoot))
+    throw new Error("Isolated installer left its Program Files payload behind.");
+}
+
+function runSilentDrillInstaller(
+  installer: string,
+  environment: NodeJS.ProcessEnv,
+  stage: "recovery" | "repair",
+) {
+  const innoLog = path.join(workRoot, `drill-${stage}-setup.log`);
+  const result = spawnSync(
+    installer,
+    [
+      "/DRILL=1",
+      "/VERYSILENT",
+      "/SUPPRESSMSGBOXES",
+      "/NORESTART",
+      "/TASKS=dailybackup",
+      `/LOG=${innoLog}`,
+    ],
+    {
+      cwd: outputRoot,
+      env: environment,
+      stdio: "ignore",
+      windowsHide: true,
+    },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0)
+    throw new Error(`Isolated installer ${stage} drill did not complete successfully.`);
+}
+
+async function verifyDrillAuthentication(email: string, password: string) {
+  const origin = "http://127.0.0.1:3200";
+  await verifyInstallerDrillAuthentication({ origin, email, password });
 }
 
 function assertBuildHost() {
@@ -310,7 +470,7 @@ function stageStandaloneRuntime(standaloneRoot: string) {
     dereference: true,
     filter(source) {
       const name = path.basename(source).toLowerCase();
-      return name !== ".env" && !name.startsWith(".env.");
+      return name !== ".env" && !name.startsWith(".env.") && isRuntimePayloadFile(source);
     },
   });
 }
@@ -337,6 +497,7 @@ async function stageOperationalBundles() {
       platform: "node",
       format: "esm",
       target: "node24",
+      packages: "external",
       conditions: ["react-server", "node", "import"],
       sourcemap: false,
       legalComments: "none",
@@ -372,7 +533,18 @@ function stagePrismaMigrations() {
 function stagePrismaCli() {
   const targetNodeModules = path.join(payloadRoot, "operations", "node_modules");
   mkdirSync(targetNodeModules, { recursive: true });
-  const pending = ["prisma"];
+  const pending = [
+    "prisma",
+    "@prisma/client",
+    "@prisma/adapter-pg",
+    "pg",
+    "better-auth",
+    "@better-auth/prisma-adapter",
+    "server-only",
+    "zod",
+    "decimal.js",
+    "dotenv",
+  ];
   const copied = new Set<string>();
   while (pending.length) {
     const packageName = pending.pop()!;
@@ -391,11 +563,11 @@ function stagePrismaCli() {
         if (!relative) return true;
         const segments = relative.split("/");
         return (
+          isRuntimePayloadFile(candidate) &&
           !segments.some((segment) =>
             ["test", "tests", "__tests__", "fixtures", "examples"].includes(segment),
           ) &&
-          !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(relative) &&
-          !relative.endsWith(".map")
+          !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(relative)
         );
       },
     });
@@ -411,6 +583,17 @@ function stagePrismaCli() {
       if (existsSync(path.join(repositoryRoot, "node_modules", ...dependency.split("/"))))
         pending.push(dependency);
   }
+}
+
+function isRuntimePayloadFile(candidate: string) {
+  if (!existsSync(candidate) || !statSync(candidate).isFile()) return true;
+  const name = path.basename(candidate).toLowerCase();
+  return (
+    !name.endsWith(".map") &&
+    !/\.d\.[cm]?ts$/.test(name) &&
+    !name.endsWith(".md") &&
+    !name.endsWith(".markdown")
+  );
 }
 
 function stageOptionalPostgresPrerequisite() {
@@ -462,46 +645,57 @@ function writePayloadMetadata() {
 
 function discoverPostgresCandidates(): PostgresCandidate[] {
   if (process.platform !== "win32") return [];
+  const installationRoot = path.join(process.env.ProgramFiles ?? "C:\\Program Files", "PostgreSQL");
+  if (!existsSync(installationRoot)) return [];
   const candidates: PostgresCandidate[] = [];
-  for (const major of [18, 17, 16, 15, 14]) {
-    const binPath = path.join(
-      process.env.ProgramFiles ?? "C:\\Program Files",
-      "PostgreSQL",
-      String(major),
-      "bin",
-    );
-    if (!existsSync(binPath)) continue;
+  const configuredBin = process.env.POSTGRES_BIN
+    ? path.normalize(process.env.POSTGRES_BIN)
+    : undefined;
+  const majors = readdirSync(installationRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+    .map((entry) => Number(entry.name));
+  for (const major of majors) {
+    const candidateRoot = path.join(installationRoot, String(major));
+    const binPath = path.join(candidateRoot, "bin");
     const serviceName = `postgresql-x64-${major}`;
+    const service = postgresServiceState(serviceName);
     candidates.push({
       major,
+      installationRoot: candidateRoot,
       binPath,
       serviceName,
-      serviceRunning: serviceIsRunning(serviceName),
+      serviceRegistered: service.registered,
+      serviceRunning: service.running,
+      serverBinaryPresent: existsSync(path.join(binPath, "postgres.exe")),
       toolsPresent: ["psql.exe", "pg_isready.exe", "pg_dump.exe", "pg_restore.exe"].every((tool) =>
         existsSync(path.join(binPath, tool)),
       ),
+      dataDirectoryPresent: existsSync(path.join(candidateRoot, "data", "PG_VERSION")),
+      hamdFoodsManaged:
+        configuredBin !== undefined &&
+        configuredBin.toLowerCase() === path.normalize(binPath).toLowerCase(),
     });
   }
   return candidates;
 }
 
 function discoverInnoCompiler() {
-  const configured = process.env.INNO_SETUP_COMPILER;
-  const candidates = [
-    configured,
-    path.join(process.env.ProgramFiles ?? "C:\\Program Files", "Inno Setup 7", "ISCC.exe"),
-    path.join(process.env.ProgramFiles ?? "C:\\Program Files", "Inno Setup 6", "ISCC.exe"),
-    path.join(
-      process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)",
-      "Inno Setup 6",
-      "ISCC.exe",
-    ),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-  if (configured && (!path.isAbsolute(configured) || !existsSync(configured)))
-    throw new Error("INNO_SETUP_COMPILER must identify an existing absolute ISCC.exe path.");
-  return candidates.find(
-    (candidate) => path.basename(candidate).toLowerCase() === "iscc.exe" && existsSync(candidate),
-  );
+  return discoverInnoSetupCompiler({
+    configuredPath: process.env.INNO_SETUP_COMPILER,
+    programFiles: process.env.ProgramFiles ?? "C:\\Program Files",
+    programFilesX86: process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)",
+    localAppData: process.env.LOCALAPPDATA,
+    isFile(candidate) {
+      try {
+        return statSync(candidate).isFile();
+      } catch {
+        return false;
+      }
+    },
+    execute(candidate, args) {
+      return run(candidate, [...args], repositoryRoot);
+    },
+  });
 }
 
 function discoverTailscale() {
@@ -543,18 +737,18 @@ function scheduledTaskExists(taskName: string) {
   return result.status === 0;
 }
 
-function serviceIsRunning(serviceName: string) {
+function postgresServiceState(serviceName: string) {
   const result = run(
     systemPowerShell(),
     [
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      `if ((Get-Service -Name '${escapePowerShellLiteral(serviceName)}' -ErrorAction SilentlyContinue).Status -eq 'Running') { exit 0 } else { exit 1 }`,
+      `$service = Get-Service -Name '${escapePowerShellLiteral(serviceName)}' -ErrorAction SilentlyContinue; if (-not $service) { exit 2 }; if ($service.Status -eq 'Running') { exit 0 }; exit 1`,
     ],
     repositoryRoot,
   );
-  return result.status === 0;
+  return { registered: result.status === 0 || result.status === 1, running: result.status === 0 };
 }
 
 function getPortListeners(port: number) {

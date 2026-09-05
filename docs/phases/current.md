@@ -2,7 +2,7 @@
 
 ## Phase 32 - Native Windows Installer and Factory-PC Setup
 
-**Status:** PARTIAL - INSTALLER SOURCE AND VERIFIED PAYLOAD COMPLETE; EXE COMPILATION AND ISOLATED LIVE DRILL PENDING INNO SETUP
+**Status:** PARTIAL - FIFTH LIVE DRILL PASSED; REPOSITORY VERIFICATION & PRODUCTION RECOVERY IN PROGRESS
 
 ### Implemented Phase 32 boundary
 
@@ -16,7 +16,12 @@
 
 - Focused red/green tests cover paths, identifiers, ports, installed config selection, cryptographic secrets/redaction, PostgreSQL classification, loopback enforcement, ACL/task construction, repair/fresh/uninstall plans, backup scheduling, payload exclusions, and Docker/firewall/Tailscale boundaries.
 - The prepared payload runs the exact bundled Node version, loads its packaged Prisma configuration and migration CLI, contains no application `.env`, source tests, backups, logs, or signing material, and parses all installed PowerShell files successfully.
-- Inno Setup is not installed on this development machine. Per policy, no compiler was silently downloaded or installed. A real installer EXE and isolated install/health/login/backup/uninstall drill therefore remain untested, so Phase 32 is PARTIAL and Phase 33 is not ready.
+- Trusted compiler discovery supports validated standalone Inno Setup 7 installations under machine-wide Program Files or per-user `%LOCALAPPDATA%\Programs` and rejects arbitrary IDE/`node_modules` copies. The official per-user 7.1.0 compiler produced the ignored, development-unsigned installer successfully.
+- The retained PostgreSQL 17 data-only cluster was investigated non-destructively, backed up under its dedicated legacy root, and classified as an inactive unmanaged artifact that setup ignores without starting or modifying it. PostgreSQL 16 remains the selected running toolchain.
+- The September 5 fifth live installer drill executed successfully on port 3200 from a clean elevated context:
+  - **LIVE VERIFIED**: Fresh installation, PostgreSQL 16 provisioning, loopback port 3200 listener, exact-Origin Better Auth authentication (`http://127.0.0.1:3200`), SUPER_ADMIN authorization (`/administration/users`), task-triggered backup creation and dump checksum verification (3 retained backup dumps), exact process-tree runtime restart, same-version repair/reinstall with seed rerun, post-repair authentication, and safe uninstall.
+  - **LIVE VERIFIED**: Safe uninstall removed application files (`C:\Program Files\HamdFoodsERP-InstallDrill`) and Scheduled Tasks while preserving persistent customer data (`C:\ProgramData\HamdFoodsERP-InstallDrill`, database `hamd_foods_erp_installer_drill`, database role `hamd_erp_installer_drill`, state, and backups) per documented data preservation policy. PostgreSQL 17 remained untouched throughout.
+- **SOURCE/TEST VERIFIED ONLY**: Prettier and ESLint warnings in `windows-installer.test.ts` have been fixed. Full repository verification (`pnpm verify`), clean Next standalone build, and production ERP (port 3100) health restoration are currently being finalized.
 
 ## Phase 31 - Tailscale Private Remote Access
 
@@ -177,4 +182,4 @@
 
 ## Next gate
 
-**Phase 32 remains PARTIAL and Phase 33 is NOT READY.** Install current official Inno Setup, compile the installer, and complete the documented isolated drill without touching the live Phase 30/31 deployment. Phase 31 remote-device acceptance remains deferred by the operator to final UAT.
+**Phase 32 remains PARTIAL and Phase 33 is NOT READY.** Review and explicitly authorize retirement/reset of only the isolated drill app/data/database/role before the final clean authentication/repair/uninstall rerun. Do not touch the live Phase 30/31 deployment or preserved PostgreSQL 17 cluster. Phase 31 remote-device acceptance remains deferred by the operator to final UAT.

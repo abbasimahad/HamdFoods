@@ -41,5 +41,6 @@ installer/prerequisites/*.exe
 installer/prerequisites/*.zip
 installer/prerequisites/*.sha256
 installer/signing/
+scratch/
 *.pfx
 *.p12

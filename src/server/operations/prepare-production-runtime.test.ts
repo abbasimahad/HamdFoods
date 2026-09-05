@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -24,6 +24,17 @@ describe("prepareProductionRuntime", () => {
     const root = createRuntimeFixture(["next", "react", "react-dom"]);
 
     expect(() => prepareProductionRuntime(root)).not.toThrow();
+  });
+
+  it("removes an environment file copied into the standalone runtime", () => {
+    // Defect caught: Next can copy the protected production environment into the distributable tree.
+    const root = createRuntimeFixture(["next", "react", "react-dom"]);
+    const environmentPath = path.join(root, ".next", "standalone", ".env.production");
+    writeFileSync(environmentPath, "DATABASE_URL=must-not-ship\n");
+
+    prepareProductionRuntime(root);
+
+    expect(existsSync(environmentPath)).toBe(false);
   });
 
   it("rejects a critical dependency link that resolves outside the standalone runtime", () => {

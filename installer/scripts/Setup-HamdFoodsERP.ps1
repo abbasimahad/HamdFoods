@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Install', 'Repair', 'UninstallTasks')][string]$Mode = 'Install',
+  [ValidateSet('Install', 'Repair', 'StopRuntime', 'UninstallTasks')][string]$Mode = 'Install',
   [string]$AppRoot = 'C:\Program Files\HamdFoodsERP',
   [string]$DataRoot = 'C:\ProgramData\HamdFoodsERP',
   [string]$TaskName = 'HamdFoodsERP',
@@ -48,9 +48,22 @@ if ($TaskName -notmatch '^HamdFoodsERP(?:-InstallDrill)?$' -or $BackupTaskName -
 }
 if ($Port -eq 5432) { throw 'The ERP cannot use the PostgreSQL port.' }
 
+if ($Mode -eq 'StopRuntime') {
+  try { Stop-HamdFoodsManagedRuntime }
+  catch {
+    $runtimeStopLog = Join-Path $DataRoot 'logs\installer\runtime-stop.log'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $runtimeStopLog) -Force | Out-Null
+    $safeMessage = ConvertTo-HamdFoodsSafeLogText -Text $_.Exception.Message -SensitiveValues (Get-HamdFoodsSensitiveValues)
+    "[$([DateTimeOffset]::Now.ToString('O'))] $safeMessage" | Out-File -LiteralPath $runtimeStopLog -Append -Encoding utf8
+    Protect-HamdFoodsPath -Path $runtimeStopLog
+    throw
+  }
+  Write-Output 'Hamd Foods ERP runtime stopped for protected repair.'
+  exit 0
+}
+
 if ($Mode -eq 'UninstallTasks') {
-  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-  Unregister-ScheduledTask -TaskName $BackupTaskName -Confirm:$false -ErrorAction SilentlyContinue
+  Remove-HamdFoodsScheduledTasks
   Write-Output 'Business data and backups were preserved.'
   exit 0
 }
@@ -59,17 +72,31 @@ $configDirectory = Join-Path $DataRoot 'config'
 $configPath = Join-Path $configDirectory '.env.production'
 $logRoot = Join-Path $DataRoot 'logs'
 $installerLogRoot = Join-Path $logRoot 'installer'
+$provisioningLogPath = Join-Path $installerLogRoot 'provisioning.log'
 $backupRoot = Join-Path $DataRoot 'backups'
 $stateRoot = Join-Path $DataRoot 'state'
+$statePath = Join-Path $stateRoot 'provisioning-state.json'
+$installationId = if ($Drill) { 'EEEA3D20-202A-4B36-8145-41EC53AECA63' } else { 'B751DA7E-CAEF-4619-981F-BD49A7CDE978' }
 $createdDatabase = $false
 $createdRole = $false
 $fresh = -not (Test-Path -LiteralPath $configPath -PathType Leaf)
+$repair = $false
+$managedState = $null
+$stage = 'ProgramDataPreparation'
+$postgresPassword = $null
+$secrets = $null
 
 try {
-  Assert-PortAvailableOrOwned -Port $Port -TaskName $TaskName
-  $postgres = Find-SupportedPostgres
-  Assert-PostgresLoopback -Postgres $postgres
-
+  if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+    if (-not (Test-HamdFoodsRestrictedPath -Path $DataRoot) -or -not (Test-HamdFoodsRestrictedPath -Path $configPath)) {
+      throw 'Existing configuration lacks installer-owned protected ACL provenance; setup will not claim it.'
+    }
+    if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+      if (-not (Test-HamdFoodsRestrictedPath -Path $statePath)) { throw 'Existing installer state is not protected.' }
+    } elseif (-not (Test-Path -LiteralPath $provisioningLogPath -PathType Leaf) -or -not (Test-HamdFoodsRestrictedPath -Path $provisioningLogPath)) {
+      throw 'Existing configuration has neither protected installer state nor protected legacy provisioning evidence.'
+    }
+  }
   foreach ($directory in @($DataRoot, $configDirectory, $logRoot, $installerLogRoot, $backupRoot, $stateRoot)) {
     if (Test-Path -LiteralPath $directory) {
       $existingItem = Get-Item -LiteralPath $directory -Force
@@ -82,36 +109,137 @@ try {
     if (($configItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Protected configuration cannot be a reparse point.' }
   }
   Protect-HamdFoodsPath -Path $DataRoot -Container
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+  $stage = 'PortValidation'
+  Assert-PortAvailableOrOwned -Port $Port -TaskName $TaskName
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+  $stage = 'PostgreSQLDiscovery'
+  $postgres = Find-SupportedPostgres
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+  $stage = 'PostgreSQLNetworkValidation'
+  Assert-PostgresLoopback -Postgres $postgres
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
 
   if ($fresh) {
-    $credential = Get-Credential -UserName 'postgres' -Message 'Enter the PostgreSQL 16 administrator password. It is used only for provisioning and is not stored.'
-    $postgresPassword = ConvertFrom-SecureValue $credential.Password
+    if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+      $managedState = Read-HamdFoodsProvisioningState
+      Assert-HamdFoodsProvisioningState -State $managedState
+      if ($managedState.ResourcesCreated.Database -or $managedState.ResourcesCreated.Role) {
+        throw 'Installer-owned state records created PostgreSQL resources but protected configuration is missing; automatic recovery cannot preserve its generated credential.'
+      }
+    } else {
+      $managedState = New-HamdFoodsProvisioningState
+      Save-HamdFoodsProvisioningState -State $managedState
+    }
+
+    $stage = 'PostgreSQLCredentialAcquisition'
+    $postgresPassword = Get-PostgresAdministratorPassword
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+    $stage = 'PostgreSQLCredentialValidation'
     $existing = Get-PostgresResourceState -Postgres $postgres -Password $postgresPassword
     if ($existing.Database -or $existing.Role) {
-      throw 'A matching PostgreSQL database or role already exists without managed configuration; setup will not claim it.'
+      throw 'A matching PostgreSQL database or role already exists without matching installer provenance; setup will not claim it.'
     }
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+    $stage = 'SecretGeneration'
     $secrets = New-InstallationSecrets
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+    $stage = 'DatabaseProvisioning'
     New-PostgresResources -Postgres $postgres -Password $postgresPassword -DatabasePassword $secrets.DatabasePassword
     $createdRole = $true
     $createdDatabase = $true
+    $managedState.ResourcesCreated.Role = $true
+    $managedState.ResourcesCreated.Database = $true
+    Save-HamdFoodsProvisioningState -State $managedState
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+    $stage = 'ConfigurationWrite'
     Write-ProtectedConfiguration -DatabasePassword $secrets.DatabasePassword -AuthSecret $secrets.AuthSecret -Postgres $postgres
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+    Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
   } else {
+    $stage = 'ConfigurationValidation'
     Import-HamdFoodsEnvironment -EnvironmentFile $configPath
     Assert-ExistingConfiguration
-    Invoke-InstalledBackup -Verify
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+
+    if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+      $managedState = Read-HamdFoodsProvisioningState
+    } else {
+      $managedState = Import-HamdFoodsLegacyProvisioningState
+    }
+    Assert-HamdFoodsProvisioningState -State $managedState -RequireResources
+    $managedState.ApplicationVersion = Get-HamdFoodsInstalledVersion
+    Save-HamdFoodsProvisioningState -State $managedState
+    $repair = [bool]$managedState.ProvisioningComplete
+
+    if ($repair -or (Test-HamdFoodsProvisioningStage -State $managedState -Stage 'MigrationDeployment')) {
+      $stage = 'PreMigrationBackup'
+      Invoke-InstalledBackup -Verify
+      Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+    }
   }
 
-  Import-HamdFoodsEnvironment -EnvironmentFile $configPath
-  Invoke-InstalledMigrations
-  Invoke-InstalledSeed
-  if ($fresh) { Invoke-AdminBootstrap }
+  if ($repair -or -not (Test-HamdFoodsProvisioningStage -State $managedState -Stage 'MigrationDeployment')) {
+    $stage = 'MigrationDeployment'
+    Import-HamdFoodsEnvironment -EnvironmentFile $configPath
+    Invoke-InstalledMigrations
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+    Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
+  }
+
+  if ($repair -or -not (Test-HamdFoodsProvisioningStage -State $managedState -Stage 'SeedExecution')) {
+    $stage = 'SeedExecution'
+    Invoke-InstalledSeed
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+    Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
+  }
+
+  if (-not (Test-HamdFoodsProvisioningStage -State $managedState -Stage 'AdministratorBootstrap')) {
+    $stage = 'AdministratorBootstrap'
+    Invoke-AdminBootstrap
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+    Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
+  }
+
+  $stage = 'TaskRegistration'
   Register-ApplicationTask
   if ($InstallBackupTask) { Register-BackupTask } else { Unregister-ScheduledTask -TaskName $BackupTaskName -Confirm:$false -ErrorAction SilentlyContinue }
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+  Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
+
+  $stage = 'RuntimeStartup'
   Start-ScheduledTask -TaskName $TaskName
   Wait-Healthy
-  if ($fresh) { Invoke-InstalledBackup -Verify }
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+  Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
+
+  if ($fresh -or -not $repair) {
+    $stage = 'InitialBackupVerification'
+    Invoke-InstalledBackup -Verify
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
+  }
+  $managedState.ProvisioningComplete = $true
+  Save-HamdFoodsProvisioningState -State $managedState
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage 'Installation' -Status 'PASS'
   Write-Output 'Hamd Foods ERP installation verification passed.'
 } catch {
+  $failure = $_
+  $sensitiveValues = @($postgresPassword) + @(Get-HamdFoodsSensitiveValues)
+  if ($null -ne $secrets) { $sensitiveValues += @($secrets.DatabasePassword, $secrets.AuthSecret) }
+  try {
+    if (Test-Path -LiteralPath $installerLogRoot -PathType Container) {
+      Write-HamdFoodsProvisioningFailure -Path $provisioningLogPath -Stage $stage -ErrorRecord $failure -SensitiveValues $sensitiveValues
+    }
+  } catch {
+    Write-Warning 'The non-secret provisioning failure log could not be written.'
+  }
   Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
   if ($fresh) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -120,8 +248,10 @@ try {
   if ($fresh -and $createdDatabase -and $createdRole) {
     Write-Warning 'Application database resources were created before setup failed and were preserved for safe operator review.'
   }
-  throw
+  throw $failure
 } finally {
+  $postgresPassword = $null
+  $secrets = $null
   Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
   Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD -ErrorAction SilentlyContinue
   Remove-Item Env:BOOTSTRAP_ADMIN_EMAIL -ErrorAction SilentlyContinue
@@ -130,10 +260,15 @@ try {
 }
 
 function Find-SupportedPostgres {
-  $root = Join-Path $env:ProgramFiles 'PostgreSQL'
+  $root = Join-Path (Get-HamdFoodsNativeProgramFiles) 'PostgreSQL'
   $detected = if (Test-Path -LiteralPath $root) { @(Get-ChildItem -LiteralPath $root -Directory | Where-Object Name -Match '^\d+$') } else { @() }
-  $unsupported = @($detected | Where-Object Name -NE '16')
-  if ($unsupported.Count) { throw "Unsupported/conflicting PostgreSQL major detected: $($unsupported.Name -join ', ')." }
+  $unsupported = @($detected | Where-Object {
+    if ($_.Name -eq '16') { return $false }
+    $candidateBin = Join-Path $_.FullName 'bin'
+    $candidateService = Get-Service -Name "postgresql-x64-$($_.Name)" -ErrorAction SilentlyContinue
+    return $candidateService -or (Test-Path -LiteralPath (Join-Path $candidateBin 'postgres.exe') -PathType Leaf)
+  })
+  if ($unsupported.Count) { throw "Unsupported/conflicting usable PostgreSQL major detected: $($unsupported.Name -join ', ')." }
   $bin = Join-Path $root '16\bin'
   $service = Get-Service -Name 'postgresql-x64-16' -ErrorAction SilentlyContinue
   $tools = @('psql.exe', 'pg_isready.exe', 'pg_dump.exe', 'pg_restore.exe')
@@ -153,10 +288,46 @@ function Find-SupportedPostgres {
   return @{ Bin = $bin; Psql = (Join-Path $bin 'psql.exe'); PgIsReady = (Join-Path $bin 'pg_isready.exe') }
 }
 
+function Stop-HamdFoodsManagedRuntime {
+  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 2
+  $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+  $expectedNode = Join-Path $AppRoot 'runtime\node\node.exe'
+  foreach ($listener in $listeners) {
+    if ($listener.LocalAddress -notin @('127.0.0.1', '::1')) { throw "Port $Port has a non-loopback listener; setup will not terminate it." }
+    $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+    if (-not $process) {
+      if (-not (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object OwningProcess -eq $listener.OwningProcess)) { continue }
+      throw "Port $Port owner could not be identity-checked; setup will not terminate it."
+    }
+    if (
+      $process.ProcessName -ne 'node' -or
+      -not [StringComparer]::OrdinalIgnoreCase.Equals([string]$process.Path, $expectedNode)
+    ) { throw "Port $Port is not owned by the exact installed runtime; setup will not terminate it." }
+    $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+    $termination = Start-Process -FilePath $taskkill -ArgumentList @('/PID', [string]$listener.OwningProcess, '/T', '/F') -WindowStyle Hidden -Wait -PassThru
+    if ($termination.ExitCode -ne 0 -and (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object OwningProcess -eq $listener.OwningProcess)) {
+      throw "Native termination failed for exact installed runtime PID $($listener.OwningProcess)."
+    }
+  }
+  $deadline = [DateTime]::UtcNow.AddSeconds(30)
+  while ((Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $deadline) {
+    Start-Sleep -Milliseconds 250
+  }
+  if (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) { throw "Port $Port remains occupied after stopping the exact installed runtime." }
+}
+
+function Remove-HamdFoodsScheduledTasks {
+  Stop-HamdFoodsManagedRuntime
+  Stop-ScheduledTask -TaskName $BackupTaskName -ErrorAction SilentlyContinue
+  foreach ($name in @($TaskName, $BackupTaskName)) {
+    Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
+  }
+}
+
 function Assert-PostgresLoopback {
   param([hashtable]$Postgres)
-  & $Postgres.PgIsReady -h 127.0.0.1 -p 5432 -t 5 | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL is not reachable on loopback.' }
+  Invoke-HamdFoodsNativeProcess -FilePath $Postgres.PgIsReady -WorkingDirectory $Postgres.Bin -Arguments @('-h', '127.0.0.1', '-p', '5432', '-t', '5') | Out-Null
   $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 5432 -ErrorAction SilentlyContinue)
   if (-not $listeners.Count -or @($listeners | Where-Object LocalAddress -NotIn @('127.0.0.1', '::1')).Count) {
     throw 'PostgreSQL must listen only on 127.0.0.1 and/or ::1.'
@@ -171,11 +342,7 @@ function Assert-PortAvailableOrOwned {
   if (-not $task -or @($listeners | Where-Object LocalAddress -NotIn @('127.0.0.1', '::1')).Count) {
     throw "Port $Port is occupied; setup will not terminate or hijack the listener."
   }
-  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-  Start-Sleep -Seconds 2
-  if (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) {
-    throw "Port $Port remains occupied after stopping the managed task."
-  }
+  Stop-HamdFoodsManagedRuntime
 }
 
 function ConvertFrom-SecureValue {
@@ -185,24 +352,140 @@ function ConvertFrom-SecureValue {
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
 }
 
+function Get-PostgresAdministratorPassword {
+  if ($Drill -and $env:HAMDFOODS_AUTOMATED_INSTALL_DRILL -eq '1') { return '' }
+  $credential = Get-Credential -UserName 'postgres' -Message 'Enter the PostgreSQL 16 administrator password. It is used only for provisioning and is not stored.'
+  if ($null -eq $credential) { throw 'PostgreSQL credential entry was cancelled.' }
+  return ConvertFrom-SecureValue $credential.Password
+}
+
 function New-RandomHex {
   param([int]$Bytes)
   $buffer = [byte[]]::new($Bytes)
-  [Security.Cryptography.RandomNumberGenerator]::Fill($buffer)
-  return [Convert]::ToHexString($buffer).ToLowerInvariant()
+  $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try { $generator.GetBytes($buffer) }
+  finally { $generator.Dispose() }
+  return ([BitConverter]::ToString($buffer) -replace '-', '').ToLowerInvariant()
 }
 
 function New-InstallationSecrets { return @{ DatabasePassword = (New-RandomHex 32); AuthSecret = (New-RandomHex 48) } }
+
+function Get-HamdFoodsInstalledVersion {
+  $manifestPath = Join-Path $AppRoot 'installer-manifest.json'
+  if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Installer payload manifest is missing.' }
+  $manifest = [IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
+  if ($manifest.applicationVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Installer payload version is invalid.' }
+  return $manifest.applicationVersion
+}
+
+function Test-HamdFoodsRestrictedPath {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) { return $false }
+  $item = Get-Item -LiteralPath $Path -Force
+  if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+  $allowed = @('S-1-5-18', 'S-1-5-32-544')
+  foreach ($rule in (Get-Acl -LiteralPath $Path).Access) {
+    try { $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
+    catch { return $false }
+    if ($sid -notin $allowed -or $rule.AccessControlType -ne 'Allow') { return $false }
+  }
+  return $true
+}
+
+function New-HamdFoodsProvisioningState {
+  return [pscustomobject]@{
+    SchemaVersion = 1
+    InstallationId = $installationId
+    ApplicationVersion = Get-HamdFoodsInstalledVersion
+    AppRoot = $AppRoot
+    DataRoot = $DataRoot
+    DatabaseName = $DatabaseName
+    RoleName = $RoleName
+    ResourcesCreated = [pscustomobject]@{ Database = $false; Role = $false }
+    CompletedStages = @()
+    ProvisioningComplete = $false
+  }
+}
+
+function Save-HamdFoodsProvisioningState {
+  param([Parameter(Mandatory = $true)]$State)
+  $temporary = Join-Path $stateRoot ("provisioning-state-{0}.tmp" -f [Guid]::NewGuid().ToString('N'))
+  try {
+    [IO.File]::WriteAllText($temporary, (($State | ConvertTo-Json -Depth 5) + "`r`n"), [Text.UTF8Encoding]::new($false))
+    Protect-HamdFoodsPath -Path $temporary
+    Move-Item -LiteralPath $temporary -Destination $statePath -Force
+    Protect-HamdFoodsPath -Path $statePath
+  } finally { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
+}
+
+function Read-HamdFoodsProvisioningState {
+  try { return ([IO.File]::ReadAllText($statePath) | ConvertFrom-Json) }
+  catch { throw 'Installer provisioning state is invalid.' }
+}
+
+function Assert-HamdFoodsProvisioningState {
+  param([Parameter(Mandatory = $true)]$State, [switch]$RequireResources)
+  $knownStages = @('ConfigurationWrite', 'MigrationDeployment', 'SeedExecution', 'AdministratorBootstrap', 'TaskRegistration', 'RuntimeStartup')
+  $completedStages = @($State.CompletedStages)
+  $stagesValid = $completedStages.Count -le $knownStages.Count
+  for ($index = 0; $stagesValid -and $index -lt $completedStages.Count; $index++) {
+    $stagesValid = $completedStages[$index] -is [string] -and $completedStages[$index] -ceq $knownStages[$index]
+  }
+  if (
+    $State.SchemaVersion -ne 1 -or
+    $State.InstallationId -ne $installationId -or
+    $State.ApplicationVersion -notmatch '^\d+\.\d+\.\d+$' -or
+    $State.AppRoot -ne $AppRoot -or
+    $State.DataRoot -ne $DataRoot -or
+    $State.DatabaseName -ne $DatabaseName -or
+    $State.RoleName -ne $RoleName -or
+    $null -eq $State.ResourcesCreated -or
+    $State.ResourcesCreated.Database -isnot [bool] -or
+    $State.ResourcesCreated.Role -isnot [bool] -or
+    $State.ProvisioningComplete -isnot [bool] -or
+    -not $stagesValid -or
+    ($State.ProvisioningComplete -and $completedStages.Count -ne $knownStages.Count) -or
+    ($RequireResources -and (-not $State.ResourcesCreated.Database -or -not $State.ResourcesCreated.Role))
+  ) { throw 'Installer provisioning state does not match these managed resources.' }
+}
+
+function Test-HamdFoodsProvisioningStage {
+  param([Parameter(Mandatory = $true)]$State, [Parameter(Mandatory = $true)][string]$Stage)
+  return $Stage -in @($State.CompletedStages)
+}
+
+function Complete-HamdFoodsProvisioningStage {
+  param([Parameter(Mandatory = $true)]$State, [Parameter(Mandatory = $true)][string]$Stage)
+  if ($Stage -notin @($State.CompletedStages)) { $State.CompletedStages = @($State.CompletedStages) + $Stage }
+  Save-HamdFoodsProvisioningState -State $State
+}
+
+function Import-HamdFoodsLegacyProvisioningState {
+  $log = [IO.File]::ReadAllText($provisioningLogPath)
+  foreach ($required in @('DatabaseProvisioning', 'ConfigurationWrite', 'MigrationDeployment')) {
+    if ($log -notmatch "(?m)^.*\[$required\] PASS(?:\s|$)") {
+      throw 'Existing configuration lacks complete legacy installer provenance; setup will not claim its PostgreSQL resources.'
+    }
+  }
+  $state = New-HamdFoodsProvisioningState
+  $state.ResourcesCreated.Database = $true
+  $state.ResourcesCreated.Role = $true
+  $knownStages = @('ConfigurationWrite', 'MigrationDeployment', 'SeedExecution', 'AdministratorBootstrap', 'TaskRegistration', 'RuntimeStartup')
+  $state.CompletedStages = @($knownStages | Where-Object { $log -match "(?m)^.*\[$_\] PASS(?:\s|$)" })
+  $state.ProvisioningComplete = $log -match '(?m)^.*\[Installation\] PASS(?:\s|$)'
+  Save-HamdFoodsProvisioningState -State $state
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage 'LegacyStateAdoption' -Status 'PASS' -Message 'Protected Phase 32 provisioning evidence was converted to explicit non-secret state.'
+  return $state
+}
 
 function Invoke-Psql {
   param([hashtable]$Postgres, [string]$Password, [string]$Database = 'postgres', [string]$File, [string]$Command)
   $env:PGPASSWORD = $Password
   try {
-    $arguments = @('-X', '-v', 'ON_ERROR_STOP=1', '-h', '127.0.0.1', '-p', '5432', '-U', 'postgres', '-d', $Database)
+    $arguments = @('--no-password', '-X', '-v', 'ON_ERROR_STOP=1', '-h', '127.0.0.1', '-p', '5432', '-U', 'postgres', '-d', $Database)
     if ($File) { $arguments += @('-f', $File) } else { $arguments += @('-Atc', $Command) }
-    $output = & $Postgres.Psql @arguments
-    if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL command failed.' }
-    return $output
+    $result = Invoke-HamdFoodsNativeProcess -FilePath $Postgres.Psql -WorkingDirectory $Postgres.Bin -Arguments $arguments -SensitiveValues @($Password)
+    return $result.SafeStdOut.Trim()
   } finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
 }
 
@@ -259,32 +542,43 @@ function Assert-ExistingConfiguration {
 
 function Invoke-InstalledMigrations {
   $cli = Join-Path $AppRoot 'operations\node_modules\prisma\build\index.js'
-  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @($cli, 'migrate', 'deploy', '--config', (Join-Path $AppRoot 'operations\prisma.config.mjs'))
+  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @($cli, 'migrate', 'deploy', '--config', (Join-Path $AppRoot 'operations\prisma.config.mjs')) -SensitiveValues (Get-HamdFoodsSensitiveValues)
 }
 
 function Invoke-InstalledSeed {
-  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot 'operations\seed-all.mjs'))
+  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @('--conditions=react-server', (Join-Path $AppRoot 'operations\seed-all.mjs')) -SensitiveValues (Get-HamdFoodsSensitiveValues)
 }
 
 function Invoke-AdminBootstrap {
-  $name = Read-Host 'Initial SUPER_ADMIN name'
-  $email = Read-Host 'Initial SUPER_ADMIN email'
-  if ([string]::IsNullOrWhiteSpace($name) -or $email -notmatch '^[^\s@]+@[^\s@]+\.[^\s@]+$') { throw 'A valid administrator name and email are required.' }
-  $first = Read-Host 'Initial SUPER_ADMIN password (8-128 characters)' -AsSecureString
-  $second = Read-Host 'Confirm initial SUPER_ADMIN password' -AsSecureString
-  $password = ConvertFrom-SecureValue $first
-  $confirmation = ConvertFrom-SecureValue $second
+  $automatedDrill = $Drill -and $env:HAMDFOODS_AUTOMATED_INSTALL_DRILL -eq '1'
+  if ($automatedDrill) {
+    $name = $env:HAMDFOODS_DRILL_ADMIN_NAME
+    $email = $env:HAMDFOODS_DRILL_ADMIN_EMAIL
+    $password = $env:HAMDFOODS_DRILL_ADMIN_PASSWORD
+    $confirmation = $password
+  } else {
+    $name = Read-Host 'Initial SUPER_ADMIN name'
+    $email = Read-Host 'Initial SUPER_ADMIN email'
+    $first = Read-Host 'Initial SUPER_ADMIN password (8-128 characters)' -AsSecureString
+    $second = Read-Host 'Confirm initial SUPER_ADMIN password' -AsSecureString
+    $password = ConvertFrom-SecureValue $first
+    $confirmation = ConvertFrom-SecureValue $second
+  }
   try {
+    if ([string]::IsNullOrWhiteSpace($name) -or $email -notmatch '^[^\s@]+@[^\s@]+\.[^\s@]+$') { throw 'A valid administrator name and email are required.' }
     if ($password.Length -lt 8 -or $password.Length -gt 128 -or $password -cne $confirmation) { throw 'Administrator passwords are invalid or do not match.' }
     $env:BOOTSTRAP_ADMIN_NAME = $name.Trim()
     $env:BOOTSTRAP_ADMIN_EMAIL = $email.Trim().ToLowerInvariant()
     $env:BOOTSTRAP_ADMIN_PASSWORD = $password
-    Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot 'operations\bootstrap-super-admin.mjs'))
+    Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @('--conditions=react-server', (Join-Path $AppRoot 'operations\bootstrap-super-admin.mjs')) -SensitiveValues (Get-HamdFoodsSensitiveValues)
   } finally {
     $password = $null; $confirmation = $null
     Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD -ErrorAction SilentlyContinue
     Remove-Item Env:BOOTSTRAP_ADMIN_EMAIL -ErrorAction SilentlyContinue
     Remove-Item Env:BOOTSTRAP_ADMIN_NAME -ErrorAction SilentlyContinue
+    Remove-Item Env:HAMDFOODS_DRILL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:HAMDFOODS_DRILL_ADMIN_EMAIL -ErrorAction SilentlyContinue
+    Remove-Item Env:HAMDFOODS_DRILL_ADMIN_NAME -ErrorAction SilentlyContinue
   }
 }
 
@@ -314,12 +608,12 @@ function Register-BackupTask {
 
 function Invoke-InstalledBackup {
   param([switch]$Verify)
-  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot 'operations\database-backup.mjs'), 'create')
+  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot 'operations\database-backup.mjs'), 'create') -SensitiveValues (Get-HamdFoodsSensitiveValues)
   if ($Verify) {
     $manifest = Get-ChildItem -LiteralPath $backupRoot -Filter '*.manifest.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
     if (-not $manifest) { throw 'Backup verification could not locate a completed manifest.' }
     $identifier = $manifest.Name.Substring(0, $manifest.Name.Length - '.manifest.json'.Length)
-    Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot 'operations\database-backup.mjs'), 'verify', $identifier)
+    Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot 'operations\database-backup.mjs'), 'verify', $identifier) -SensitiveValues (Get-HamdFoodsSensitiveValues)
   }
 }
 
@@ -334,4 +628,9 @@ function Wait-Healthy {
   throw 'Installed application did not become healthy within 60 seconds.'
 }
 
-Invoke-HamdFoodsSetup
+try { Invoke-HamdFoodsSetup }
+catch {
+  $safeMessage = ConvertTo-HamdFoodsSafeLogText -Text $_.Exception.Message -SensitiveValues (Get-HamdFoodsSensitiveValues)
+  Write-Error $safeMessage
+  exit 1
+}

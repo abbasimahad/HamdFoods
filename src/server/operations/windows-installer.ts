@@ -21,11 +21,169 @@ export type InstallerOptions = {
 
 export type PostgresCandidate = {
   major: number;
+  installationRoot: string;
   binPath: string;
   serviceName: string;
+  serviceRegistered: boolean;
   serviceRunning: boolean;
+  serverBinaryPresent: boolean;
   toolsPresent: boolean;
+  dataDirectoryPresent: boolean;
+  hamdFoodsManaged: boolean;
 };
+
+export type LegacyPostgresArtifact = {
+  major: number;
+  rootPath: string;
+  classification: "unmanaged";
+  disposition: "ignore";
+};
+
+export type InnoSetupDiscoveryInput = {
+  configuredPath?: string | undefined;
+  programFiles?: string | undefined;
+  programFilesX86?: string | undefined;
+  localAppData?: string | undefined;
+  isFile: (candidate: string) => boolean;
+  execute: (
+    candidate: string,
+    args: readonly string[],
+  ) => { status: number | null; stdout: string; stderr: string };
+};
+
+export type InnoSetupCompiler = {
+  path: string;
+  version: string;
+};
+
+export type InstallerRecoveryState = {
+  owned: boolean;
+  completedStages: readonly string[];
+  provisioningComplete: boolean;
+};
+
+export async function verifyInstallerDrillAuthentication(input: {
+  origin: string;
+  email: string;
+  password: string;
+  request?: typeof fetch;
+}) {
+  const request = input.request ?? fetch;
+  await waitForStableInstallerDrillHealth(input.origin, request);
+  const signIn = await request(`${input.origin}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: input.origin },
+    body: JSON.stringify({ email: input.email, password: input.password }),
+    redirect: "manual",
+  });
+  if (!signIn.ok) throw new Error("Automated InstallDrill authentication failed.");
+  const setCookies = signIn.headers.getSetCookie();
+  const cookie = setCookies.map((value) => value.split(";", 1)[0]).join("; ");
+  if (!cookie) throw new Error("Automated InstallDrill authentication returned no session.");
+
+  const dashboard = await request(`${input.origin}/dashboard`, {
+    headers: { cookie },
+    redirect: "manual",
+  });
+  if (dashboard.status !== 200) throw new Error("Automated InstallDrill dashboard access failed.");
+
+  const administration = await request(`${input.origin}/administration/users`, {
+    headers: { cookie },
+    redirect: "manual",
+  });
+  if (administration.status !== 200)
+    throw new Error("Automated InstallDrill SUPER_ADMIN authorization failed.");
+
+  const signUp = await request(`${input.origin}/api/auth/sign-up/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: input.origin },
+    body: JSON.stringify({
+      name: "Disallowed Drill Signup",
+      email: "disallowed-installer-signup@hamdfoods.invalid",
+      password: input.password,
+    }),
+    redirect: "manual",
+  });
+  if (signUp.status !== 400) throw new Error("Automated InstallDrill found direct signup enabled.");
+
+  const signOut = await request(`${input.origin}/api/auth/sign-out`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie, origin: input.origin },
+    body: JSON.stringify({}),
+    redirect: "manual",
+  });
+  if (!signOut.ok) throw new Error("Automated InstallDrill logout failed.");
+
+  const signedOutDashboard = await request(`${input.origin}/dashboard`, {
+    headers: { cookie },
+    redirect: "manual",
+  });
+  if (signedOutDashboard.status < 300 || signedOutDashboard.status >= 400)
+    throw new Error("Automated InstallDrill logout left the dashboard session active.");
+}
+
+async function waitForStableInstallerDrillHealth(origin: string, request: typeof fetch) {
+  let consecutivePasses = 0;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      const response = await request(`${origin}/api/health`, { redirect: "manual" });
+      consecutivePasses = response.status === 200 ? consecutivePasses + 1 : 0;
+      if (consecutivePasses === 2) return;
+    } catch {
+      consecutivePasses = 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("Automated InstallDrill runtime was not stably reachable for authentication.");
+}
+
+export async function runInstallerDrillWorkflow(input: {
+  install: (stage: "recovery" | "repair") => void | Promise<void>;
+  authenticate: () => Promise<void>;
+  backup: () => void | Promise<void>;
+  restart: () => void | Promise<void>;
+  uninstall: () => void | Promise<void>;
+}) {
+  await input.install("recovery");
+  await input.authenticate();
+  await input.backup();
+  await input.restart();
+  await input.authenticate();
+  await input.install("repair");
+  await input.authenticate();
+  await input.uninstall();
+}
+
+export function discoverInnoSetupCompiler(
+  input: InnoSetupDiscoveryInput,
+): InnoSetupCompiler | undefined {
+  if (input.configuredPath) {
+    const configured = validateInnoSetupCandidate(input.configuredPath, input);
+    if (!configured)
+      throw new Error(
+        "The explicit compiler override must be an absolute, executable Inno Setup 7 ISCC.exe.",
+      );
+    return configured;
+  }
+
+  const candidates = [
+    input.programFiles
+      ? path.win32.join(input.programFiles, "Inno Setup 7", "ISCC.exe")
+      : undefined,
+    input.programFilesX86
+      ? path.win32.join(input.programFilesX86, "Inno Setup 7", "ISCC.exe")
+      : undefined,
+    input.localAppData
+      ? path.win32.join(input.localAppData, "Programs", "Inno Setup 7", "ISCC.exe")
+      : undefined,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const validated = validateInnoSetupCandidate(candidate, input);
+    if (validated) return validated;
+  }
+  return undefined;
+}
 
 export const PRODUCTION_INSTALLER_OPTIONS: InstallerOptions = {
   appRoot: "C:\\Program Files\\HamdFoodsERP",
@@ -135,25 +293,55 @@ export function redactInstallerText(text: string, secrets: readonly string[]): s
     .reduce((result, secret) => result.split(secret).join("[REDACTED]"), text);
 }
 
-export function classifyPostgresInstallation(
-  candidates: readonly PostgresCandidate[],
-):
-  | { status: "missing" }
-  | ({ status: "installed" } & PostgresCandidate)
-  | { status: "unsupported"; detectedMajors: number[] } {
-  const supported = candidates.find(
+export function classifyPostgresInstallation(candidates: readonly PostgresCandidate[]):
+  | { status: "missing"; legacyArtifacts: LegacyPostgresArtifact[] }
+  | ({ status: "installed"; legacyArtifacts: LegacyPostgresArtifact[] } & PostgresCandidate)
+  | {
+      status: "unsupported";
+      detectedMajors: number[];
+      legacyArtifacts: LegacyPostgresArtifact[];
+    } {
+  const legacyArtifacts = candidates
+    .filter(isUnmanagedPostgresArtifact)
+    .map((candidate) => ({
+      major: candidate.major,
+      rootPath: candidate.installationRoot,
+      classification: "unmanaged" as const,
+      disposition: "ignore" as const,
+    }))
+    .sort((left, right) => left.major - right.major || left.rootPath.localeCompare(right.rootPath));
+  const selectable = candidates
+    .filter((candidate) => !isUnmanagedPostgresArtifact(candidate))
+    .sort(
+      (left, right) =>
+        postgresSelectionPriority(right) - postgresSelectionPriority(left) ||
+        left.installationRoot.localeCompare(right.installationRoot),
+    );
+  const conflictingMajors = [
+    ...new Set(
+      selectable
+        .filter((candidate) => candidate.major !== SUPPORTED_POSTGRES_MAJOR)
+        .map((candidate) => candidate.major),
+    ),
+  ].sort((left, right) => left - right);
+  if (conflictingMajors.length)
+    return { status: "unsupported", detectedMajors: conflictingMajors, legacyArtifacts };
+
+  const supported = selectable.find(
     (candidate) =>
       candidate.major === SUPPORTED_POSTGRES_MAJOR &&
       candidate.serviceRunning &&
+      candidate.serverBinaryPresent &&
       candidate.toolsPresent,
   );
-  if (supported) return { status: "installed", ...supported };
-  if (!candidates.length) return { status: "missing" };
+  if (supported) return { status: "installed", legacyArtifacts, ...supported };
+  if (!selectable.length) return { status: "missing", legacyArtifacts };
   return {
     status: "unsupported",
-    detectedMajors: [...new Set(candidates.map((candidate) => candidate.major))].sort(
+    detectedMajors: [...new Set(selectable.map((candidate) => candidate.major))].sort(
       (left, right) => left - right,
     ),
+    legacyArtifacts,
   };
 }
 
@@ -225,11 +413,14 @@ export function createInstallationPlan(input: {
   existingTask: boolean;
   databaseExists: boolean;
   roleExists: boolean;
+  installerOwned?: boolean;
 }) {
   if (!input.existingConfig && (input.databaseExists || input.roleExists))
     throw new Error(
       "Refusing to claim a pre-existing PostgreSQL role or database without a managed config.",
     );
+  if (input.existingConfig && !input.installerOwned)
+    throw new Error("Refusing repair because installer ownership provenance is absent.");
   if (input.existingConfig)
     return {
       mode: "repair" as const,
@@ -242,6 +433,46 @@ export function createInstallationPlan(input: {
     generateSecrets: true,
     backupBeforeMigrations: false,
     reconcileTask: input.existingTask,
+  };
+}
+
+const resumableProvisioningStages = [
+  "ConfigurationWrite",
+  "MigrationDeployment",
+  "SeedExecution",
+  "AdministratorBootstrap",
+  "TaskRegistration",
+  "RuntimeStartup",
+] as const;
+
+export function classifyInstallerRecovery(input: {
+  configExists: boolean;
+  databaseExists: boolean;
+  roleExists: boolean;
+  state: InstallerRecoveryState | undefined;
+}) {
+  if (!input.configExists && !input.databaseExists && !input.roleExists && !input.state)
+    return {
+      mode: "fresh" as const,
+      nextStage: "PostgreSQLCredentialAcquisition" as const,
+      bootstrapRequired: true,
+    };
+  if (!input.state?.owned)
+    throw new Error(
+      "Installer ownership provenance is absent; refusing to claim existing resources.",
+    );
+  if (!input.configExists || !input.databaseExists || !input.roleExists)
+    throw new Error("Installer-owned recovery state conflicts with the actual managed resources.");
+
+  const nextStage = resumableProvisioningStages.find(
+    (stage) => !input.state!.completedStages.includes(stage),
+  );
+  if (!nextStage && !input.state.provisioningComplete)
+    throw new Error("Installer recovery state is incomplete and has no safe resumable stage.");
+  return {
+    mode: input.state.provisioningComplete ? ("repair" as const) : ("resume" as const),
+    nextStage: nextStage ?? "PreMigrationBackup",
+    bootstrapRequired: !input.state.completedStages.includes("AdministratorBootstrap"),
   };
 }
 
@@ -279,11 +510,18 @@ export function validatePayloadFiles(files: readonly string[]): void {
       file.startsWith("src/") ||
       /\.test\.[cm]?[jt]sx?$/.test(file) ||
       file.includes("playwright-report") ||
+      file.endsWith(".map") ||
+      /\.d\.[cm]?ts$/.test(file) ||
+      file.endsWith(".md") ||
+      file.endsWith(".markdown") ||
       file.endsWith(".dump") ||
       file.endsWith(".backup") ||
       file.endsWith(".pfx") ||
       file.endsWith(".p12") ||
       file.endsWith(".zip") ||
+      file.endsWith(".map") ||
+      file.endsWith(".d.ts") ||
+      /(?:^|\/)(?:readme|changelog|changes|history)(?:\.[^/]*)?$/i.test(file) ||
       /postgres(?:ql)?[^/]*installer.*\.exe$/.test(file),
   );
   if (forbidden) throw new Error(`Installer payload contains a forbidden file: ${forbidden}`);
@@ -327,4 +565,44 @@ function assertTaskName(value: string, label: string) {
 
 function isLoopbackAddress(value: string) {
   return value === "127.0.0.1" || value === "::1" || value === "[::1]";
+}
+
+function isUnmanagedPostgresArtifact(candidate: PostgresCandidate) {
+  return (
+    candidate.dataDirectoryPresent &&
+    !candidate.serverBinaryPresent &&
+    !candidate.toolsPresent &&
+    !candidate.serviceRegistered &&
+    !candidate.serviceRunning &&
+    !candidate.hamdFoodsManaged
+  );
+}
+
+function postgresSelectionPriority(candidate: PostgresCandidate) {
+  if (candidate.hamdFoodsManaged) return 3;
+  if (candidate.serviceRunning) return 2;
+  if (candidate.serviceRegistered) return 1;
+  return 0;
+}
+
+function validateInnoSetupCandidate(
+  candidate: string,
+  input: InnoSetupDiscoveryInput,
+): InnoSetupCompiler | undefined {
+  if (
+    !path.win32.isAbsolute(candidate) ||
+    path.win32.basename(candidate).toLowerCase() !== "iscc.exe" ||
+    !input.isFile(candidate)
+  )
+    return undefined;
+  let result: ReturnType<InnoSetupDiscoveryInput["execute"]>;
+  try {
+    result = input.execute(candidate, ["--version"]);
+  } catch {
+    return undefined;
+  }
+  if (result.status !== 0) return undefined;
+  const match = /^7\.\d+(?:\.\d+)?(?:\.\d+)?$/.exec(result.stdout.trim());
+  if (!match) return undefined;
+  return { path: path.win32.normalize(candidate), version: match[0] };
 }

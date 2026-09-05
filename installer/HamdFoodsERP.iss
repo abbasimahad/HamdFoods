@@ -8,6 +8,8 @@
 #define Publisher "Hamd Foods"
 #ifdef DrillBuild
   #define ProductName "Hamd Foods ERP Installer Drill"
+  #define ShortcutName "Hamd Foods ERP Installer Drill"
+  #define ShortcutGroup "Hamd Foods ERP Installer Drill"
   #define ProductId "{{EEEA3D20-202A-4B36-8145-41EC53AECA63}"
   #define InstallFolder "HamdFoodsERP-InstallDrill"
   #define DataFolder "HamdFoodsERP-InstallDrill"
@@ -20,6 +22,8 @@
   #define DrillSwitch " -Drill"
 #else
   #define ProductName "Hamd Foods ERP"
+  #define ShortcutName "Hamd Foods ERP"
+  #define ShortcutGroup "Hamd Foods ERP"
   #define ProductId "{{B751DA7E-CAEF-4619-981F-BD49A7CDE978}"
   #define InstallFolder "HamdFoodsERP"
   #define DataFolder "HamdFoodsERP"
@@ -46,7 +50,7 @@ AppPublisher={#Publisher}
 AppPublisherURL=https://github.com/abbasimahad/HamdFoods
 DefaultDirName={autopf}\{#InstallFolder}
 DisableDirPage=yes
-DefaultGroupName=Hamd Foods ERP
+DefaultGroupName={#ShortcutGroup}
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -77,11 +81,11 @@ Name: "dailybackup"; Description: "Run a daily backup at 02:00"; GroupDescriptio
 Source: "{#PayloadRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Hamd Foods ERP"; Filename: "http://127.0.0.1:{#AppPort}"
-Name: "{autodesktop}\Hamd Foods ERP"; Filename: "http://127.0.0.1:{#AppPort}"; Tasks: desktopicon
+Name: "{group}\{#ShortcutName}"; Filename: "http://127.0.0.1:{#AppPort}"
+Name: "{autodesktop}\{#ShortcutName}"; Filename: "http://127.0.0.1:{#AppPort}"; Tasks: desktopicon
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\windows\Setup-HamdFoodsERP.ps1"" -Mode UninstallTasks -AppRoot ""{app}"" -DataRoot ""{commonappdata}\{#DataFolder}"" -TaskName ""{#AppTask}"" -BackupTaskName ""{#BackupTask}"" -Port {#AppPort} -DatabaseName ""{#DatabaseName}"" -RoleName ""{#RoleName}""{#DrillSwitch}"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveHamdFoodsTasks"
+Filename: "{sysnative}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\windows\Setup-HamdFoodsERP.ps1"" -Mode UninstallTasks -AppRoot ""{app}"" -DataRoot ""{commonappdata}\{#DataFolder}"" -TaskName ""{#AppTask}"" -BackupTaskName ""{#BackupTask}"" -Port {#AppPort} -DatabaseName ""{#DatabaseName}"" -RoleName ""{#RoleName}""{#DrillSwitch}"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveHamdFoodsTasks"
 
 [Code]
 function HasDailyBackupTask(): Boolean;
@@ -111,6 +115,41 @@ begin
     '{#DrillSwitch}' + BackupSwitch;
 end;
 
+function StopRuntimeParameters(): String;
+begin
+  Result := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    ExpandConstant('{app}\windows\Setup-HamdFoodsERP.ps1') + '" -Mode StopRuntime' +
+    ' -AppRoot "' + ExpandConstant('{app}') + '"' +
+    ' -DataRoot "' + ExpandConstant('{commonappdata}\{#DataFolder}') + '"' +
+    ' -TaskName "{#AppTask}" -BackupTaskName "{#BackupTask}"' +
+    ' -Port {#AppPort} -DatabaseName "{#DatabaseName}" -RoleName "{#RoleName}"' +
+    '{#DrillSwitch}';
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  InstalledSetup: String;
+begin
+  Result := '';
+  if FileExists(ExpandConstant('{commonappdata}\{#DataFolder}\config\.env.production')) then begin
+    InstalledSetup := ExpandConstant('{app}\windows\Setup-HamdFoodsERP.ps1');
+    if not FileExists(InstalledSetup) then
+      Result := 'The protected repair runtime controller is missing.'
+    else if not Exec(
+      ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe'),
+      StopRuntimeParameters(),
+      ExpandConstant('{app}'),
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode
+    ) then
+      Result := 'Could not launch the protected repair runtime stop.'
+    else if ResultCode <> 0 then
+      Result := 'The protected repair runtime could not be stopped safely.';
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -118,7 +157,7 @@ var
 begin
   if CurStep = ssPostInstall then begin
     if not Exec(
-      ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe'),
       SetupParameters(),
       ExpandConstant('{app}'),
       SW_SHOW,
@@ -127,11 +166,11 @@ begin
     ) then
       RaiseException('Could not launch the protected Hamd Foods ERP setup step.');
     if ResultCode <> 0 then
-      RaiseException('Hamd Foods ERP setup failed. Review the non-secret installer log and correct the reported prerequisite.');
+      RaiseException('Hamd Foods ERP setup failed. Review ' + ExpandConstant('{commonappdata}\{#DataFolder}\logs\installer\provisioning.log') + ' for the sanitized failing stage.');
   end else if CurStep = ssDone then begin
     SetupLogDirectory := ExpandConstant('{commonappdata}\{#DataFolder}\logs\installer');
     if DirExists(SetupLogDirectory) then
-      FileCopy(ExpandConstant('{log}'), SetupLogDirectory + '\latest-setup.log', False);
+      CopyFile(ExpandConstant('{log}'), SetupLogDirectory + '\latest-setup.log', False);
   end;
 end;
 

@@ -24,9 +24,10 @@ try {
   Import-HamdFoodsEnvironment -EnvironmentFile (Join-Path $DataRoot "config\.env.production")
   $env:NODE_ENV = "production"
   Set-Location -LiteralPath (Join-Path $AppRoot "operations")
-  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot "operations\database-backup.mjs"), "create") *>> $log
+  Invoke-HamdFoodsNode -AppRoot $AppRoot -Arguments @((Join-Path $AppRoot "operations\database-backup.mjs"), "create") -SensitiveValues (Get-HamdFoodsSensitiveValues) *>> $log
 } catch {
-  "[$([DateTimeOffset]::Now.ToString('O'))] Backup failed: $($_.Exception.Message)" | Out-File -LiteralPath $log -Append -Encoding utf8
+  $safeMessage = ConvertTo-HamdFoodsSafeLogText -Text $_.Exception.Message -SensitiveValues (Get-HamdFoodsSensitiveValues)
+  "[$([DateTimeOffset]::Now.ToString('O'))] Backup failed: $safeMessage" | Out-File -LiteralPath $log -Append -Encoding utf8
   throw
 } finally {
   if ($acquired) { $mutex.ReleaseMutex() }

@@ -1,5 +1,13 @@
 import { createRequire } from "node:module";
-import { cpSync, existsSync, mkdirSync, realpathSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  unlinkSync,
+} from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -17,6 +25,7 @@ export function prepareProductionRuntime(root = repositoryRoot) {
   if (!existsSync(staticDirectory))
     throw new Error("Next static output is missing. Run the production build first.");
 
+  removeStandaloneEnvironmentFiles(standaloneDirectory);
   cpSync(publicDirectory, path.join(standaloneDirectory, "public"), {
     recursive: true,
     force: true,
@@ -27,6 +36,15 @@ export function prepareProductionRuntime(root = repositoryRoot) {
     force: true,
   });
   validateStandaloneDependencies(standaloneDirectory);
+}
+
+function removeStandaloneEnvironmentFiles(standaloneDirectory: string) {
+  for (const name of readdirSync(standaloneDirectory)) {
+    if (name !== ".env" && !name.startsWith(".env.")) continue;
+    const candidate = path.join(standaloneDirectory, name);
+    const stats = lstatSync(candidate);
+    if (stats.isFile() || stats.isSymbolicLink()) unlinkSync(candidate);
+  }
 }
 
 export function validateStandaloneDependencies(standaloneDirectory: string) {
