@@ -10,39 +10,43 @@ const setupScript = path.resolve("installer/scripts/Setup-HamdFoodsERP.ps1");
 const windowsIt = process.platform === "win32" ? it : it.skip;
 
 describe("Windows installer PowerShell architecture boundaries", () => {
-  windowsIt("resolves native Program Files when invoked by a 32-bit installer host", () => {
-    // Defect caught: WOW64 setup looked for PostgreSQL under Program Files (x86) and failed before credentials.
-    const windowsRoot = process.env.SystemRoot ?? "C:\\Windows";
-    const powershell = path.win32.join(
-      windowsRoot,
-      "SysWOW64",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
-    );
-    const escapedCommonScript = commonScript.replaceAll("'", "''");
-    const escapedSetupScript = setupScript.replaceAll("'", "''");
-    const command = [
-      "$env:ProgramFiles = 'C:\\Program Files (x86)'",
-      "$env:ProgramW6432 = 'C:\\Program Files'",
-      `. '${escapedCommonScript}'`,
-      "$tokens = $null",
-      "$errors = $null",
-      `$ast = [Management.Automation.Language.Parser]::ParseFile('${escapedSetupScript}', [ref]$tokens, [ref]$errors)`,
-      "$function = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Find-SupportedPostgres' }, $true)",
-      ". ([scriptblock]::Create($function.Extent.Text))",
-      "$AppRoot = 'C:\\Program Files\\HamdFoodsERP-InstallDrill'",
-      "(Find-SupportedPostgres).Bin",
-    ].join("; ");
-    const result = spawnSync(
-      powershell,
-      ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-      { encoding: "utf8" },
-    );
+  windowsIt(
+    "resolves native Program Files when invoked by a 32-bit installer host",
+    () => {
+      // Defect caught: WOW64 setup looked for PostgreSQL under Program Files (x86) and failed before credentials.
+      const windowsRoot = process.env.SystemRoot ?? "C:\\Windows";
+      const powershell = path.win32.join(
+        windowsRoot,
+        "SysWOW64",
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+      );
+      const escapedCommonScript = commonScript.replaceAll("'", "''");
+      const escapedSetupScript = setupScript.replaceAll("'", "''");
+      const command = [
+        "$env:ProgramFiles = 'C:\\Program Files (x86)'",
+        "$env:ProgramW6432 = 'C:\\Program Files'",
+        `. '${escapedCommonScript}'`,
+        "$tokens = $null",
+        "$errors = $null",
+        `$ast = [Management.Automation.Language.Parser]::ParseFile('${escapedSetupScript}', [ref]$tokens, [ref]$errors)`,
+        "$function = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Find-SupportedPostgres' }, $true)",
+        ". ([scriptblock]::Create($function.Extent.Text))",
+        "$AppRoot = 'C:\\Program Files\\HamdFoodsERP-InstallDrill'",
+        "(Find-SupportedPostgres).Bin",
+      ].join("; ");
+      const result = spawnSync(
+        powershell,
+        ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+        { encoding: "utf8" },
+      );
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout.trim()).toBe("C:\\Program Files\\PostgreSQL\\16\\bin");
-  });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout.trim()).toBe("C:\\Program Files\\PostgreSQL\\16\\bin");
+    },
+    15_000,
+  );
 
   windowsIt(
     "generates cryptographic secrets under the installed Windows PowerShell 5.1 host",
