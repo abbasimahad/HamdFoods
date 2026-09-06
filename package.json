@@ -65,7 +65,7 @@
     "auth:bootstrap": "tsx --conditions=react-server --env-file=.env scripts/bootstrap-super-admin.ts",
     "master-data:seed": "tsx --conditions=react-server --env-file=.env scripts/seed-master-data.ts",
     "db:seed": "tsx --conditions=react-server --env-file=.env scripts/seed-all.ts",
-    "verify": "prettier --check . && eslint . && vitest run && prisma validate && prisma generate && tsc --noEmit && next build"
+    "verify": "prettier --check . && eslint . && prisma validate && prisma generate && vitest run && tsc --noEmit && next build"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.1",
