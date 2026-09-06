@@ -6,7 +6,7 @@ Phase 31 optionally adds Tailscale Serve as a separate private HTTPS ingress wit
 
 Phase 32 adds a packaged factory-PC path at `C:\Program Files\HamdFoodsERP` with protected mutable state at `C:\ProgramData\HamdFoodsERP`. It preserves this source-checkout workflow for development and existing deployments; the installed task sets validated `HAMDFOODS_ENV_FILE` and `HAMDFOODS_DATA_ROOT` values rather than copying secrets under Program Files. See [Native Windows installer](windows-installer.md).
 
-The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3100`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for the dedicated local application role and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
+The ERP and PostgreSQL are deliberately local-only in this phase. Bind the ERP to `127.0.0.1:3100`; bind PostgreSQL with `listen_addresses = 'localhost'` (or loopback-only equivalent). Configure `pg_hba.conf` for password-authenticated loopback access with `scram-sha-256`; never use `trust` for IPv4 or IPv6 loopback. Keep a tested secure administrator path, and do not open Windows Firewall port 5432. Phones and client PCs never connect to PostgreSQL.
 
 ## Prerequisites
 

@@ -12,13 +12,15 @@ const bundledNode = path.join(payloadRoot, "runtime", "node", "node.exe");
 const operationsRoot = path.join(payloadRoot, "operations");
 
 function runInstalled(args: string[], environment: Record<string, string | undefined> = {}) {
-  return spawnSync(bundledNode, args, {
+  const startedAt = Date.now();
+  const result = spawnSync(bundledNode, args, {
     cwd: operationsRoot,
     env: { ...process.env, ...environment },
     encoding: "utf8",
     windowsHide: true,
-    timeout: 30_000,
+    timeout: 15_000,
   });
+  return { ...result, elapsedMs: Date.now() - startedAt };
 }
 
 describe("prepared installer payload executable boundaries", () => {
@@ -27,7 +29,7 @@ describe("prepared installer payload executable boundaries", () => {
     () => {
       expect(existsSync(bundledNode)).toBe(true);
       const unavailableDatabase =
-        "postgresql://payload_test:payload_test@127.0.0.1:1/installer_payload_test";
+        "postgresql://payload_test:payload_test@127.0.0.1:1/installer_payload_test?connect_timeout=2";
       const boundaries: Array<{ args: string[]; databaseError: RegExp }> = [
         {
           args: [
@@ -64,6 +66,10 @@ describe("prepared installer payload executable boundaries", () => {
           BOOTSTRAP_ADMIN_PASSWORD: "payload-boundary-password",
         });
         const diagnostic = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+        expect(result.error, result.error?.message).toBeUndefined();
+        expect(result.signal).toBeNull();
+        expect(result.status).not.toBeNull();
+        expect(result.elapsedMs).toBeLessThan(12_000);
         expect(result.status).not.toBe(0);
         expect(diagnostic).toMatch(boundary.databaseError);
         expect(diagnostic).not.toMatch(/ERR_MODULE_NOT_FOUND|Cannot find package|Dynamic require/i);

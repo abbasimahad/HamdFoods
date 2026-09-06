@@ -182,4 +182,4 @@
 
 ## Next gate
 
-**Phase 32 remains PARTIAL and Phase 33 is NOT READY.** Review and explicitly authorize retirement/reset of only the isolated drill app/data/database/role before the final clean authentication/repair/uninstall rerun. Do not touch the live Phase 30/31 deployment or preserved PostgreSQL 17 cluster. Phase 31 remote-device acceptance remains deferred by the operator to final UAT.
+**Phase 32 is COMPLETE and Phase 33 is READY but not specified or started.** Define and approve the Phase 33 product boundary before implementation. Do not infer new modules or extend production scope without that boundary. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.

@@ -4,7 +4,7 @@ A production-oriented modular-monolith ERP for food manufacturing, with server-a
 
 ## Current status
 
-Phase 29 is complete. Phase 30 establishes native Windows, localhost-only production hosting; see [`docs/phases/current.md`](docs/phases/current.md) for the active production-readiness gate. Docker is not required. Keep [local development](#local-setup) distinct from the [production deployment runbook](docs/operations/production-deployment.md).
+Phase 32 is complete, including the native Windows installer and factory-PC setup workflow. Phase 33 is ready but has not been specified or started; see [`docs/phases/current.md`](docs/phases/current.md) for the authoritative gate. Docker is not required. Keep [local development](#local-setup) distinct from the [production deployment runbook](docs/operations/production-deployment.md).
 
 ## Prerequisites
 
