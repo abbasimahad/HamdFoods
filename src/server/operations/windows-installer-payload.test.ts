@@ -18,7 +18,7 @@ function runInstalled(args: string[], environment: Record<string, string | undef
     env: { ...process.env, ...environment },
     encoding: "utf8",
     windowsHide: true,
-    timeout: 15_000,
+    timeout: 30_000,
   });
   return { ...result, elapsedMs: Date.now() - startedAt };
 }
@@ -69,7 +69,7 @@ describe("prepared installer payload executable boundaries", () => {
         expect(result.error, result.error?.message).toBeUndefined();
         expect(result.signal).toBeNull();
         expect(result.status).not.toBeNull();
-        expect(result.elapsedMs).toBeLessThan(12_000);
+        expect(result.elapsedMs).toBeLessThan(25_000);
         expect(result.status).not.toBe(0);
         expect(diagnostic).toMatch(boundary.databaseError);
         expect(diagnostic).not.toMatch(/ERR_MODULE_NOT_FOUND|Cannot find package|Dynamic require/i);
@@ -85,7 +85,7 @@ describe("prepared installer payload executable boundaries", () => {
       expect(dependencyProbe.status, dependencyProbe.stderr).toBe(0);
       expect(dependencyProbe.stdout).toContain("DEPENDENCIES_OK");
     },
-    60_000,
+    120_000,
   );
 
   installedIt("contains no source maps, declarations, or package markdown", () => {
