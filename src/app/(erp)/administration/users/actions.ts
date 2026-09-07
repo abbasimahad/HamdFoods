@@ -6,14 +6,17 @@ import { z } from "zod";
 import {
   createManagedUser,
   replaceUserRoles,
+  resetManagedUserPassword,
   setUserActive,
 } from "@/modules/access/application/manage-users";
 import { PrismaAccessRepository } from "@/server/access/prisma-access-repository";
+import { PrismaAccountSecurityRepository } from "@/server/access/prisma-account-security-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 
 export type UserActionState = { status: "idle" | "success" | "error"; message: string };
 export const initialUserActionState: UserActionState = { status: "idle", message: "" };
 const repository = new PrismaAccessRepository();
+const accountSecurityRepository = new PrismaAccountSecurityRepository();
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -29,6 +32,11 @@ const rolesSchema = z.object({
 const statusSchema = z.object({
   userId: z.string().min(1),
   active: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+const resetPasswordSchema = z.object({
+  userId: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+  confirmPassword: z.string().min(8).max(128),
 });
 
 export async function createUserAction(
@@ -99,6 +107,34 @@ export async function setUserStatusAction(
     return { status: "success", message: "User status updated." };
   } catch {
     return { status: "error", message: "The user status could not be updated. Try again." };
+  }
+}
+
+export async function resetUserPasswordAction(
+  _state: UserActionState,
+  formData: FormData,
+): Promise<UserActionState> {
+  const actor = await requirePermission("users.manage");
+  const parsed = resetPasswordSchema.safeParse({
+    userId: formData.get("userId"),
+    newPassword: formData.get("newPassword"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success)
+    return { status: "error", message: "Use a password between 8 and 128 characters." };
+  if (parsed.data.newPassword !== parsed.data.confirmPassword)
+    return { status: "error", message: "The passwords do not match." };
+  try {
+    const result = await resetManagedUserPassword(
+      actor,
+      parsed.data.userId,
+      parsed.data.newPassword,
+      accountSecurityRepository,
+    );
+    if (!result.ok) return { status: "error", message: mutationMessage(result.reason) };
+    return { status: "success", message: "Password reset; existing sessions revoked." };
+  } catch {
+    return { status: "error", message: "The password could not be reset. Try again." };
   }
 }
 

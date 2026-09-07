@@ -1,6 +1,7 @@
 import { UserCreateForm } from "@/components/access/user-create-form";
 import { UserRoleForm } from "@/components/access/user-role-form";
 import { UserStatusForm } from "@/components/access/user-status-form";
+import { UserPasswordResetForm } from "@/components/access/user-password-reset-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -54,7 +55,12 @@ export default async function UsersPage() {
                     )}
                   </td>
                   <td className="p-4">
-                    {canManage && <UserStatusForm active={user.active} userId={user.id} />}
+                    {canManage && (
+                      <>
+                        <UserStatusForm active={user.active} userId={user.id} />
+                        <UserPasswordResetForm userId={user.id} />
+                      </>
+                    )}
                   </td>
                 </tr>
               );

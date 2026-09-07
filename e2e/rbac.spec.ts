@@ -18,3 +18,16 @@ test("view-only identity is denied protected management routes and actions", asy
 
   await expect(page.getByRole("link", { name: "Administration", exact: true })).toHaveCount(0);
 });
+
+test("authorized administration exposes password reset without revealing credentials", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/administration/users");
+  await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
+  await expect(page.getByText("Reset password").first()).toBeVisible();
+  await page.getByText("Reset password").first().click();
+  const password = page.locator('input[name="newPassword"]').first();
+  await expect(password).toHaveAttribute("type", "password");
+  await expect(password).toHaveValue("");
+});

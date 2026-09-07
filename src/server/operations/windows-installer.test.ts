@@ -509,12 +509,22 @@ describe("Windows installer safety model", () => {
       "operations/seed-all.mjs",
       "operations/bootstrap-super-admin.mjs",
       "operations/database-backup.mjs",
+      "operations/account-recovery.mjs",
+      "windows/Account-Recovery-HamdFoodsERP.ps1",
       "windows/Backup-HamdFoodsERP.ps1",
       "windows/Run-HamdFoodsERP.ps1",
       "windows/Setup-HamdFoodsERP.ps1",
       "package.json",
     ];
     expect(() => validatePayloadFiles(valid)).not.toThrow();
+    for (const recoveryFile of [
+      "operations/account-recovery.mjs",
+      "windows/Account-Recovery-HamdFoodsERP.ps1",
+    ]) {
+      expect(() =>
+        validatePayloadFiles(valid.filter((file) => file !== recoveryFile)),
+      ).toThrowError(/required runtime file/i);
+    }
     for (const forbidden of [
       "app/.env.production",
       ".git/config",

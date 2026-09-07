@@ -82,6 +82,7 @@ Source: "{#PayloadRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdir
 
 [Icons]
 Name: "{group}\{#ShortcutName}"; Filename: "http://127.0.0.1:{#AppPort}"
+Name: "{group}\Account Recovery"; Filename: "{sysnative}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\windows\Account-Recovery-HamdFoodsERP.ps1"" -AppRoot ""{app}"" -DataRoot ""{commonappdata}\{#DataFolder}""{#DrillSwitch}"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#ShortcutName}"; Filename: "http://127.0.0.1:{#AppPort}"; Tasks: desktopicon
 
 [UninstallRun]

@@ -4,6 +4,7 @@ import type { ApplicationPrincipal } from "../domain/principal";
 import {
   createManagedUser,
   replaceUserRoles,
+  resetManagedUserPassword,
   setUserActive,
   type UserManagementStore,
 } from "./manage-users";
@@ -127,5 +128,42 @@ describe("user administration", () => {
       ok: false,
       reason: "last-super-admin",
     });
+  });
+
+  it("allows an authorized administrator to reset a non-SUPER_ADMIN password without changing access", async () => {
+    // Defect caught: an authorized reset could be rejected or mutate roles/status instead of only credentials.
+    const resetStore = {
+      getUserAccessState: vi.fn(async () => ({ active: true, roleCodes: ["VIEWER"] })),
+      resetUserPassword: vi.fn(async () => undefined),
+    };
+
+    await expect(
+      resetManagedUserPassword(admin, "target", "replacement-password", resetStore),
+    ).resolves.toEqual({ ok: true });
+    expect(resetStore.resetUserPassword).toHaveBeenCalledWith(
+      "admin",
+      "target",
+      "replacement-password",
+    );
+  });
+
+  it("rejects unauthorized resets and protects SUPER_ADMIN targets", async () => {
+    const resetStore = {
+      getUserAccessState: vi.fn(async () => ({ active: true, roleCodes: ["SUPER_ADMIN"] })),
+      resetUserPassword: vi.fn(async () => undefined),
+    };
+
+    await expect(
+      resetManagedUserPassword(
+        { ...admin, permissions: [] },
+        "target",
+        "replacement-password",
+        resetStore,
+      ),
+    ).resolves.toEqual({ ok: false, reason: "forbidden" });
+    await expect(
+      resetManagedUserPassword(admin, "target", "replacement-password", resetStore),
+    ).resolves.toEqual({ ok: false, reason: "protected-role" });
+    expect(resetStore.resetUserPassword).not.toHaveBeenCalled();
   });
 });

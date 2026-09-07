@@ -41,6 +41,11 @@ export type UserMutationResult =
         | "not-found";
     };
 
+export type PasswordResetStore = {
+  getUserAccessState(userId: string): Promise<UserAccessState | null>;
+  resetUserPassword(actorId: string, userId: string, newPassword: string): Promise<void>;
+};
+
 function isSuperAdmin(principal: ApplicationPrincipal) {
   return principal.roleCodes.includes("SUPER_ADMIN");
 }
@@ -108,6 +113,22 @@ export async function setUserActive(
   }
   const result = await store.setUserActivePreservingSuperAdmin(actor.id, userId, active);
   if (result !== "updated") return { ok: false, reason: result };
+  return { ok: true };
+}
+
+export async function resetManagedUserPassword(
+  actor: ApplicationPrincipal,
+  userId: string,
+  newPassword: string,
+  store: PasswordResetStore,
+): Promise<UserMutationResult> {
+  if (!hasPermission(actor, "users.manage")) return { ok: false, reason: "forbidden" };
+  const target = await store.getUserAccessState(userId);
+  if (!target) return { ok: false, reason: "not-found" };
+  if (target.roleCodes.includes("SUPER_ADMIN") && !isSuperAdmin(actor)) {
+    return { ok: false, reason: "protected-role" };
+  }
+  await store.resetUserPassword(actor.id, userId, newPassword);
   return { ok: true };
 }
 

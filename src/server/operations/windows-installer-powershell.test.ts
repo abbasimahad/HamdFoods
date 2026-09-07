@@ -7,9 +7,34 @@ import { describe, expect, it } from "vitest";
 
 const commonScript = path.resolve("installer/scripts/Common-HamdFoodsERP.ps1");
 const setupScript = path.resolve("installer/scripts/Setup-HamdFoodsERP.ps1");
+const recoveryScript = path.resolve("installer/scripts/Account-Recovery-HamdFoodsERP.ps1");
+const installerDefinition = path.resolve("installer/HamdFoodsERP.iss");
 const windowsIt = process.platform === "win32" ? it : it.skip;
 
 describe("Windows installer PowerShell architecture boundaries", () => {
+  windowsIt("keeps recovery credentials off command lines and requires elevation", () => {
+    // Defect caught: a recovery password could leak through argv/history or execute without UAC elevation.
+    const source = readFileSync(recoveryScript, "utf8");
+    expect(source).toMatch(/Read-Host 'New password' -AsSecureString/);
+    expect(source).toMatch(/RedirectStandardInput\s*=\s*\$true/);
+    expect(source).toMatch(/Start-Process[\s\S]*-Verb RunAs/);
+    expect(source).toMatch(/ZeroFreeBSTR/);
+    expect(source).toMatch(/--conditions=react-server/);
+    expect(source).not.toMatch(/--(?:new-)?password/i);
+    expect(source).not.toMatch(/ArgumentList[^\r\n]*(?:password|confirmation)/i);
+  });
+
+  windowsIt("keeps the recovery shortcut inside production or drill roots", () => {
+    // Defect caught: the isolated installer drill shortcut targeted production ProgramData.
+    const source = readFileSync(installerDefinition, "utf8");
+    const recoveryShortcut = source
+      .split(/\r?\n/)
+      .find((line) => line.includes("\\Account Recovery"));
+    expect(recoveryShortcut).toContain("{#DrillSwitch}");
+    expect(recoveryShortcut).not.toMatch(/password/i);
+    expect(readFileSync(recoveryScript, "utf8")).toMatch(/HamdFoodsERP-InstallDrill/);
+  });
+
   windowsIt(
     "resolves native Program Files when invoked by a 32-bit installer host",
     () => {

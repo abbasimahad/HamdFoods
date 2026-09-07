@@ -495,6 +495,8 @@ export function validatePayloadFiles(files: readonly string[]): void {
     "operations/seed-all.mjs",
     "operations/bootstrap-super-admin.mjs",
     "operations/database-backup.mjs",
+    "operations/account-recovery.mjs",
+    "windows/account-recovery-hamdfoodserp.ps1",
     "windows/backup-hamdfoodserp.ps1",
     "windows/run-hamdfoodserp.ps1",
     "windows/setup-hamdfoodserp.ps1",

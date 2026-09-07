@@ -1,6 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
+import Link from "next/link";
 
 import { Icon } from "@/components/ui/icon";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -43,9 +44,10 @@ export function TopHeader({
         >
           <Icon className="size-5" name="bell" />
         </button>
-        <div
+        <Link
           className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-2.5"
           title={principal.email}
+          href="/account/security"
         >
           <span className="grid size-7 place-items-center rounded-md bg-[var(--accent-soft)] text-[var(--accent)]">
             <Icon className="size-4" name="user" />
@@ -58,7 +60,7 @@ export function TopHeader({
               {principal.email}
             </span>
           </span>
-        </div>
+        </Link>
         <LogoutButton />
       </div>
     </header>

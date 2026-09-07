@@ -99,6 +99,8 @@ corepack pnpm production:uninstall-task
 
 `production:task:start` is idempotent while the task is running and starts it normally after `production:task:stop`, providing the supported restart sequence without an interactive PowerShell window.
 
+Enable `Microsoft-Windows-TaskScheduler/Operational` so future task exits have durable Windows telemetry. On September 7, 2026 this channel was confirmed enabled. An earlier task exit has no surviving contemporaneous telemetry, did not reproduce after reboot, and is classified **ACCEPTED NON-REPRODUCIBLE HISTORICAL EVENT**: PostgreSQL and the ERP auto-started, exactly one loopback ERP runtime remained healthy with the same PID through the recorded T+0 to T+300 window, and current health is good. Do not invent a root cause or repeatedly restart a healthy task merely to reproduce it.
+
 The health endpoint returns only `200 {"status":"ok"}` or `503 {"status":"unavailable"}`. After it succeeds, confirm the login, one protected ERP page, logout, `/manifest.webmanifest`, `/sw.js`, and `/offline.html` from the factory server browser.
 
 ## Backups and updates
@@ -116,3 +118,5 @@ For each reviewed update: confirm the desired commit, create and verify a backup
 ## Safe native production drill
 
 Use a separate native local database named `hamd_foods_erp_prod_drill`, separate role/credentials, separate `BACKUP_DIRECTORY`, and a copy of `.env.production` that is never pointed at development, Phase 27's test database, or real production. The drill proves direct connectivity, migration deploy, idempotent seed, temporary bootstrap, standalone build, loopback start, health, login/protected route/logout, PWA assets, restart persistence, a safely coordinated PostgreSQL restart/reconnect, and native backup creation/verification. Do not reset or overwrite development, test, or production databases. Phase 31 remains the boundary for private remote HTTPS and phone access.
+
+The current repository-hosted factory deployment is a documented legacy exception: read-only September 7–8, 2026 evidence classifies its database `hamd_foods_erp_prod_drill` as **LEGACY NAME BUT CURRENT CANONICAL PRODUCTION DATABASE**. The protected production configuration, SYSTEM task/runtime, application connection, migration history, and verified backup chain consistently target it, and no competing commercial database or business records were found. Its name is cosmetic debt only. Do not rename, clone, migrate, reset, or bootstrap it during auth-recovery closeout.

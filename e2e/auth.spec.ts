@@ -22,6 +22,25 @@ test("invalid credentials do not establish a session", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("forgot-password guidance points to local Administrator recovery only", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole("heading", { name: "Account recovery" })).toBeVisible();
+  await expect(page.getByText(/factory server PC/i)).toBeVisible();
+  await expect(page.getByText(/no master password/i)).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+});
+
+test("authenticated users can open account security controls", async ({ page }) => {
+  await login(page);
+  await page.goto("/account/security");
+  await expect(page.getByRole("heading", { name: "Account Security" })).toBeVisible();
+  await expect(page.getByLabel("Display Name")).toBeVisible();
+  await expect(page.getByLabel("New Login Email")).toBeVisible();
+  await expect(page.getByLabel("New Password", { exact: true })).toBeVisible();
+});
+
 test("client-controlled values cannot activate authentication bypass", async ({
   context,
   page,

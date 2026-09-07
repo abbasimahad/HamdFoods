@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { authClient } from "@/server/auth/auth-client";
@@ -72,6 +73,14 @@ export function LoginForm() {
       >
         {pending ? "Signing in…" : "Sign in"}
       </button>
+      <p className="text-center text-sm">
+        <Link
+          className="font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
+          href="/forgot-password"
+        >
+          Forgot password?
+        </Link>
+      </p>
     </form>
   );
 }
