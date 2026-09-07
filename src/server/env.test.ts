@@ -18,6 +18,36 @@ describe("parseServerEnv", () => {
     ).toThrowError(/BETTER_AUTH_SECRET/);
   });
 
+  it("defaults the development authentication bypass to disabled", () => {
+    // Defect caught: omitting the development-only flag could accidentally enable authentication bypass.
+    expect(
+      parseServerEnv({
+        APP_ENV: "development",
+        DATABASE_URL: "postgresql://factory_app:password@localhost:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://localhost:3000",
+      }),
+    ).toMatchObject({ AUTH_BYPASS_ENABLED: false });
+  });
+
+  it.each([
+    ["APP_ENV", { APP_ENV: "production", NODE_ENV: "development" }],
+    ["NODE_ENV", { APP_ENV: "development", NODE_ENV: "production" }],
+  ])("rejects authentication bypass when %s indicates production", (_indicator, environment) => {
+    // Defect caught: a customer runtime or production build could otherwise start without authentication.
+    expect(() =>
+      parseServerEnv({
+        ...environment,
+        AUTH_BYPASS_ENABLED: "true",
+        DATABASE_URL: "postgresql://factory_app:password@127.0.0.1:5432/factory_erp",
+        BETTER_AUTH_SECRET: "a".repeat(32),
+        BETTER_AUTH_URL: "http://127.0.0.1:3100",
+        HOSTNAME: "127.0.0.1",
+        PORT: "3100",
+      }),
+    ).toThrowError("Authentication bypass cannot be enabled in production.");
+  });
+
   it("rejects a non-HTTP Better Auth URL", () => {
     // Defect caught: invalid callback origins could produce unsafe or unusable auth redirects.
     expect(() =>

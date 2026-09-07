@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import type { PermissionCode } from "@/modules/access/domain/permissions";
 import { hasPermission, type ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { PrismaAccessRepository } from "@/server/access/prisma-access-repository";
+import { serverEnv } from "@/server/server-env";
 
 import { auth } from "./auth";
 import { resolveCurrentPrincipal } from "./current-principal";
@@ -17,6 +18,7 @@ export async function getCurrentPrincipal(): Promise<ApplicationPrincipal | null
   const resolution = await resolveCurrentPrincipal(
     session ? { userId: session.user.id } : null,
     repository,
+    { authenticationBypassEnabled: serverEnv.AUTH_BYPASS_ENABLED },
   );
   return resolution.kind === "active" ? resolution.principal : null;
 }

@@ -83,6 +83,7 @@ function loadProductionEnvironment() {
   return {
     ...process.env,
     ...serverEnv,
+    AUTH_BYPASS_ENABLED: String(serverEnv.AUTH_BYPASS_ENABLED),
     BETTER_AUTH_TRUSTED_ORIGINS: serverEnv.BETTER_AUTH_TRUSTED_ORIGINS.join(","),
     NODE_ENV: "production" as const,
   };

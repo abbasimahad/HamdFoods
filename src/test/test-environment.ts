@@ -30,6 +30,7 @@ export function phase27TestEnvironment() {
   return {
     ...process.env,
     APP_ENV: "test",
+    AUTH_BYPASS_ENABLED: "false",
     DATABASE_URL: databaseUrl,
     TEST_DATABASE_URL: databaseUrl,
     RESTORE_DATABASE_URL: PHASE28_RESTORE_DATABASE_URL,

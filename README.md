@@ -53,6 +53,16 @@ pnpm --version
    pnpm dev
    ```
 
+For temporary local development without a login screen, set
+`AUTH_BYPASS_ENABLED=true` in the ignored `.env.development.local` file. The server then supplies
+an in-memory `Development Factory Owner` principal with the centralized `SUPER_ADMIN` permission
+set; normal server authorization checks still run, no user is created, and public signup remains
+disabled. The application rejects this setting whenever `APP_ENV=production` or
+`NODE_ENV=production`. Never enable it in a customer installation. Before commercial or final UAT,
+remove the local override (or set it to `false`) and test normal Better Auth login and logout again.
+
+Authentication remains implemented and is only temporarily bypassed in local development.
+
 The database port is published only on the local loopback interface. The browser never receives `DATABASE_URL` or PostgreSQL credentials.
 
 ## Database commands

@@ -19,6 +19,11 @@ const databaseUrlSchema = z
 const serverEnvSchema = z
   .object({
     APP_ENV: z.enum(["development", "test", "production"]),
+    NODE_ENV: z.enum(["development", "test", "production"]).optional(),
+    AUTH_BYPASS_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     DATABASE_URL: databaseUrlSchema,
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url().refine((value) => {
@@ -45,6 +50,17 @@ const serverEnvSchema = z
     PORT: z.string().trim().min(1).optional(),
   })
   .superRefine((value, context) => {
+    if (
+      value.AUTH_BYPASS_ENABLED &&
+      (value.APP_ENV === "production" || value.NODE_ENV === "production")
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Authentication bypass cannot be enabled in production.",
+        path: ["AUTH_BYPASS_ENABLED"],
+      });
+    }
+
     if (value.APP_ENV !== "production") return;
 
     const databaseHost = new URL(value.DATABASE_URL).hostname.toLowerCase();

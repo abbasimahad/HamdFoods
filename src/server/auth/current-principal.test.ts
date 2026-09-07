@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
+import { hasPermission } from "@/modules/access/domain/principal";
+import { PERMISSIONS } from "@/modules/access/domain/permissions";
 
 import { resolveCurrentPrincipal } from "./current-principal";
 
@@ -14,6 +16,46 @@ const activePrincipal: ApplicationPrincipal = {
 };
 
 describe("resolveCurrentPrincipal", () => {
+  it("resolves an in-memory development SUPER_ADMIN without a session or database lookup", async () => {
+    // Defect caught: development bypass could still require a Better Auth session or create a database user.
+    const loadPrincipal = vi.fn();
+    const revokeUserSessions = vi.fn();
+    const resolution = await resolveCurrentPrincipal(
+      null,
+      { loadPrincipal, revokeUserSessions },
+      { authenticationBypassEnabled: true },
+    );
+
+    expect(resolution).toEqual({
+      kind: "active",
+      principal: {
+        id: "dev-auth-bypass",
+        name: "Development Factory Owner",
+        email: "dev-auth-bypass@hamdfoods.local",
+        active: true,
+        roleCodes: ["SUPER_ADMIN"],
+        permissions: PERMISSIONS,
+      },
+    });
+    expect(loadPrincipal).not.toHaveBeenCalled();
+    expect(revokeUserSessions).not.toHaveBeenCalled();
+  });
+
+  it("keeps centralized permission checks active for the development principal", async () => {
+    // Defect caught: bypass mode could short-circuit authorization instead of supplying a principal to RBAC.
+    const resolution = await resolveCurrentPrincipal(
+      null,
+      { loadPrincipal: vi.fn(), revokeUserSessions: vi.fn() },
+      { authenticationBypassEnabled: true },
+    );
+    expect(resolution.kind).toBe("active");
+    if (resolution.kind !== "active") throw new Error("Expected active development principal.");
+    expect(PERMISSIONS.every((permission) => hasPermission(resolution.principal, permission))).toBe(
+      true,
+    );
+    expect(hasPermission(resolution.principal, "dashboard.view")).toBe(true);
+  });
+
   it("rejects an unauthenticated request without querying users", async () => {
     // Defect caught: missing session state could otherwise fall through to protected content.
     const loadPrincipal = vi.fn();
