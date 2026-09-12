@@ -1,11 +1,11 @@
 "use client";
-
 import { useActionState } from "react";
 import {
   initialUserActionState,
   replaceUserRolesAction,
 } from "@/app/(erp)/administration/users/actions";
-
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 export function UserRoleForm({
   userId,
   assigned,
@@ -33,18 +33,13 @@ export function UserRoleForm({
           </label>
         ))}
       </div>
-      <button
-        className="rounded border border-[var(--border)] px-3 py-2 text-xs font-semibold disabled:opacity-60"
+      <FormActions
         disabled={pending}
-        type="submit"
-      >
-        {pending ? "Saving…" : "Save roles"}
-      </button>
-      {state.message && (
-        <p className="text-xs" role="status">
-          {state.message}
-        </p>
-      )}
+        onCancel={(event) => event.currentTarget.form?.reset()}
+        pendingLabel="Saving…"
+        submitLabel="Save roles"
+      />
+      <ActionFeedback message={state.message} ok={state.status === "success"} />
     </form>
   );
 }

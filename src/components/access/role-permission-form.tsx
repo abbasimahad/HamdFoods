@@ -1,13 +1,12 @@
 "use client";
-
 import { useActionState } from "react";
-
 import {
   initialRoleActionState,
   replaceRolePermissionsAction,
 } from "@/app/(erp)/administration/roles-permissions/actions";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 import { PERMISSION_DESCRIPTIONS, PERMISSIONS } from "@/modules/access/domain/permissions";
-
 export function RolePermissionForm({
   roleCode,
   assigned,
@@ -51,19 +50,14 @@ export function RolePermissionForm({
           Protected: all permissions are enforced by the seed and cannot be edited.
         </p>
       ) : (
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
+        <FormActions
           disabled={pending}
-          type="submit"
-        >
-          {pending ? "Saving…" : "Save permissions"}
-        </button>
+          onCancel={(event) => event.currentTarget.form?.reset()}
+          pendingLabel="Saving…"
+          submitLabel="Save permissions"
+        />
       )}
-      {state.message && (
-        <p className="text-sm" role="status">
-          {state.message}
-        </p>
-      )}
+      <ActionFeedback message={state.message} ok={state.status === "success"} />
     </form>
   );
 }

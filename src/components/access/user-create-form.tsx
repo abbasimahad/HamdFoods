@@ -1,9 +1,8 @@
 "use client";
-
 import { useActionState } from "react";
-
 import { createUserAction, initialUserActionState } from "@/app/(erp)/administration/users/actions";
-
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 export function UserCreateForm({ roles }: { roles: readonly { code: string; name: string }[] }) {
   const [state, action, pending] = useActionState(createUserAction, initialUserActionState);
   return (
@@ -49,23 +48,13 @@ export function UserCreateForm({ roles }: { roles: readonly { code: string; name
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input defaultChecked name="active" type="checkbox" /> Active immediately
       </label>
-      <div className="flex items-center gap-3">
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? "Creating…" : "Create user"}
-        </button>
-        {state.message && (
-          <p
-            className={`text-sm ${state.status === "error" ? "text-[var(--danger-ink)]" : "text-[var(--success-ink)]"}`}
-            role="status"
-          >
-            {state.message}
-          </p>
-        )}
-      </div>
+      <FormActions
+        disabled={pending}
+        onCancel={(event) => event.currentTarget.form?.reset()}
+        pendingLabel="Creating…"
+        submitLabel="Create user"
+      />
+      <ActionFeedback message={state.message} ok={state.status === "success"} />
     </form>
   );
 }

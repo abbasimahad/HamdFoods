@@ -1,15 +1,12 @@
 import Link from "next/link";
-import {
-  CancelDocumentForm,
-  PostDocumentForm,
-  SupplierPaymentForm,
-} from "@/components/accounting/phase23-forms";
+import { CancelDocumentForm, PostDocumentForm } from "@/components/accounting/phase23-forms";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { supplierPaymentPage } from "@/server/accounting/prisma-phase23-repository";
+import { PageActions, primaryPageActionClass } from "@/components/ui/page-actions";
 export default async function Page() {
   const principal = await requirePermission("accounting.view");
   const page = await supplierPaymentPage();
@@ -18,12 +15,16 @@ export default async function Page() {
       <PageHeader
         title="Supplier Payments"
         description="Posted payments reduce AP once; allocations settle payable items without another cash posting."
+        actions={
+          hasPermission(principal, "accounting.manage") ? (
+            <PageActions>
+              <Link className={primaryPageActionClass} href="/purchasing/supplier-payments/new">
+                + New Supplier Payment
+              </Link>
+            </PageActions>
+          ) : null
+        }
       />
-      {hasPermission(principal, "accounting.manage") ? (
-        <Card className="mb-4 p-4">
-          <SupplierPaymentForm suppliers={page.suppliers} treasuries={page.treasuries} />
-        </Card>
-      ) : null}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead>

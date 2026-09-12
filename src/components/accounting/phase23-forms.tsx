@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { FormActions } from "@/components/ui/form-actions";
+import { ActionFeedback } from "@/components/ui/action-feedback";
 import {
   createTreasuryAccountAction,
   allocateSupplierPaymentAction,
@@ -56,26 +58,31 @@ export function TreasuryAccountForm({
       <button className={button} disabled={pending}>
         Create treasury account
       </button>
-      {state ? (
-        <p className={state.ok ? "text-sm text-green-700" : "text-sm text-red-700"}>
-          {state.message}
-        </p>
-      ) : null}
+      {state ? <ActionFeedback message={state.message} ok={state.ok} /> : null}
     </form>
   );
 }
 export function SupplierPaymentForm({
   suppliers,
   treasuries,
+  supplierId,
+  cancelHref = "/purchasing/supplier-payments",
 }: {
   suppliers: readonly { id: string; code: string; name: string }[];
   treasuries: readonly { id: string; code: string; name: string }[];
+  supplierId?: string;
+  cancelHref?: string;
 }) {
   const [state, action, pending] = useActionState(saveSupplierPaymentAction, undefined);
   return (
     <form action={action} className="space-y-2">
       <div className="grid gap-2 md:grid-cols-3">
-        <select className="rounded border px-3 py-2" name="supplierId" required>
+        <select
+          className="rounded border px-3 py-2"
+          defaultValue={supplierId ?? ""}
+          name="supplierId"
+          required
+        >
           <option value="">Supplier</option>
           {suppliers.map((supplier) => (
             <option key={supplier.id} value={supplier.id}>
@@ -116,9 +123,12 @@ export function SupplierPaymentForm({
         Save a draft, then allocate payable items from its detail workflow. Unallocated value
         remains a supplier advance.
       </p>
-      <button className={button} disabled={pending}>
-        Save supplier-payment draft
-      </button>
+      <FormActions
+        cancelHref={cancelHref}
+        disabled={pending}
+        pendingLabel="Saving…"
+        submitLabel="Save draft"
+      />
       {state ? (
         <p className={state.ok ? "text-sm text-green-700" : "text-sm text-red-700"}>
           {state.message}

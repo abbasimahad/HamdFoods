@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import type {
   InventoryItemOption,
@@ -8,6 +8,10 @@ import type {
   WarehouseRecord,
 } from "@/modules/inventory/application/contracts";
 import { INVENTORY_STATUSES } from "@/modules/inventory/domain/inventory";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SingleFlightForm } from "@/components/ui/single-flight-form";
 
 import { initialInventoryActionState, type InventoryAction } from "./action-state";
 
@@ -24,33 +28,62 @@ export function InventoryPostingForm({
   units: readonly InventoryUnitOption[];
   warehouses: readonly WarehouseRecord[];
 }) {
-  const [state, formAction, pending] = useActionState(action, initialInventoryActionState);
+  const [state, formAction] = useActionState(action, initialInventoryActionState);
   const transfer = mode === "TRANSFER";
+  const [itemId, setItemId] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
+  const [sourceWarehouseId, setSourceWarehouseId] = useState("");
+  const [destinationWarehouseId, setDestinationWarehouseId] = useState("");
+
+  function resetForm(form: HTMLFormElement | null) {
+    form?.reset();
+    setItemId("");
+    setWarehouseId("");
+    setSourceWarehouseId("");
+    setDestinationWarehouseId("");
+  }
+
   return (
-    <form action={formAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <SingleFlightForm action={formAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {!transfer && <input name="movementType" type="hidden" value={mode} />}
-      <Select
+      <SearchableSelect
         label="Item"
         name="itemId"
-        options={items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))}
+        onValueChange={setItemId}
+        options={items.map((item) => ({
+          value: item.id,
+          label: `${item.code} · ${item.name}`,
+          keywords: item.name,
+        }))}
+        value={itemId}
       />
       {transfer ? (
         <>
-          <Select
+          <SearchableSelect
             label="Source warehouse"
             name="sourceWarehouseId"
+            onValueChange={setSourceWarehouseId}
             options={warehouseOptions(warehouses)}
+            value={sourceWarehouseId}
           />
-          <Select
+          <SearchableSelect
             label="Destination warehouse"
             name="destinationWarehouseId"
+            onValueChange={setDestinationWarehouseId}
             options={warehouseOptions(warehouses)}
+            value={destinationWarehouseId}
           />
         </>
       ) : (
-        <Select label="Warehouse" name="warehouseId" options={warehouseOptions(warehouses)} />
+        <SearchableSelect
+          label="Warehouse"
+          name="warehouseId"
+          onValueChange={setWarehouseId}
+          options={warehouseOptions(warehouses)}
+          value={warehouseId}
+        />
       )}
-      <Select
+      <NativeSelect
         label="Status"
         name="status"
         options={INVENTORY_STATUSES.map((status) => ({
@@ -65,7 +98,7 @@ export function InventoryPostingForm({
         inputMode="decimal"
         required={false}
       />
-      <Select
+      <NativeSelect
         label="Quantity unit"
         name="unitId"
         required={false}
@@ -111,31 +144,25 @@ export function InventoryPostingForm({
       <label className="text-sm font-medium md:col-span-2">
         Reason
         <textarea
-          className="mt-1 min-h-24 w-full rounded-lg border border-[var(--border)] px-3 py-2"
+          className="mt-1 min-h-24 w-full rounded-lg border border-[var(--control-border)] px-3 py-2"
           maxLength={1000}
           name="reason"
           required
         />
       </label>
-      <div className="flex items-center gap-3 md:col-span-2 xl:col-span-4">
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? "Posting…" : transfer ? "Post transfer" : "Post movement"}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center gap-3 md:col-span-2 xl:col-span-4">
+        <FormActions
+          onCancel={(event) => resetForm(event.currentTarget.form)}
+          pendingLabel="Posting…"
+          submitLabel={transfer ? "Post transfer" : "Post movement"}
+        />
+        <ActionFeedback message={state.message} ok={state.ok} />
       </div>
       <p className="text-xs text-[var(--muted)] md:col-span-2 xl:col-span-4">
         Use quantity + unit for normal input. For finished goods, cartons/loose may be used instead
         and are stored only as canonical pieces.
       </p>
-    </form>
+    </SingleFlightForm>
   );
 }
 
@@ -143,9 +170,10 @@ function warehouseOptions(warehouses: readonly WarehouseRecord[]) {
   return warehouses.map((warehouse) => ({
     value: warehouse.id,
     label: `${warehouse.code} · ${warehouse.name}`,
+    keywords: warehouse.name,
   }));
 }
-function Select({
+function NativeSelect({
   label,
   name,
   options,
@@ -160,7 +188,7 @@ function Select({
     <label className="text-sm font-medium">
       {label}
       <select
-        className="mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3"
+        className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
         name={name}
         required={required}
       >
@@ -191,7 +219,7 @@ function Field({
     <label className="text-sm font-medium">
       {label}
       <input
-        className="mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] px-3"
+        className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] px-3"
         inputMode={inputMode}
         name={name}
         placeholder={placeholder}

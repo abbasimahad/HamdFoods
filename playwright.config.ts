@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 import { PHASE27_E2E_BASE_URL, phase27TestEnvironment } from "./src/test/test-environment";
 
+delete process.env.NO_COLOR;
 Object.assign(process.env, phase27TestEnvironment());
 
 export default defineConfig({

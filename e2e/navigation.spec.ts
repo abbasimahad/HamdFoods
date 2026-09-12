@@ -39,3 +39,17 @@ test("representative printable documents and financial report render", async ({ 
   await expect(page.getByRole("heading", { name: "Profit & Loss" })).toBeVisible();
   await expect(page.getByText("Net profit / (loss)", { exact: true })).toBeVisible();
 });
+
+test("reconciled navigation exposes workbenches without duplicate journal vouchers", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/accounting");
+  const nav = page.getByRole("navigation", { name: "Primary navigation" });
+  await expect(nav.getByRole("link", { name: "Receivables" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Payables" })).toBeVisible();
+  await expect(nav.getByText("Journal Vouchers", { exact: true })).toHaveCount(0);
+  await page.goto("/production");
+  await expect(nav.getByRole("link", { name: "Material Issues" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Packaging Consumption" })).toBeVisible();
+});

@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 import type { ProductionActionState } from "./action-state";
 import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import type { RecipeUnit } from "@/modules/production/application/contracts";
@@ -210,19 +212,13 @@ export function PackagingTransactionForm({
           required={type === "DAMAGE"}
         />
       </label>
-      <div className="flex items-center gap-3">
-        <button
-          className="rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={pending || !lotId}
-        >
-          {pending ? "Saving..." : initial ? "Save DRAFT" : `Create ${type} DRAFT`}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
-      </div>
+      <FormActions
+        cancelHref={`/production/batches/${view.productionBatchId}/packaging`}
+        disabled={pending || !lotId}
+        pendingLabel="Saving…"
+        submitLabel="Save draft"
+      />
+      <ActionFeedback message={state.message} ok={state.ok} />
       <p className="text-xs text-[var(--muted)]">
         DRAFT creates no stock movement. Exact lot stock and batch custody are rechecked when
         posted.

@@ -93,9 +93,12 @@ function PostingCard({
   description: string;
   children: React.ReactNode;
 }) {
+  const headingId = `posting-${title.toLowerCase().replaceAll(" ", "-")}`;
   return (
-    <Card className="p-5">
-      <h2 className="font-semibold">{title}</h2>
+    <Card aria-labelledby={headingId} className="p-5">
+      <h2 className="font-semibold" id={headingId}>
+        {title}
+      </h2>
       <p className="mb-4 mt-1 text-sm text-[var(--muted)]">{description}</p>
       {children}
     </Card>

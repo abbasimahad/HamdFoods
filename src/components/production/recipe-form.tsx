@@ -1,6 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
+import type { QuickCreateReferences } from "@/components/quick-create/quick-create-fields";
+import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
+import { LineEditorControls } from "@/components/ui/line-editor-controls";
+import { SingleFlightForm } from "@/components/ui/single-flight-form";
 import type {
   RecipeItemOption,
   RecipeRecord,
@@ -44,14 +51,22 @@ export function RecipeForm({
   action,
   items,
   units,
+  quickCreateReferences,
   initial,
 }: {
   action: ProductionAction;
   items: readonly RecipeItemOption[];
   units: readonly RecipeUnit[];
+  quickCreateReferences?:
+    | {
+        product: QuickCreateReferences;
+        material: QuickCreateReferences;
+        packaging: QuickCreateReferences;
+      }
+    | undefined;
   initial?: RecipeRecord;
 }) {
-  const [state, formAction, pending] = useActionState(action, initialProductionActionState);
+  const [state, formAction] = useActionState(action, initialProductionActionState);
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     initial?.ingredients.map((line) => ({
       itemId: line.itemId,
@@ -71,11 +86,21 @@ export function RecipeForm({
       notes: line.notes ?? "",
     })) ?? [],
   );
+  const [finishedGoodId, setFinishedGoodId] = useState(initial?.finishedGoodId ?? "");
   const finishedGoods = items.filter((item) => item.itemType === "FINISHED_GOOD");
   const rawMaterials = items.filter((item) => item.itemType === "RAW_MATERIAL");
   const packagingMaterials = items.filter((item) => item.itemType === "PACKAGING_MATERIAL");
+  const [finishedGoodOptions, setFinishedGoodOptions] = useState<QuickCreateOption[]>(() =>
+    toOptions(finishedGoods),
+  );
+  const [rawMaterialOptions, setRawMaterialOptions] = useState<QuickCreateOption[]>(() =>
+    toOptions(rawMaterials),
+  );
+  const [packagingOptions, setPackagingOptions] = useState<QuickCreateOption[]>(() =>
+    toOptions(packagingMaterials),
+  );
   return (
-    <form action={formAction} className="space-y-6">
+    <SingleFlightForm action={formAction} className="space-y-6">
       {initial && <input name="id" type="hidden" value={initial.id} />}
       <input name="ingredientsJson" type="hidden" value={JSON.stringify(ingredients)} />
       <input name="packagingLinesJson" type="hidden" value={JSON.stringify(packagingLines)} />
@@ -88,15 +113,37 @@ export function RecipeForm({
           required
         />
         <Field defaultValue={initial?.name ?? ""} label="Recipe name" name="name" required />
-        <Select
-          label="Finished good"
-          name="finishedGoodId"
-          defaultValue={initial?.finishedGoodId ?? ""}
-          options={finishedGoods.map((item) => ({
-            value: item.id,
-            label: `${item.code} - ${item.name}`,
-          }))}
-        />
+        <div className="text-sm font-medium">
+          <div className="flex items-end justify-between gap-2">
+            <label htmlFor="recipe-finished-good">Finished good</label>
+            {quickCreateReferences ? (
+              <QuickCreateDialog
+                kind="product"
+                label="Product"
+                onCreated={(option) => {
+                  setFinishedGoodOptions((current) => appendOption(current, option));
+                  setFinishedGoodId(option.value);
+                }}
+                references={quickCreateReferences.product}
+              />
+            ) : null}
+          </div>
+          <select
+            className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
+            id="recipe-finished-good"
+            name="finishedGoodId"
+            onChange={(event) => setFinishedGoodId(event.target.value)}
+            required
+            value={finishedGoodId}
+          >
+            <option value="">Select</option>
+            {finishedGoodOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <Field
           defaultValue={initial?.effectiveDate ? dateOnly(initial.effectiveDate) : ""}
           label="Effective date"
@@ -154,17 +201,31 @@ export function RecipeForm({
           const item = rawMaterials.find((candidate) => candidate.id === line.itemId);
           const compatible = item
             ? units.filter((unit) => unit.dimension === item.stockUnitDimension)
-            : [];
+            : line.itemId
+              ? units
+              : [];
           return (
             <tr key={index}>
-              <SelectCell
-                value={line.itemId}
-                onChange={(value) => update(setIngredients, index, { itemId: value, unitId: "" })}
-                options={rawMaterials.map((candidate) => ({
-                  value: candidate.id,
-                  label: `${candidate.code} - ${candidate.name}`,
-                }))}
-              />
+              <td className="p-2">
+                {quickCreateReferences ? (
+                  <div className="mb-2 flex justify-end">
+                    <QuickCreateDialog
+                      kind="material"
+                      label="Material"
+                      onCreated={(option) => {
+                        setRawMaterialOptions((current) => appendOption(current, option));
+                        update(setIngredients, index, { itemId: option.value, unitId: "" });
+                      }}
+                      references={quickCreateReferences.material}
+                    />
+                  </div>
+                ) : null}
+                <SelectControl
+                  value={line.itemId}
+                  onChange={(value) => update(setIngredients, index, { itemId: value, unitId: "" })}
+                  options={rawMaterialOptions}
+                />
+              </td>
               <InputCell
                 value={line.quantity}
                 onChange={(value) => update(setIngredients, index, { quantity: value })}
@@ -211,19 +272,33 @@ export function RecipeForm({
           const item = packagingMaterials.find((candidate) => candidate.id === line.itemId);
           const compatible = item
             ? units.filter((unit) => unit.dimension === item.stockUnitDimension)
-            : [];
+            : line.itemId
+              ? units
+              : [];
           return (
             <tr key={index}>
-              <SelectCell
-                value={line.itemId}
-                onChange={(value) =>
-                  update(setPackagingLines, index, { itemId: value, unitId: "" })
-                }
-                options={packagingMaterials.map((candidate) => ({
-                  value: candidate.id,
-                  label: `${candidate.code} - ${candidate.name}`,
-                }))}
-              />
+              <td className="p-2">
+                {quickCreateReferences ? (
+                  <div className="mb-2 flex justify-end">
+                    <QuickCreateDialog
+                      kind="packaging"
+                      label="Packaging"
+                      onCreated={(option) => {
+                        setPackagingOptions((current) => appendOption(current, option));
+                        update(setPackagingLines, index, { itemId: option.value, unitId: "" });
+                      }}
+                      references={quickCreateReferences.packaging}
+                    />
+                  </div>
+                ) : null}
+                <SelectControl
+                  value={line.itemId}
+                  onChange={(value) =>
+                    update(setPackagingLines, index, { itemId: value, unitId: "" })
+                  }
+                  options={packagingOptions}
+                />
+              </td>
               <SelectCell
                 value={line.usageBasis}
                 onChange={(value) =>
@@ -267,23 +342,18 @@ export function RecipeForm({
           );
         })}
       </LineTable>
-      <div className="flex items-center gap-3">
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-5 font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-        >
-          {pending ? "Saving..." : initial ? "Save draft" : "Create draft recipe"}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center gap-3">
+        <FormActions
+          cancelHref={initial ? `/production/recipes/${initial.id}` : "/production/recipes"}
+          pendingLabel="Saving…"
+          submitLabel={initial ? "Save draft" : "Create draft recipe"}
+        />
+        <ActionFeedback message={state.message} ok={state.ok} />
       </div>
       <p className="text-xs text-[var(--muted)]">
         The server normalizes every quantity and allowance. Recipe changes never post inventory.
       </p>
-    </form>
+    </SingleFlightForm>
   );
 }
 function update<T>(
@@ -371,17 +441,14 @@ function LineTable({
   onAdd(): void;
   children: React.ReactNode;
 }) {
+  const headingId = `line-table-${title.toLowerCase().replaceAll(" ", "-")}`;
   return (
-    <section>
+    <section aria-labelledby={headingId}>
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-semibold">{title}</h2>
-        <button
-          className="rounded-lg border px-3 py-2 text-sm font-semibold"
-          onClick={onAdd}
-          type="button"
-        >
-          {addLabel}
-        </button>
+        <h2 className="font-semibold" id={headingId}>
+          {title}
+        </h2>
+        <LineEditorControls addLabel={addLabel} onAdd={onAdd} />
       </div>
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[72rem] text-left text-sm">
@@ -428,6 +495,31 @@ function SelectCell({
     </td>
   );
 }
+function SelectControl({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange(value: string): void;
+  options: readonly QuickCreateOption[];
+}) {
+  return (
+    <select
+      className="min-h-10 w-56 rounded-lg border border-[var(--control-border)] bg-white px-2"
+      onChange={(event) => onChange(event.target.value)}
+      required
+      value={value}
+    >
+      <option value="">Select</option>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 function InputCell({
   value,
   onChange,
@@ -454,17 +546,20 @@ function InputCell({
 function Remove({ disabled, onClick }: { disabled: boolean; onClick(): void }) {
   return (
     <td className="p-2">
-      <button
-        className="text-xs text-red-700 disabled:opacity-40"
-        disabled={disabled}
-        onClick={onClick}
-        type="button"
-      >
-        Remove
-      </button>
+      <LineEditorControls onRemove={onClick} removeDisabled={disabled} />
     </td>
   );
 }
 function dateOnly(value: Date) {
   return new Date(value).toISOString().slice(0, 10);
+}
+
+function toOptions(items: readonly RecipeItemOption[]): QuickCreateOption[] {
+  return items.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }));
+}
+
+function appendOption(current: readonly QuickCreateOption[], option: QuickCreateOption) {
+  return current.some((candidate) => candidate.value === option.value)
+    ? [...current]
+    : [...current, option];
 }

@@ -189,6 +189,31 @@
 - `corepack pnpm prisma migrate deploy` applied `20260831080000_phase25_payment_reversal_integrity`; `corepack pnpm prisma migrate status` then reported 37 migrations and a schema up to date. `corepack pnpm db:check` completed a PostgreSQL query successfully.
 - A read-only `prisma db execute` assertion confirmed the non-internal `audit_event_append_only` trigger is installed. `git diff --check` passed.
 
+## Pre-Phase-33 runtime stabilization
+
+**Runtime Stabilization is COMPLETE.**
+
+- The PostgreSQL warning was reproduced through the Phase 27 golden workflow and isolated to Prisma-generated concurrent relation SELECTs inside an interactive transaction. A focused integration regression captures the exact nested goods-receipt include path. Enabling supported pg pipeline mode removed the warning without changing domain queries, isolation, ledgers, journals, reversals, RBAC, or audit behavior.
+- Sanitized Playwright observation covers browser `console.error`, uncaught page errors, failed same-origin requests, and same-origin HTTP 5xx responses. It passed 24 authenticated major/seeded routes and representative invalid master, multi-line transaction, and account-security forms.
+- The active-action audit in `docs/testing/runtime-action-audit.md` records no known broken active action. Planned navigation remains outside this stabilization boundary for the following workflow inventory.
+- Representative route measurements used one warm-up and three samples. Stable request counts and sub-second medians did not demonstrate a structural performance defect, so no speculative optimization was made. Exact measurements are in `docs/testing/runtime-performance-baseline.md`.
+- Playwright's inherited `NO_COLOR` conflict was removed at the test-config boundary; controlled server output no longer emits that Node environment warning. The deliberate invalid-password authentication test still produces its expected non-error authentication warning.
+- Final closure evidence on 2026-09-09: the fresh traced integration gate passed 14 tests with one explicitly infrastructure-gated skip and no concurrent `client.query()` warning; `corepack pnpm test:e2e` passed 17/17 with no unexpected Node/server exception, browser application error, same-origin request failure, or HTTP 5xx; `corepack pnpm verify` passed formatting, ESLint, Prisma validation/generation, TypeScript, 226 unit tests with 2 skipped, and the 78-page production build; `git diff --check` passed. The build required the established maintenance-window stop because the healthy scheduled production runtime held `.next/standalone`; this operational lock was not an application runtime defect.
+
+## Workflow inventory
+
+The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 55 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 2 `PARTIAL`, and 2 `MISSING` across all 58 sidebar entries. Receivables, Payables, Material Issues, and Packaging Consumption are active first-class workbenches; the duplicate Journal Vouchers entry was removed. Four legitimate planned labels remain: Reprocess and Waste & Damage are `PARTIAL`; Purchase Invoices and Administration Settings are `MISSING`.
+
+## Navigation and Data Entry UX closure
+
+**Navigation / Data Entry UX is READY. Tasks 1–9 are COMPLETE.**
+
+- Shared searchable selection, pending/single-flight submission, Save/Cancel action, line-editor, feedback, and quick-create patterns are adopted across the approved inventory, purchasing, production, sales, accounting, and access screens without changing domain authority.
+- Receivable and payable workbenches remain read-only projections over authoritative subledgers and launch the existing payment engines. Material and packaging workbenches route into the existing batch transaction engines; no duplicate posting engine was added.
+- Final closure evidence on 2026-09-12: `corepack pnpm verify` passed Prettier, ESLint, Prisma validation/generation, TypeScript, 265 unit tests with 2 skips, and the 85-page Next production build. Traced integration passed 15 tests with 1 documented infrastructure-gated skip and no concurrent-client-query or unexpected Node/database warning. Disposable-DB Playwright passed 26/26 with one worker, zero retries, no browser, hydration, Node/server, or destination-stream error, and only the deliberate invalid-password warning.
+- The canonical `HamdFoodsERP` task was restarted after the port-clear build window. It is running with its sole listener on `127.0.0.1:3100`; `/api/health` returns `200 {"status":"ok"}`; production auth bypass is disabled; the read-only production business counts match the certified pre-test baseline.
+- Phase 33 was not started, and the remaining 2 `PARTIAL` plus 2 `MISSING` workflows were not implemented or relabeled.
+
 ## Next gate
 
-**Phase 32 is COMPLETE and Phase 33 is READY but not specified or started.** Define and approve the Phase 33 product boundary before implementation. Do not infer new modules or extend production scope without that boundary. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
+**Next subproject: PARTIAL WORKFLOWS. Phase 33 is NOT STARTED.** Specify and approve the next workflow boundary before implementation; do not infer or build the remaining partial/missing workflows from their labels alone. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.

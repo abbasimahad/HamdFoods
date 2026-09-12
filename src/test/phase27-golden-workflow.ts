@@ -1,3 +1,6 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
 import { PrismaInventoryValuationRepository } from "@/server/costing/prisma-inventory-valuation-repository";
 import { PrismaInventoryRepository } from "@/server/inventory/prisma-inventory-repository";
 import { PrismaGoodsReceiptRepository } from "@/server/purchasing/prisma-goods-receipt-repository";
@@ -20,9 +23,32 @@ import {
 import { prisma } from "@/server/db/prisma";
 import { PHASE27_ADMIN } from "./test-environment";
 
-export type Phase27WorkflowState = Awaited<ReturnType<typeof executePhase27GoldenWorkflow>>;
+export type Phase27WorkflowState = Awaited<ReturnType<typeof executePhase27GoldenWorkflowOnce>>;
+const phase27StatePath = path.join(process.cwd(), ".test-data", "phase27-integration-state.json");
 
-export async function executePhase27GoldenWorkflow() {
+export async function executePhase27GoldenWorkflow(): Promise<Phase27WorkflowState> {
+  const cached = await readValidCachedState();
+  if (cached) return cached;
+  const state = await executePhase27GoldenWorkflowOnce();
+  mkdirSync(path.dirname(phase27StatePath), { recursive: true });
+  writeFileSync(phase27StatePath, JSON.stringify(state), "utf8");
+  return state;
+}
+
+async function readValidCachedState(): Promise<Phase27WorkflowState | null> {
+  try {
+    const state = JSON.parse(readFileSync(phase27StatePath, "utf8")) as Phase27WorkflowState;
+    const movement = await prisma.inventoryMovement.findFirst({
+      where: { groupId: state.transferGroupId },
+      select: { id: true },
+    });
+    return movement ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+async function executePhase27GoldenWorkflowOnce() {
   const actor = await prisma.user.findUniqueOrThrow({ where: { email: PHASE27_ADMIN.email } });
   const [
     grams,

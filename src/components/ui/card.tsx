@@ -1,10 +1,13 @@
-import type { ReactNode } from "react";
+import type { ComponentProps } from "react";
 
-type CardProps = { children: ReactNode; className?: string };
+type CardProps = ComponentProps<"section">;
 
-export function Card({ children, className = "" }: CardProps) {
+export function Card({ children, className = "", ...props }: CardProps) {
   return (
-    <section className={`rounded-xl border border-[var(--border)] bg-[var(--raised)] ${className}`}>
+    <section
+      className={`rounded-xl border border-[var(--border)] bg-[var(--raised)] ${className}`}
+      {...props}
+    >
       {children}
     </section>
   );

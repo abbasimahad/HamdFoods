@@ -74,6 +74,12 @@ export default async function Page() {
         <Link className="font-semibold text-[var(--accent)]" href="/accounting/expenses">
           Expense Vouchers
         </Link>
+        <Link className="font-semibold text-[var(--accent)]" href="/accounting/receivables">
+          Receivables
+        </Link>
+        <Link className="font-semibold text-[var(--accent)]" href="/accounting/payables">
+          Payables
+        </Link>
       </Card>
       <Card className="mt-5 grid gap-3 p-5 md:grid-cols-3">
         <div>

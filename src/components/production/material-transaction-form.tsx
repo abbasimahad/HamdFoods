@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 import type { ProductionActionState } from "./action-state";
 import type {
   BatchMaterialView,
@@ -188,19 +190,13 @@ export function MaterialTransactionForm({
           name="notes"
         />
       </label>
-      <div className="flex items-center gap-3">
-        <button
-          className="rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={pending || !lotId}
-        >
-          {pending ? "Saving..." : initial ? "Save DRAFT" : `Create ${type} DRAFT`}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
-      </div>
+      <FormActions
+        cancelHref={`/production/batches/${view.productionBatchId}/materials`}
+        disabled={pending || !lotId}
+        pendingLabel="Saving…"
+        submitLabel="Save draft"
+      />
+      <ActionFeedback message={state.message} ok={state.ok} />
       <p className="text-xs text-[var(--muted)]">
         Saving a DRAFT creates no inventory movement. Stock is rechecked only when the draft is
         posted.

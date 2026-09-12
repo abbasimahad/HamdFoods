@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 import type { ProductionActionState } from "./action-state";
 import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import type { RecipeUnit } from "@/modules/production/application/contracts";
@@ -197,23 +199,13 @@ export function OutputTransactionForm({
           required={type !== "GOOD"}
         />
       </label>
-      <div className="flex items-center gap-3">
-        <button
-          className="rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-        >
-          {pending
-            ? "Saving..."
-            : initial
-              ? "Save DRAFT"
-              : `Create ${type.replaceAll("_", " ")} DRAFT`}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
-      </div>
+      <FormActions
+        cancelHref={`/production/batches/${view.productionBatchId}/output`}
+        disabled={pending}
+        pendingLabel="Saving…"
+        submitLabel="Save draft"
+      />
+      <ActionFeedback message={state.message} ok={state.ok} />
       <p className="text-xs text-[var(--muted)]">
         DRAFT creates no inventory or loss effect. Posting creates or reuses the batch production
         lot atomically.

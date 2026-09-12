@@ -1,13 +1,17 @@
+import type { ReactNode } from "react";
+
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export function PageHeader({
   title,
   description,
   eyebrow = "Hamd Foods ERP",
+  actions,
 }: {
   title: string;
   description: string;
   eyebrow?: string;
+  actions?: ReactNode;
 }) {
   return (
     <header className="mb-5 flex flex-col gap-3 border-b border-[var(--border)] pb-5 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
@@ -22,8 +26,9 @@ export function PageHeader({
           {description}
         </p>
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
         <StatusBadge tone="info">Server-authoritative</StatusBadge>
+        {actions}
       </div>
     </header>
   );

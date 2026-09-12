@@ -32,7 +32,7 @@ A fresh migration run exposed PostgreSQL's rule that newly added enum values can
 
 ## Chromium browser coverage
 
-`corepack pnpm test:e2e` performs a fresh database reset, executes the same supported-service golden workflow, starts the Next.js server at `127.0.0.1:3417`, and runs Playwright with one worker and no retries. Desktop Chromium verifies real Better Auth login, invalid login, logout, protected routing, a restricted viewer, navigation across major ERP areas, and representative printable purchasing, sales, and financial pages. A Pixel 7 viewport project verifies the mobile navigation shell and reachable main content.
+`corepack pnpm test:e2e` performs a fresh database reset, executes the same supported-service golden workflow, starts the Next.js server at `127.0.0.1:3417`, and runs Playwright with one worker and no retries. Desktop Chromium verifies real Better Auth login, invalid login, logout, protected routing, a restricted viewer, navigation across major ERP areas, representative printable purchasing, sales, and financial pages, shared data-entry controls, quick-create preservation, read-only AR/AP workbenches, and first-class production transaction workbenches. A Pixel 7 viewport project verifies the mobile navigation shell and reachable main content.
 
 Locators use roles, labels, headings, and visible application text. There are no fixed sleeps. Failure screenshots, traces, and the HTML report are written to the operating-system temporary directory so runtime evidence does not dirty the repository.
 

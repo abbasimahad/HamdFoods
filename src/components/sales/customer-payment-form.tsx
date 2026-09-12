@@ -2,6 +2,10 @@
 
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
+import { FormActions } from "@/components/ui/form-actions";
+import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
+import type { QuickCreateReferences } from "@/components/quick-create/quick-create-fields";
+import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
 import type {
   CustomerPaymentRecord,
   CustomerPaymentReferences,
@@ -16,16 +20,29 @@ export function CustomerPaymentForm({
   invoices,
   initial,
   customerId,
+  quickCreateReferences,
+  cancelHref = "/sales/payments",
 }: {
   action: Action;
   references: CustomerPaymentReferences;
   invoices: readonly OpenInvoice[];
   initial?: CustomerPaymentRecord | undefined;
   customerId?: string | undefined;
+  quickCreateReferences?: QuickCreateReferences | undefined;
+  cancelHref?: string;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, { ok: false, message: "" });
   const [total, setTotal] = useState(initial?.totalAmount ?? "");
+  const [selectedCustomerId, setSelectedCustomerId] = useState(
+    initial?.customerId ?? customerId ?? "",
+  );
+  const [customerOptions, setCustomerOptions] = useState<QuickCreateOption[]>(() =>
+    references.customers.map((customer) => ({
+      value: customer.id,
+      label: `${customer.code} · ${customer.name}`,
+    })),
+  );
   const [allocations, setAllocations] = useState<Allocation[]>(
     () =>
       initial?.allocations.map((allocation) => ({
@@ -55,31 +72,49 @@ export function CustomerPaymentForm({
       }),
     );
   };
-  const selectedCustomerId = initial?.customerId ?? customerId ?? "";
   return (
     <form action={formAction} className="space-y-4">
       {initial && <input name="id" type="hidden" value={initial.id} />}
       <input name="customerId" type="hidden" value={selectedCustomerId} />
       <input name="allocationsJson" type="hidden" value={JSON.stringify(selected)} />
-      <label className="block text-sm font-medium">
-        Customer
+      <div className="block text-sm font-medium sm:max-w-xl">
+        <div className="flex items-end justify-between gap-2">
+          <label htmlFor="customer-payment-customer">Customer</label>
+          {!initial && quickCreateReferences ? (
+            <QuickCreateDialog
+              kind="customer"
+              label="Customer"
+              onCreated={(option) => {
+                setCustomerOptions((current) =>
+                  current.some((candidate) => candidate.value === option.value)
+                    ? current
+                    : [...current, option],
+                );
+                setSelectedCustomerId(option.value);
+              }}
+              references={quickCreateReferences}
+            />
+          ) : null}
+        </div>
         <select
-          className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3 sm:max-w-xl"
-          defaultValue={selectedCustomerId}
+          className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
           disabled={Boolean(initial)}
+          id="customer-payment-customer"
           onChange={(event) => {
+            setSelectedCustomerId(event.target.value);
             if (event.target.value)
               router.push(`/sales/payments/new?customer=${event.target.value}`);
           }}
+          value={selectedCustomerId}
         >
           <option value="">Select</option>
-          {references.customers.map((customer) => (
-            <option key={customer.id} value={customer.id}>
-              {customer.code} — {customer.name}
+          {customerOptions.map((customer) => (
+            <option key={customer.value} value={customer.value}>
+              {customer.label}
             </option>
           ))}
         </select>
-      </label>
+      </div>
       {(initial || invoices.length || !initial) && (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="text-sm font-medium">
@@ -222,13 +257,12 @@ export function CustomerPaymentForm({
       ) : (
         <p className="text-sm text-[var(--muted)]">Select a customer to load open invoices.</p>
       )}
-      <button
-        className="min-h-11 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+      <FormActions
+        cancelHref={cancelHref}
         disabled={pending}
-        type="submit"
-      >
-        {pending ? "Saving..." : initial ? "Save draft" : "Create draft"}
-      </button>
+        pendingLabel="Saving…"
+        submitLabel={initial ? "Save draft" : "Create draft"}
+      />
       {state.message && (
         <p aria-live="polite" className="text-sm text-red-700">
           {state.message}

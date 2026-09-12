@@ -10,6 +10,12 @@ import type {
   SupplierRecord,
 } from "@/modules/purchasing/application/contracts";
 import { formatMoney } from "@/modules/purchasing/domain/purchasing";
+import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
+import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
+import { LineEditorControls } from "@/components/ui/line-editor-controls";
+import { SingleFlightForm } from "@/components/ui/single-flight-form";
 
 import { initialPurchasingActionState, type PurchasingAction } from "./action-state";
 
@@ -45,7 +51,14 @@ export function PurchaseOrderForm({
   units: readonly PurchaseCatalogUnit[];
   initial?: PurchaseOrderRecord;
 }) {
-  const [state, formAction, pending] = useActionState(action, initialPurchasingActionState);
+  const [state, formAction] = useActionState(action, initialPurchasingActionState);
+  const [supplierId, setSupplierId] = useState(initial?.supplierId ?? "");
+  const [supplierOptions, setSupplierOptions] = useState<QuickCreateOption[]>(() =>
+    suppliers.map((supplier) => ({
+      value: supplier.id,
+      label: `${supplier.code} · ${supplier.name}`,
+    })),
+  );
   const [lines, setLines] = useState<DraftLine[]>(
     initial?.lines.map((line) => ({
       itemId: line.itemId,
@@ -67,26 +80,44 @@ export function PurchaseOrderForm({
       ),
     );
   return (
-    <form action={formAction} className="space-y-5">
+    <SingleFlightForm action={formAction} className="space-y-5">
       {initial && <input name="id" type="hidden" value={initial.id} />}
       <input name="linesJson" type="hidden" value={JSON.stringify(lines)} />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-sm font-medium">
-          Supplier
+        <div className="text-sm font-medium">
+          <div className="flex items-end justify-between gap-2">
+            <label htmlFor="purchase-order-supplier">Supplier</label>
+            {!initial ? (
+              <QuickCreateDialog
+                kind="supplier"
+                label="Supplier"
+                onCreated={(option) => {
+                  setSupplierOptions((current) =>
+                    current.some((candidate) => candidate.value === option.value)
+                      ? current
+                      : [...current, option],
+                  );
+                  setSupplierId(option.value);
+                }}
+              />
+            ) : null}
+          </div>
           <select
-            className="mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3"
-            defaultValue={initial?.supplierId ?? ""}
+            className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
+            id="purchase-order-supplier"
             name="supplierId"
+            onChange={(event) => setSupplierId(event.target.value)}
             required
+            value={supplierId}
           >
             <option value="">Select supplier</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>
-                {supplier.code} - {supplier.name}
+            {supplierOptions.map((supplier) => (
+              <option key={supplier.value} value={supplier.value}>
+                {supplier.label}
               </option>
             ))}
           </select>
-        </label>
+        </div>
         <Field
           label="Order date"
           name="orderDate"
@@ -194,16 +225,12 @@ export function PurchaseOrderForm({
                     {formatMoney(linePreview(line))}
                   </td>
                   <td className="p-2">
-                    <button
-                      className="text-xs text-red-700 disabled:opacity-40"
-                      disabled={lines.length === 1}
-                      onClick={() =>
+                    <LineEditorControls
+                      removeDisabled={lines.length === 1}
+                      onRemove={() =>
                         setLines((current) => current.filter((_, position) => position !== index))
                       }
-                      type="button"
-                    >
-                      Remove
-                    </button>
+                    />
                   </td>
                 </tr>
               );
@@ -212,13 +239,7 @@ export function PurchaseOrderForm({
         </table>
       </div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <button
-          className="min-h-11 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"
-          onClick={() => setLines((current) => [...current, emptyLine()])}
-          type="button"
-        >
-          Add line
-        </button>
+        <LineEditorControls onAdd={() => setLines((current) => [...current, emptyLine()])} />
         <dl className="grid min-w-72 grid-cols-2 gap-x-8 gap-y-2 text-sm">
           <dt>Subtotal</dt>
           <dd className="text-right">{formatMoney(totals.subtotal)}</dd>
@@ -231,24 +252,20 @@ export function PurchaseOrderForm({
         </dl>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-5 font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? "Saving..." : initial ? "Save draft" : "Create draft"}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
+        <FormActions
+          cancelHref={
+            initial ? `/purchasing/purchase-orders/${initial.id}` : "/purchasing/purchase-orders"
+          }
+          pendingLabel="Saving…"
+          submitLabel={initial ? "Save draft" : "Create draft"}
+        />
+        <ActionFeedback message={state.message} ok={state.ok} />
       </div>
       <p className="text-xs text-[var(--muted)]">
         Displayed totals are a live preview. The server revalidates references, normalizes
         quantities, and recalculates all authoritative totals.
       </p>
-    </form>
+    </SingleFlightForm>
   );
 }
 

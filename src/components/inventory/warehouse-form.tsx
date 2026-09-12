@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 
 import type { WarehouseRecord } from "@/modules/inventory/application/contracts";
 
@@ -27,20 +29,18 @@ export function WarehouseForm({
           name="description"
         />
       </label>
-      <div className="flex items-center gap-3 md:col-span-2 xl:col-span-4">
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? "Saving…" : initial ? "Save warehouse" : "Create warehouse"}
-        </button>
-        {state.message && (
-          <p className="text-sm" role="status">
-            {state.message}
-          </p>
-        )}
-      </div>
+      <FormActions
+        className="md:col-span-2 xl:col-span-4"
+        disabled={pending}
+        onCancel={(event) => event.currentTarget.form?.reset()}
+        pendingLabel="Saving…"
+        submitLabel={initial ? "Save warehouse" : "Create warehouse"}
+      />
+      <ActionFeedback
+        className="md:col-span-2 xl:col-span-4"
+        message={state.message}
+        ok={state.ok}
+      />
     </form>
   );
 }

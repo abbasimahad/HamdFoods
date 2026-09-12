@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { FormActions } from "@/components/ui/form-actions";
 import type { CustomerRecord, SalesReferenceData } from "@/modules/sales/application/contracts";
 import { initialSalesActionState, type SalesAction } from "./action-state";
 
@@ -129,20 +131,18 @@ export function CustomerForm({
           name="notes"
         />
       </label>
-      <div className="md:col-span-2 xl:col-span-3">
-        <button
-          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 font-semibold text-white disabled:opacity-60"
-          disabled={pending}
-          type="submit"
-        >
-          {pending ? "Saving..." : initial ? "Save customer" : "Create customer"}
-        </button>
-        {state.message && (
-          <span className="ml-3 text-sm" role="status">
-            {state.message}
-          </span>
-        )}
-      </div>
+      <FormActions
+        className="md:col-span-2 xl:col-span-3"
+        disabled={pending}
+        onCancel={(event) => event.currentTarget.form?.reset()}
+        pendingLabel="Saving…"
+        submitLabel={initial ? "Save customer" : "Create customer"}
+      />
+      <ActionFeedback
+        className="md:col-span-2 xl:col-span-3"
+        message={state.message}
+        ok={state.ok}
+      />
     </form>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
+import type { QuickCreateReferences } from "@/components/quick-create/quick-create-fields";
+import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
 import {
   calculateSalesOrderLine,
   calculateSalesOrderTotals,
@@ -12,6 +15,7 @@ import type {
   SalesOrderReferences,
 } from "@/modules/sales/application/sales-order-contracts";
 import { initialSalesOrderActionState, type SalesOrderAction } from "./sales-order-action-state";
+import { LineEditorControls } from "@/components/ui/line-editor-controls";
 
 type DraftLine = Omit<SalesOrderInput["lines"][number], "notes"> & { notes: string };
 const blank = (): DraftLine => ({
@@ -28,14 +32,28 @@ const blank = (): DraftLine => ({
 export function SalesOrderForm({
   action,
   references,
+  quickCreateReferences,
   initial,
 }: {
   action: SalesOrderAction;
   references: SalesOrderReferences;
+  quickCreateReferences?: QuickCreateReferences | undefined;
   initial?: SalesOrderRecord;
 }) {
   const [state, formAction, pending] = useActionState(action, initialSalesOrderActionState);
   const [customerId, setCustomerId] = useState(initial?.customerId ?? "");
+  const [customerOptions, setCustomerOptions] = useState<QuickCreateOption[]>(() =>
+    references.customers.map((candidate) => ({
+      value: candidate.id,
+      label: `${candidate.code} · ${candidate.name}`,
+    })),
+  );
+  const [productOptions, setProductOptions] = useState<QuickCreateOption[]>(() =>
+    references.items.map((candidate) => ({
+      value: candidate.id,
+      label: `${candidate.code} · ${candidate.name}`,
+    })),
+  );
   const [lines, setLines] = useState<DraftLine[]>(
     initial?.lines.map((line) => ({
       itemId: line.itemId,
@@ -69,23 +87,37 @@ export function SalesOrderForm({
       {initial && <input name="id" type="hidden" value={initial.id} />}
       <input name="linesJson" type="hidden" value={JSON.stringify(lines)} />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-sm font-medium">
-          Customer
+        <div className="text-sm font-medium">
+          <div className="flex items-end justify-between gap-2">
+            <label htmlFor="sales-order-customer">Customer</label>
+            {quickCreateReferences ? (
+              <QuickCreateDialog
+                kind="customer"
+                label="Customer"
+                onCreated={(option) => {
+                  setCustomerOptions((current) => appendOption(current, option));
+                  setCustomerId(option.value);
+                }}
+                references={quickCreateReferences}
+              />
+            ) : null}
+          </div>
           <select
-            className="mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3"
-            defaultValue={customerId}
+            className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
+            id="sales-order-customer"
             name="customerId"
             onChange={(event) => setCustomerId(event.target.value)}
             required
+            value={customerId}
           >
             <option value="">Select customer</option>
-            {references.customers.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.code} - {candidate.name}
+            {customerOptions.map((candidate) => (
+              <option key={candidate.value} value={candidate.value}>
+                {candidate.label}
               </option>
             ))}
           </select>
-        </label>
+        </div>
         <label className="text-sm font-medium">
           Sales warehouse
           <select
@@ -168,6 +200,19 @@ export function SalesOrderForm({
               return (
                 <tr key={index}>
                   <td className="p-2">
+                    {quickCreateReferences?.categories ? (
+                      <div className="mb-2 flex justify-end">
+                        <QuickCreateDialog
+                          kind="product"
+                          label="Product"
+                          onCreated={(option) => {
+                            setProductOptions((current) => appendOption(current, option));
+                            update(index, "itemId", option.value);
+                          }}
+                          references={quickCreateReferences}
+                        />
+                      </div>
+                    ) : null}
                     <select
                       className="min-h-10 w-64 rounded-lg border border-[var(--border)] bg-white px-2"
                       value={line.itemId}
@@ -175,9 +220,9 @@ export function SalesOrderForm({
                       required
                     >
                       <option value="">Select finished good</option>
-                      {references.items.map((candidate) => (
-                        <option key={candidate.id} value={candidate.id}>
-                          {candidate.code} - {candidate.name}
+                      {productOptions.map((candidate) => (
+                        <option key={candidate.value} value={candidate.value}>
+                          {candidate.label}
                         </option>
                       ))}
                     </select>
@@ -211,16 +256,12 @@ export function SalesOrderForm({
                     </span>
                   </td>
                   <td className="p-2">
-                    <button
-                      className="text-xs text-red-700"
-                      disabled={lines.length === 1}
-                      onClick={() =>
+                    <LineEditorControls
+                      removeDisabled={lines.length === 1}
+                      onRemove={() =>
                         setLines((current) => current.filter((_, position) => position !== index))
                       }
-                      type="button"
-                    >
-                      Remove
-                    </button>
+                    />
                   </td>
                 </tr>
               );
@@ -229,13 +270,7 @@ export function SalesOrderForm({
         </table>
       </div>
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
-        <button
-          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"
-          onClick={() => setLines((current) => [...current, blank()])}
-          type="button"
-        >
-          Add line
-        </button>
+        <LineEditorControls onAdd={() => setLines((current) => [...current, blank()])} />
         <dl className="grid min-w-72 grid-cols-2 gap-x-8 gap-y-2 text-sm">
           <dt>Subtotal</dt>
           <dd className="text-right">{formatSalesMoney(totals.subtotal)}</dd>
@@ -328,4 +363,10 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
 }
 function dateValue(date: Date) {
   return new Date(date).toISOString().slice(0, 10);
+}
+
+function appendOption(current: readonly QuickCreateOption[], option: QuickCreateOption) {
+  return current.some((candidate) => candidate.value === option.value)
+    ? [...current]
+    : [...current, option];
 }
