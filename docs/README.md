@@ -33,3 +33,8 @@ This directory is the durable source of project context. Read only the documents
 
 - [`decisions/README.md`](decisions/README.md): accepted architectural decisions
 - [`phases/current.md`](phases/current.md): active phase, evidence, and next gate
+- [`testing/workflow-inventory.md`](testing/workflow-inventory.md): authoritative sidebar/workflow completion classification
+- [`testing/runtime-action-audit.md`](testing/runtime-action-audit.md): active-action audit (no known broken active action)
+- [`testing/runtime-performance-baseline.md`](testing/runtime-performance-baseline.md): representative route timing baseline
+- `specs/`: point-in-time design specs requiring approval before implementation (e.g. Purchase Invoices, Administration Settings)
+- `plans/`: point-in-time phase implementation plans

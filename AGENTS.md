@@ -1,6 +1,6 @@
 # Factory ERP
 
-Production-oriented food manufacturing ERP, currently at the Phase 1 foundation. It is a TypeScript modular monolith: Next.js presentation, module-owned application/domain code, server infrastructure, Prisma, and PostgreSQL.
+Production-oriented food manufacturing ERP. Phases 1-32 plus the Reprocess/Waste & Damage, Purchase Invoices, and Administration Settings closures are complete; all 58 sidebar workflows are `COMPLETE` (see `docs/testing/workflow-inventory.md`). Phase 33 is not started. It is a TypeScript modular monolith: Next.js presentation, module-owned application/domain code, server infrastructure, Prisma, and PostgreSQL.
 
 Verify with `pnpm verify`; use `pnpm test` for focused tests and `pnpm db:check` for live database connectivity. Local setup is in `README.md`.
 
