@@ -8,10 +8,12 @@ import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { LogoutButton } from "@/components/auth/logout-button";
 
 export function TopHeader({
+  companyName,
   menuButtonRef,
   onOpenMenu,
   principal,
 }: {
+  companyName: string;
   menuButtonRef: RefObject<HTMLButtonElement | null>;
   onOpenMenu: () => void;
   principal: ApplicationPrincipal;
@@ -29,7 +31,7 @@ export function TopHeader({
           <Icon className="size-5" name="menu" />
         </button>
         <div className="hidden min-w-0 min-[430px]:block">
-          <p className="truncate text-sm font-semibold text-[var(--ink)]">Hamd ERP</p>
+          <p className="truncate text-sm font-semibold text-[var(--ink)]">{companyName}</p>
           <p className="hidden truncate text-xs text-[var(--muted)] sm:block">
             Food manufacturing ERP
           </p>

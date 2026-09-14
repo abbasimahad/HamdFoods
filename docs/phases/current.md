@@ -1,5 +1,28 @@
 # Current phase
 
+## Administration Settings
+
+**Status:** COMPLETE
+
+### Implemented boundary
+
+- `/administration/settings` owns exactly one genuine, previously-unowned surface: the Company/Factory Profile (legal name, address, city, phone, email, tax registration number), per `docs/specs/2026-09-14-administration-settings-design.md` (D1-D5 approved as recommended). Everything else considered during design inspection already had an owner (accounting mappings/periods, users, roles, audit, master data) or was explicitly rejected as out of scope (document numbering, session/auth policy, backup schedule, logo upload, PWA manifest).
+- Persisted as a `CompanyProfile` singleton row (`id: "default"`), the same convention already used by `AccountingSettings`. Gated end-to-end by a new `settings.manage` permission (default `SUPER_ADMIN`/`ADMIN` only); every save writes one audited `AuditEvent` (`entityType: COMPANY_PROFILE`) with before/after snapshots.
+- Printed documents (purchase orders, sales orders/invoices/dispatches/returns/payments, expense vouchers, treasury transfers) and the authenticated shell header now render the saved profile live at request time, replacing the previously hardcoded `"Hamd Foods ERP"` string in 11+ files. Presentation only: does not read or write inventory, valuation, accounting mappings, accounting periods, RBAC, posted documents, production costing, or tax authority.
+- The migration seeds the singleton row with `legalName: "Hamd Foods ERP"`, so production deployment produced zero visible change until an administrator explicitly edits it.
+
+### Current evidence
+
+- Domain unit tests: 7/7. Application-layer unit tests: 4/4. `pnpm verify`: PASS — Prettier, ESLint, Prisma validate/generate, 351 unit tests passed with 2 skips, TypeScript, and the 92-page Next production build.
+- Disposable PostgreSQL integration (3 new tests): seeded default row is a true singleton; save records exactly one audit event with before/after snapshots and never creates a second row; saving the profile leaves inventory movement/valuation, accounting journal, accounting mapping, and role-permission counts unchanged. Full disposable-DB run: 43 passed / 1 intentional infrastructure-gated skip.
+- Disposable-DB Chromium E2E (2 new tests): an administrator edits and persists the company profile; a view-only identity is denied the route. Full E2E run: 34/34, one worker, zero retries. (A locale-dependent `Date#toLocaleString()` hydration-mismatch risk was found and fixed during this work — see Documentation drift / fixes below.)
+- Production: verified backup taken, migration `20260914185802_administration_settings_company_profile` applied (42/42 migrations current), `HamdFoodsERP` task restarted, health `200 {"status":"ok"}`, both new routes (`/administration/settings`, `/purchasing/purchase-invoices`) confirmed loading without a server error, no error/fatal/exception in recent logs, loopback-only listeners confirmed for both the app and PostgreSQL.
+
+### Fixes made alongside this work
+
+- **Hydration-mismatch risk removed:** `Date#toLocaleString()` reads the runtime's default locale, which can differ between the Node SSR process and the browser. This was found (via a reproducible E2E failure) in the new Company Profile form and, on inspection, also already present in the Purchase Invoice detail page (`postedAt`/`reversedAt`). Both were fixed with a new deterministic `formatDateTimeUtc()` helper (`src/components/ui/format-datetime.ts`). Twenty-two other pre-existing files use the same `.toLocaleString()` pattern; none have ever shown this failure across this project's full certified test history, so they were deliberately left untouched rather than speculatively rewritten.
+- Workflow inventory reconciled to 58 `COMPLETE`, 0 `PARTIAL`, 0 `MISSING` — every sidebar entry is now complete.
+
 ## Purchase Invoices
 
 **Status:** COMPLETE
@@ -243,7 +266,7 @@
 
 ## Workflow inventory
 
-The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 58 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 0 `PARTIAL`, and 1 `MISSING` across all 58 sidebar entries. Receivables, Payables, Material Issues, Packaging Consumption, Reprocess, Waste & Damage, and Purchase Invoices are active first-class workbenches; the duplicate Journal Vouchers entry was removed. One legitimate planned label remains: Administration Settings is `MISSING` and has not been specified or implemented.
+The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 58 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 0 `PARTIAL`, and 0 `MISSING` across all 58 sidebar entries. Every sidebar workflow, including Receivables, Payables, Material Issues, Packaging Consumption, Reprocess, Waste & Damage, Purchase Invoices, and Administration Settings, is now a complete, tested, first-class workbench. The duplicate Journal Vouchers entry was removed.
 
 ## Navigation and Data Entry UX closure
 
@@ -257,8 +280,8 @@ The final sidebar/workflow classification is recorded in `docs/testing/workflow-
 
 ## Next gate
 
-**Next subproject: ADMINISTRATION SETTINGS SPECIFICATION. Phase 33 is NOT STARTED.** Administration Settings is the sole remaining `MISSING` workflow; it needs a product specification (what belongs under it, and confirmation it does not duplicate existing accounting mappings/periods, inventory authority, or user/RBAC administration) before any implementation. Do not infer or build it from the route label alone. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
+**All 58 sidebar workflows are COMPLETE. Phase 33 is NOT STARTED.** With Purchase Invoices and Administration Settings closed, the functional workflow inventory is exhausted: 0 `PARTIAL`, 0 `MISSING`. The documented next steps are full functional UAT, production/manual workflow UAT, and re-certification of the complete ERP, followed by Phase 33 (not yet scoped or started). Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
 
-### Production deployment note (2026-09-14)
+### Production deployment note (resolved 2026-09-14)
 
-Purchase Invoices' code and disposable-DB verification are complete (see above). The corresponding production migration (`20260914170607_purchase_invoices_matching_variance`) was **not applied to production** in this session — the environment's own permission control explicitly blocked the production-migrate action, and the subsequent attempt to revert the already-rebuilt production deployment back to the prior consistent build was also blocked. The production `HamdFoodsERP` task was left **stopped** (the safe state: not serving code that expects unmigrated tables) pending an operator decision. A verified pre-change backup (`hamd_foods_erp_prod_drill-20260914T175438645Z-ad60729b.dump`) was taken before the blocked migration attempt. Before the next production start, either apply `prisma migrate deploy` against production (bringing the schema in line with the already-built code) or rebuild/redeploy the prior commit's code (keeping schema and code in sync) — do not start the task with the current build against the unmigrated database.
+The production-migrate action was initially blocked by this environment's own permission control (see the original incident record in `progress.md`). On retry it succeeded: `prisma migrate deploy` applied `20260914170607_purchase_invoices_matching_variance` cleanly, the `HamdFoodsERP` task was restarted, and health/listener/route checks all passed with zero business-data mutation beyond the additive schema change. Production is fully synced as of this closure.

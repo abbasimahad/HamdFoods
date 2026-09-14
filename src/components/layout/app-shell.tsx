@@ -9,7 +9,7 @@ import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { SidebarNavigation } from "./sidebar-navigation";
 import { TopHeader } from "./top-header";
 
-function Brand({ compact = false }: { compact?: boolean }) {
+function Brand({ compact = false, companyName }: { compact?: boolean; companyName: string }) {
   return (
     <div
       className={`flex h-16 items-center gap-3 border-b border-[var(--sidebar-border)] px-4 ${compact ? "justify-center" : ""}`}
@@ -19,7 +19,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
       </span>
       {!compact && (
         <span>
-          <span className="block text-sm font-bold text-white">Hamd Foods ERP</span>
+          <span className="block truncate text-sm font-bold text-white">{companyName}</span>
           <span className="block text-[0.6875rem] text-[var(--sidebar-muted)]">
             Operations control
           </span>
@@ -31,9 +31,11 @@ function Brand({ compact = false }: { compact?: boolean }) {
 
 export function AppShell({
   children,
+  companyName,
   principal,
 }: {
   children: ReactNode;
+  companyName: string;
   principal: ApplicationPrincipal;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -96,7 +98,7 @@ export function AppShell({
       <aside
         className={`erp-chrome fixed inset-y-0 left-0 z-30 hidden flex-col bg-[var(--sidebar)] transition-[width] duration-200 lg:flex ${collapsed ? "w-20" : "w-72"}`}
       >
-        <Brand compact={collapsed} />
+        <Brand companyName={companyName} compact={collapsed} />
         <SidebarNavigation collapsed={collapsed} principal={principal} />
         <div className="border-t border-[var(--sidebar-border)] p-3">
           <button
@@ -127,7 +129,7 @@ export function AppShell({
             role="dialog"
           >
             <div className="flex items-center justify-between border-b border-[var(--sidebar-border)] pr-3">
-              <Brand />
+              <Brand companyName={companyName} />
               <button
                 aria-label="Close navigation menu"
                 className="grid size-11 place-items-center rounded-lg text-[var(--sidebar-muted)] outline-none hover:bg-[var(--sidebar-hover)] hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus)]"
@@ -150,6 +152,7 @@ export function AppShell({
       >
         <div className="erp-chrome">
           <TopHeader
+            companyName={companyName}
             menuButtonRef={menuButtonRef}
             onOpenMenu={() => setMobileOpen(true)}
             principal={principal}

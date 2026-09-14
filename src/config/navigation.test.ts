@@ -87,7 +87,11 @@ describe("application navigation", () => {
       status: "active",
       permission: "purchasing.view",
     });
-    expect(children.Settings?.status).toBe("planned");
+    expect(children.Settings).toMatchObject({
+      href: "/administration/settings",
+      status: "active",
+      permission: "settings.manage",
+    });
     expect(children.Reprocess).toMatchObject({ status: "active" });
     expect(children["Waste & Damage"]).toMatchObject({ status: "active" });
   });

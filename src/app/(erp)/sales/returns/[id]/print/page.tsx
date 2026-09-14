@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { PrintCompanyHeader } from "@/components/administration/print-company-header";
+import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesReturnRepository } from "@/server/sales/prisma-sales-return-repository";
 export default async function PrintSalesReturnPage({
@@ -7,10 +9,14 @@ export default async function PrintSalesReturnPage({
   params: Promise<{ id: string }>;
 }) {
   await requirePermission("sales.view");
-  const salesReturn = await new PrismaSalesReturnRepository().getSalesReturn((await params).id);
+  const [salesReturn, companyProfile] = await Promise.all([
+    new PrismaSalesReturnRepository().getSalesReturn((await params).id),
+    new PrismaCompanyProfileRepository().getCompanyProfile(),
+  ]);
   if (!salesReturn) notFound();
   return (
     <main className="mx-auto max-w-4xl p-8 text-sm print:p-0">
+      <PrintCompanyHeader profile={companyProfile} />
       <h1 className="text-2xl font-bold">Sales Return Note — {salesReturn.number}</h1>
       <p className="mt-2">
         Customer: {salesReturn.customerName} · Date: {salesReturn.returnAt.toLocaleDateString()} ·

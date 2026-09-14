@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
+import { PrintCompanyHeader } from "@/components/administration/print-company-header";
+import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesInvoiceRepository } from "@/server/sales/prisma-sales-invoice-repository";
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("sales.view");
-  const x = await new PrismaSalesInvoiceRepository().getSalesInvoice((await params).id);
+  const [x, companyProfile] = await Promise.all([
+    new PrismaSalesInvoiceRepository().getSalesInvoice((await params).id),
+    new PrismaCompanyProfileRepository().getCompanyProfile(),
+  ]);
   if (!x) notFound();
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-black print:p-0">
+      <PrintCompanyHeader profile={companyProfile} />
       <header className="mb-6 flex justify-between border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold">Sales Invoice</h1>

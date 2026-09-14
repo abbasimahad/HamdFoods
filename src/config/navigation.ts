@@ -111,10 +111,6 @@ export type NavigationItem = {
   children?: readonly NavigationChild[];
 };
 
-function planned(label: string, href: string): NavigationChild {
-  return { label, href, status: "planned" };
-}
-
 function active(label: string, href: string, permission: PermissionCode): NavigationChild {
   return { label, href, status: "active", permission };
 }
@@ -245,7 +241,7 @@ export const appNavigation: readonly NavigationItem[] = [
     label: "Administration",
     href: routes.administration,
     icon: "administration",
-    anyPermissions: ["users.view", "users.manage", "roles.manage", "audit.view"],
+    anyPermissions: ["users.view", "users.manage", "roles.manage", "audit.view", "settings.manage"],
     children: [
       {
         label: "Users",
@@ -259,7 +255,7 @@ export const appNavigation: readonly NavigationItem[] = [
         status: "active",
         permission: "roles.manage",
       },
-      planned("Settings", routes.future.administration.settings),
+      active("Settings", routes.future.administration.settings, "settings.manage"),
       active("Audit Log", routes.future.administration.auditLog, "audit.view"),
     ],
   },

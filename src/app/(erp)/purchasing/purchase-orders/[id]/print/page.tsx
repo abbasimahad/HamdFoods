@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { formatMoney } from "@/modules/purchasing/domain/purchasing";
+import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaPurchasingRepository } from "@/server/purchasing/prisma-purchasing-repository";
 
@@ -10,7 +11,10 @@ export default async function PrintPurchaseOrderPage({
   params: Promise<{ id: string }>;
 }) {
   await requirePermission("purchasing.view");
-  const order = await new PrismaPurchasingRepository().getPurchaseOrder((await params).id);
+  const [order, companyProfile] = await Promise.all([
+    new PrismaPurchasingRepository().getPurchaseOrder((await params).id),
+    new PrismaCompanyProfileRepository().getCompanyProfile(),
+  ]);
   if (!order) notFound();
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-slate-950 print:max-w-none print:p-0">
@@ -19,8 +23,18 @@ export default async function PrintPurchaseOrderPage({
       </div>
       <header className="mb-8 flex justify-between border-b-2 border-slate-900 pb-5">
         <div>
-          <h1 className="text-2xl font-bold">Hamd Foods ERP</h1>
+          <h1 className="text-2xl font-bold">{companyProfile.legalName}</h1>
           <p>Purchase Order</p>
+          {(companyProfile.address || companyProfile.city) && (
+            <p className="text-xs text-slate-600">
+              {[companyProfile.address, companyProfile.city].filter(Boolean).join(", ")}
+            </p>
+          )}
+          {companyProfile.taxRegistrationNo && (
+            <p className="text-xs text-slate-600">
+              Tax registration: {companyProfile.taxRegistrationNo}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <strong className="text-xl">{order.number}</strong>

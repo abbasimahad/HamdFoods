@@ -1,13 +1,19 @@
 import { notFound } from "next/navigation";
+import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { formatSalesMoney } from "@/modules/sales/domain/sales-orders";
+import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesOrderRepository } from "@/server/sales/prisma-sales-order-repository";
 export default async function PrintSalesOrderPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("sales.view");
-  const order = await new PrismaSalesOrderRepository().getSalesOrder((await params).id);
+  const [order, companyProfile] = await Promise.all([
+    new PrismaSalesOrderRepository().getSalesOrder((await params).id),
+    new PrismaCompanyProfileRepository().getCompanyProfile(),
+  ]);
   if (!order) notFound();
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-black print:max-w-none print:p-0">
+      <PrintCompanyHeader profile={companyProfile} />
       <header className="mb-8 flex justify-between border-b pb-5">
         <div>
           <h1 className="text-2xl font-bold">Sales Order</h1>

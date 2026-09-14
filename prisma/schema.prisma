@@ -479,6 +479,7 @@ enum AuditEntityType {
   REPROCESS_DOCUMENT
   WASTE_DISPOSITION
   PURCHASE_INVOICE
+  COMPANY_PROFILE
 }
 
 enum AuditReasonCode {
@@ -710,6 +711,7 @@ model User {
   purchaseInvoicesPosted       PurchaseInvoice[]               @relation("PurchaseInvoicePostedBy")
   purchaseInvoicesCancelled    PurchaseInvoice[]               @relation("PurchaseInvoiceCancelledBy")
   purchaseInvoicesReversed     PurchaseInvoice[]               @relation("PurchaseInvoiceReversedBy")
+  companyProfileUpdates        CompanyProfile[]                @relation("CompanyProfileUpdatedBy")
 
   @@map("user")
 }
@@ -2912,6 +2914,22 @@ model AccountingSettings {
   mappings             AccountingAccountMapping[]
 
   @@map("accounting_settings")
+}
+
+model CompanyProfile {
+  id                String   @id @default("default")
+  legalName         String
+  address           String?
+  city              String?
+  phone             String?
+  email             String?
+  taxRegistrationNo String?
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  updatedBy         User?    @relation("CompanyProfileUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("company_profile")
 }
 
 model AccountingAccountMapping {

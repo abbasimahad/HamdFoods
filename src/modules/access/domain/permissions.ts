@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   "users.manage",
   "roles.manage",
   "audit.view",
+  "settings.manage",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number];
@@ -42,4 +43,5 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<PermissionCode, string>> =
   "users.manage": "Create users and manage user access",
   "roles.manage": "Manage role permission mappings",
   "audit.view": "View audit history",
+  "settings.manage": "Manage company/factory profile settings",
 };

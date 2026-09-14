@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { PrintCompanyHeader } from "@/components/administration/print-company-header";
+import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesDispatchRepository } from "@/server/sales/prisma-sales-dispatch-repository";
 export default async function PrintSalesDispatchPage({
@@ -7,10 +9,14 @@ export default async function PrintSalesDispatchPage({
   params: Promise<{ id: string }>;
 }) {
   await requirePermission("sales.view");
-  const dispatch = await new PrismaSalesDispatchRepository().getSalesDispatch((await params).id);
+  const [dispatch, companyProfile] = await Promise.all([
+    new PrismaSalesDispatchRepository().getSalesDispatch((await params).id),
+    new PrismaCompanyProfileRepository().getCompanyProfile(),
+  ]);
   if (!dispatch) notFound();
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-black print:max-w-none print:p-0">
+      <PrintCompanyHeader profile={companyProfile} />
       <header className="mb-8 flex justify-between border-b pb-5">
         <div>
           <h1 className="text-2xl font-bold">Delivery Note / Gate Pass</h1>
