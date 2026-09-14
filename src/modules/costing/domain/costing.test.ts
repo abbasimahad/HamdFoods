@@ -11,6 +11,7 @@ describe("exact costing", () => {
   it("calculates the finished-goods pool and actual output costs", () => {
     expect(
       calculateProductionCostTotals({
+        reprocessSourceCost: "0",
         rawMaterialCost: "100000",
         packagingCost: "20000",
         additionalCosts: ["20000", "5000", "3000", "7000", "2000"],
@@ -23,6 +24,20 @@ describe("exact costing", () => {
       costPerPiece: "64.352243861135",
       costPerCarton: "1544.453853",
     });
+  });
+
+  it("capitalizes source finished-good value into a reprocess output without duplicating it", () => {
+    expect(
+      calculateProductionCostTotals({
+        reprocessSourceCost: "500",
+        rawMaterialCost: "10",
+        packagingCost: "5",
+        additionalCosts: ["20"],
+        credits: "0",
+        actualGoodPieces: "1",
+        piecesPerCarton: 24,
+      }),
+    ).toMatchObject({ finishedGoodsCostPool: "535.000000", costPerPiece: "535.000000000000" });
   });
 
   it("derives carton cost from authoritative piece cost", () => {

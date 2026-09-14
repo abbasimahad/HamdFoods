@@ -98,6 +98,6 @@ Actions listed above are rendered only when their permission and record-state pr
 
 ## Reconciled workbenches
 
-Receivables, Payables, Material Issues, and Packaging Consumption are active routes with list/detail and authorized create/payment launch actions. Material and packaging routes reuse their batch engines; the subledger routes remain read-only and launch existing payment engines. Journal Vouchers was removed as a duplicate of Manual Journals. Only Purchase Invoices, Reprocess, Waste & Damage, and Administration Settings remain labelled `planned` and are outside this implementation boundary.
+Receivables, Payables, Material Issues, Packaging Consumption, Reprocess, and Waste & Damage are active routes with their authorized lifecycle actions. Material, packaging, and Reprocess reuse the authoritative production engines; the subledger routes remain read-only and launch existing payment engines. Journal Vouchers was removed as a duplicate of Manual Journals. Only Purchase Invoices and Administration Settings remain labelled `planned` and outside the completed boundary.
 
 No active action is classified `DEFECT` by the current runtime evidence.

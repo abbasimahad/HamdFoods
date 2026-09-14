@@ -1,5 +1,27 @@
 # Current phase
 
+## Partial Workflows - Reprocess and Waste & Damage closure
+
+**Status:** COMPLETE
+
+### Implemented boundary
+
+- Reprocess now controls eligible finished-good custody through DRAFT, reservation, physical WIP consumption, one linked `REPROCESS` production batch, a distinct child lot, conservative policy-bounded expiry, yield reconciliation, finalized costing, and independent quality release/rejection.
+- Waste & Damage now provides lot-specific multi-line DRAFT, POSTED, CANCELLED, and safe REVERSED dispositions for `MOVE_TO_SCRAP`, `MOVE_TO_REPROCESS`, and `WRITE_OFF` without creating Reprocess production/output records prematurely.
+- Inventory movements, valuation entries, accounting journals, genealogy, actors, reasons, dates, and reversals are immutable. WRITE_OFF reversal restores the original write-off value with compensating entries and rejects downstream-used custody.
+- Searchable/filterable responsive workbenches expose permission-safe lifecycle actions. Reprocess QC requires `quality.manage` and forbids initiator/completer self-review even for administrators.
+- Purchase Invoices and Administration Settings remain the only two `MISSING` workflows and were not changed. Phase 33 is not started.
+
+### Current evidence
+
+- Focused Task H tests: 15/15 passed; focused Task I tests: 17/17 passed.
+- Disposable PostgreSQL integration: 27 passed / 1 intentional infrastructure-gated skip; all 40 migrations applied with no concurrent-query warning.
+- Chromium E2E: 30/30 passed using one worker and zero retries, including edit/reserve/start, linked batch, independent QC, Waste post/reversal, filters, and 375/768/1280 containment.
+- `pnpm verify`: PASS - Prettier, ESLint, Prisma validate/generate, 309 unit tests passed with 2 skips, TypeScript, and the 89-page Next production build.
+- Final traced integration: PASS - 27 passed / 1 intentional infrastructure-gated skip; no PostgreSQL concurrent-query or deprecation warning.
+- Final disposable E2E: PASS - 30/30, one worker, zero retries; no destination-stream, Node/server, hydration, or browser application errors.
+- Production preflight, loopback PostgreSQL connectivity, task restart, `127.0.0.1:3100` listener, and health check passed. Production migration/deployment and Git synchronization use the established backup-first closure procedure.
+
 ## Phase 32 - Native Windows Installer and Factory-PC Setup
 
 **Status:** COMPLETE

@@ -72,6 +72,7 @@ export default async function BatchCostingPage({ params }: { params: Promise<{ i
         )}
       </Card>
       <Card className="mt-5 grid gap-4 p-5 md:grid-cols-3 xl:grid-cols-5">
+        <Info label="Reprocess source cost" value={formatCost(costing.reprocessSourceCost)} />
         <Info label="Raw material cost" value={formatCost(costing.rawMaterialCost)} />
         <Info label="Packaging cost" value={formatCost(costing.packagingCost)} />
         <Info label="Additional cost" value={formatCost(costing.additionalCost)} />

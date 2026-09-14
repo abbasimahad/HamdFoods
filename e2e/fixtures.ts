@@ -1,8 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 
-import { PHASE27_ADMIN, PHASE27_VIEWER } from "../src/test/test-environment";
+import { PHASE27_ADMIN, PHASE27_QUALITY, PHASE27_VIEWER } from "../src/test/test-environment";
 
-export type E2eIdentity = typeof PHASE27_ADMIN | typeof PHASE27_VIEWER;
+export type E2eIdentity = typeof PHASE27_ADMIN | typeof PHASE27_VIEWER | typeof PHASE27_QUALITY;
 
 export async function login(page: Page, identity: E2eIdentity = PHASE27_ADMIN) {
   await page.goto("/login");

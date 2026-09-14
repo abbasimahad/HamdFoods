@@ -30,6 +30,7 @@ const batchInclude = {
   createdBy: true,
   releasedBy: true,
   cancelledBy: true,
+  reprocessDocument: { select: { id: true } },
   materialRequirements: {
     include: { item: true, canonicalUnit: true },
     orderBy: { sequence: "asc" as const },
@@ -91,34 +92,9 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
 
   async createBatch(input: ProductionBatchInput) {
     const prepared = await prepare(input);
-    return serializable(async (transaction) => {
-      await validateReferences(transaction, input, prepared.header.recipeId);
-      await validateLifecycleReferences(transaction, {
-        recipeId: prepared.header.recipeId,
-        rawMaterialWarehouseId: input.rawMaterialWarehouseId,
-        packagingWarehouseId: input.packagingWarehouseId,
-        finishedGoodsDestinationWarehouseId: input.finishedGoodsDestinationWarehouseId,
-        materialRequirements: prepared.materialRequirements,
-      });
-      const batchNumber = await nextBatchNumber(transaction);
-      return (
-        await transaction.productionBatch.create({
-          data: {
-            batchNumber,
-            ...prepared.header,
-            plannedProductionDate: requiredDate(input.plannedProductionDate, "production date"),
-            targetCompletionDate: optionalDate(input.targetCompletionDate, "target completion"),
-            rawMaterialWarehouseId: input.rawMaterialWarehouseId,
-            packagingWarehouseId: input.packagingWarehouseId,
-            finishedGoodsDestinationWarehouseId: input.finishedGoodsDestinationWarehouseId,
-            notes: input.notes ?? null,
-            createdByUserId: input.actorUserId,
-            materialRequirements: { create: [...prepared.materialRequirements] },
-            packagingRequirements: { create: [...prepared.packagingRequirements] },
-          },
-        })
-      ).id;
-    });
+    return serializable((transaction) =>
+      createPreparedProductionBatch(transaction, input, prepared, "NORMAL"),
+    );
   }
 
   async updateBatch(input: ProductionBatchInput & { id: string }) {
@@ -345,6 +321,47 @@ async function prepare(input: ProductionBatchInput) {
   }
 }
 
+export type PreparedProductionBatch = Awaited<ReturnType<typeof prepare>>;
+
+export async function prepareProductionBatch(input: ProductionBatchInput) {
+  return prepare(input);
+}
+
+export async function createPreparedProductionBatch(
+  transaction: Prisma.TransactionClient,
+  input: ProductionBatchInput,
+  prepared: PreparedProductionBatch,
+  batchType: "NORMAL" | "REPROCESS",
+) {
+  await validateReferences(transaction, input, prepared.header.recipeId);
+  await validateLifecycleReferences(transaction, {
+    recipeId: prepared.header.recipeId,
+    rawMaterialWarehouseId: input.rawMaterialWarehouseId,
+    packagingWarehouseId: input.packagingWarehouseId,
+    finishedGoodsDestinationWarehouseId: input.finishedGoodsDestinationWarehouseId,
+    materialRequirements: prepared.materialRequirements,
+  });
+  const batchNumber = await nextBatchNumber(transaction);
+  return (
+    await transaction.productionBatch.create({
+      data: {
+        batchNumber,
+        batchType,
+        ...prepared.header,
+        plannedProductionDate: requiredDate(input.plannedProductionDate, "production date"),
+        targetCompletionDate: optionalDate(input.targetCompletionDate, "target completion"),
+        rawMaterialWarehouseId: input.rawMaterialWarehouseId,
+        packagingWarehouseId: input.packagingWarehouseId,
+        finishedGoodsDestinationWarehouseId: input.finishedGoodsDestinationWarehouseId,
+        notes: input.notes ?? null,
+        createdByUserId: input.actorUserId,
+        materialRequirements: { create: [...prepared.materialRequirements] },
+        packagingRequirements: { create: [...prepared.packagingRequirements] },
+      },
+    })
+  ).id;
+}
+
 async function validateReferences(
   transaction: Prisma.TransactionClient,
   input: ProductionBatchInput,
@@ -540,6 +557,8 @@ async function mapBatch(row: BatchRow): Promise<ProductionBatchRecord> {
   return {
     id: row.id,
     batchNumber: row.batchNumber,
+    batchType: row.batchType,
+    reprocessDocumentId: row.reprocessDocument?.id ?? null,
     recipeId: row.recipeId,
     recipeCode: row.recipe.code,
     recipeName: row.recipe.name,

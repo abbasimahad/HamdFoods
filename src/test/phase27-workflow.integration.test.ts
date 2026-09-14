@@ -49,21 +49,74 @@ describe("Phase 27 database-backed golden workflow", () => {
       purchaseProgress.lines.find((line) => line.itemId === state.packagingItemId),
     ).toMatchObject({ acceptedQuantity: "100", remainingToFulfil: "0" });
 
+    const laterReprocessRawIssue = await prisma.inventoryMovement.aggregate({
+      where: {
+        itemId: state.rawItemId,
+        status: "AVAILABLE",
+        movementType: "PRODUCTION_ISSUE",
+        productionBatch: { batchType: "REPROCESS" },
+      },
+      _sum: { quantity: true },
+    });
     await expect(
       inventoryBalance(state.rawItemId, state.sourceWarehouseId, "AVAILABLE"),
-    ).resolves.toBe("7000");
+    ).resolves.toBe(
+      new Decimal(7000).add(laterReprocessRawIssue._sum.quantity?.toString() ?? "0").toFixed(),
+    );
     await expect(
       inventoryBalance(state.rawItemId, state.destinationWarehouseId, "AVAILABLE"),
     ).resolves.toBe("1000");
     await expect(
       inventoryBalance(state.rawItemId, state.sourceWarehouseId, "QUARANTINE"),
     ).resolves.toBe("1000");
+    const laterReprocessPackagingIssue = await prisma.inventoryMovement.aggregate({
+      where: {
+        itemId: state.packagingItemId,
+        status: "AVAILABLE",
+        movementType: "PACKAGING_ISSUE",
+        productionBatch: { batchType: "REPROCESS" },
+      },
+      _sum: { quantity: true },
+    });
     await expect(
       inventoryBalance(state.packagingItemId, state.sourceWarehouseId, "AVAILABLE"),
-    ).resolves.toBe("98");
-    await expect(
-      inventoryBalance(state.finishedItemId, state.sourceWarehouseId, "AVAILABLE"),
-    ).resolves.toBe("2");
+    ).resolves.toBe(
+      new Decimal(98).add(laterReprocessPackagingIssue._sum.quantity?.toString() ?? "0").toFixed(),
+    );
+    const [laterAvailableMovements, availableAfterControlledFlows] = await prisma.$transaction(
+      async (tx) =>
+        Promise.all([
+          tx.inventoryMovement.aggregate({
+            where: {
+              itemId: state.finishedItemId,
+              warehouseId: state.sourceWarehouseId,
+              status: "AVAILABLE",
+              referenceType: {
+                in: [
+                  "TEST_REPROCESS_FIXTURE",
+                  "TEST_REPROCESS_FIXTURE_REVERSAL",
+                  "TEST_WASTE_HANDOFF",
+                  "TEST_WASTE_FIXTURE",
+                  "REPROCESS_QC",
+                ],
+              },
+            },
+            _sum: { quantity: true },
+          }),
+          tx.inventoryMovement.aggregate({
+            where: {
+              itemId: state.finishedItemId,
+              warehouseId: state.sourceWarehouseId,
+              status: "AVAILABLE",
+            },
+            _sum: { quantity: true },
+          }),
+        ]),
+      { isolationLevel: "RepeatableRead" },
+    );
+    expect(
+      new Decimal(availableAfterControlledFlows._sum.quantity?.toString() ?? "0").toFixed(),
+    ).toBe(new Decimal(2).add(laterAvailableMovements._sum.quantity?.toString() ?? "0").toFixed());
     await expect(
       inventoryBalance(state.rawItemId, state.sourceWarehouseId, "IN_PRODUCTION"),
     ).resolves.toBe("0");
@@ -302,7 +355,18 @@ describe("Phase 27 database-backed golden workflow", () => {
     ]);
     expect(arGl.eq(customerLedger._sum.signedAmount?.toString() ?? "0")).toBe(true);
     expect(apGl.eq(supplierLedger._sum.signedAmount?.toString() ?? "0")).toBe(true);
-    expect(wipGl.isZero()).toBe(true);
+    const openProductionWip = await prisma.inventoryValuationEntry.aggregate({
+      where: {
+        entryType: {
+          in: ["REPROCESS_CONSUMPTION", "PRODUCTION_CONSUMPTION", "PACKAGING_CONSUMPTION"],
+        },
+        productionBatch: { productionCostSnapshot: null },
+      },
+      _sum: { valueDelta: true },
+    });
+    expect(wipGl.eq(new Decimal(openProductionWip._sum.valueDelta?.toString() ?? "0").abs())).toBe(
+      true,
+    );
     expect((await glBalance(bankAccount, "debit")).isZero()).toBe(true);
 
     const inventoryMappingKeys: readonly AccountingMappingKey[] = [

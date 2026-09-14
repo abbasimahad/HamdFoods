@@ -98,6 +98,7 @@ export type NavigationChild = {
   href: string;
   status: "planned" | "active";
   permission?: PermissionCode;
+  anyPermissions?: readonly PermissionCode[];
 };
 
 export type NavigationItem = {
@@ -116,6 +117,14 @@ function planned(label: string, href: string): NavigationChild {
 
 function active(label: string, href: string, permission: PermissionCode): NavigationChild {
   return { label, href, status: "active", permission };
+}
+
+function activeAny(
+  label: string,
+  href: string,
+  anyPermissions: readonly PermissionCode[],
+): NavigationChild {
+  return { label, href, status: "active", anyPermissions };
 }
 
 export const appNavigation: readonly NavigationItem[] = [
@@ -166,7 +175,7 @@ export const appNavigation: readonly NavigationItem[] = [
     label: "Production",
     href: routes.production,
     icon: "production",
-    permission: "production.view",
+    anyPermissions: ["production.view", "quality.manage", "inventory.view"],
     children: [
       active("Recipes / BOM", routes.future.production.recipes, "production.view"),
       active("Production Batches", routes.future.production.batches, "production.view"),
@@ -176,8 +185,11 @@ export const appNavigation: readonly NavigationItem[] = [
         routes.future.production.packagingConsumption,
         "production.view",
       ),
-      planned("Reprocess", routes.future.production.reprocess),
-      planned("Waste & Damage", routes.future.production.wasteDamage),
+      activeAny("Reprocess", routes.future.production.reprocess, [
+        "production.view",
+        "quality.manage",
+      ]),
+      activeAny("Waste & Damage", routes.future.production.wasteDamage, ["inventory.view"]),
     ],
   },
   {
@@ -265,7 +277,10 @@ export function getPermittedNavigation(principal: ApplicationPrincipal): readonl
         ? {
             ...item,
             children: item.children.filter(
-              (child) => !child.permission || hasPermission(principal, child.permission),
+              (child) =>
+                (!child.permission || hasPermission(principal, child.permission)) &&
+                (!child.anyPermissions ||
+                  child.anyPermissions.some((permission) => hasPermission(principal, permission))),
             ),
           }
         : item,

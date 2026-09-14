@@ -49,6 +49,7 @@ export type ItemRecord = {
     netContentUnitDimension: UnitDimension;
     netContentUnitActive: boolean;
     piecesPerCarton: number;
+    reprocessShelfLifeDays: number | null;
   } | null;
 };
 
@@ -85,6 +86,7 @@ export type ItemInput =
       netContentQuantity: string;
       netContentUnitId: string;
       piecesPerCarton: number;
+      reprocessShelfLifeDays?: number | undefined;
     });
 
 export type MasterDataRepository = {

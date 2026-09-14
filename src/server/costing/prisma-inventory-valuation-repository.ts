@@ -21,6 +21,7 @@ import {
   postHistoricalUnvaluedOutbound,
   postMissingValuationBasis,
   postValuedInbound,
+  postValuedInboundExact,
   postValuedOutbound,
   postValueAdjustment,
   resolveExhaustedValuationIssue,
@@ -524,6 +525,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
           productionBatchId: batch.id,
           productionLotId: batch.productionLot.id,
           status: "FINALIZED",
+          reprocessSourceCost: calculation.reprocessSourceCost,
           rawMaterialCost: calculation.rawMaterialCost,
           packagingCost: calculation.packagingCost,
           additionalCost: calculation.additionalCost,
@@ -545,10 +547,13 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
             "A posted good output is missing its physical movement.",
           );
         await postValuedInbound(tx, {
-          sourceKey: `PRODUCTION-OUTPUT:${output.id}`,
+          sourceKey:
+            batch.batchType === "REPROCESS"
+              ? `REPROCESS-OUTPUT:${output.id}`
+              : `PRODUCTION-OUTPUT:${output.id}`,
           itemId: movement.itemId,
           inventoryMovementId: movement.id,
-          entryType: "PRODUCTION_OUTPUT",
+          entryType: batch.batchType === "REPROCESS" ? "REPROCESS_OUTPUT" : "PRODUCTION_OUTPUT",
           effectiveAt: output.postedAt ?? output.transactionDate,
           sourceType: "PRODUCTION_OUTPUT",
           sourceId: output.id,
@@ -598,6 +603,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         module: "costing",
         description: `Finalized production cost for ${calculation.batchNumber}.`,
         metadata: {
+          reprocessSourceCost: calculation.reprocessSourceCost,
           rawMaterialCost: calculation.rawMaterialCost,
           packagingCost: calculation.packagingCost,
           additionalCost: calculation.additionalCost,
@@ -753,6 +759,164 @@ export async function valueProductionConsumption(
     });
     if (valuation) await postValuationAccounting(tx, valuation.id, actorUserId, historical);
   }
+}
+
+export async function valueReprocessConsumption(
+  tx: Prisma.TransactionClient,
+  contributionId: string,
+  actorUserId: string,
+) {
+  const contribution = await tx.reprocessSourceContribution.findUnique({
+    where: { id: contributionId },
+    include: {
+      reprocessDocument: { include: { finishedGood: true } },
+      enteredUnit: true,
+    },
+  });
+  if (!contribution) throw new CostingRepositoryError("Reprocess source contribution is missing.");
+  const document = contribution.reprocessDocument;
+  if (document.finishedGood.stockUnitId !== contribution.enteredUnitId)
+    throw new CostingRepositoryError(
+      "Reprocess source must use the finished good's authoritative stock unit for valuation.",
+    );
+  const movement = await tx.inventoryMovement.findUnique({
+    where: {
+      sourceKey_movementType: {
+        sourceKey: `RP:${document.id}:${contribution.id}:CONSUMPTION`,
+        movementType: "REPROCESS_CONSUMPTION",
+      },
+    },
+  });
+  if (!movement)
+    throw new CostingRepositoryError("Reprocess consumption inventory provenance is missing.");
+  const sourceKey = `REPROCESS-CONSUMPTION-COST:${contribution.id}`;
+  await postValuedOutbound(tx, {
+    sourceKey,
+    itemId: document.finishedGoodId,
+    inventoryMovementId: movement.id,
+    entryType: "REPROCESS_CONSUMPTION",
+    effectiveAt: movement.postedAt,
+    sourceType: "REPROCESS_DOCUMENT",
+    sourceId: document.id,
+    sourceNumber: document.documentNumber,
+    productionBatchId: document.linkedProductionBatchId,
+    productionLotId: contribution.sourceProductionLotId,
+    notes: movement.reason,
+    actorUserId,
+    quantity: contribution.enteredQuantity.toString(),
+  });
+  const valuation = await tx.inventoryValuationEntry.findUniqueOrThrow({ where: { sourceKey } });
+  const accounting = await postValuationAccounting(tx, valuation.id, actorUserId);
+  if (accounting?.blocked)
+    throw new CostingRepositoryError(
+      "Reprocess cannot start until its source-consumption accounting can be posted.",
+    );
+  return valuation;
+}
+
+export async function valueWasteWriteOff(
+  tx: Prisma.TransactionClient,
+  lineId: string,
+  actorUserId: string,
+) {
+  const line = await tx.wasteDispositionLine.findUnique({
+    where: { id: lineId },
+    include: { disposition: true },
+  });
+  if (!line || line.action !== "WRITE_OFF")
+    throw new CostingRepositoryError("Waste write-off line is missing or invalid.");
+  const movement = await tx.inventoryMovement.findUnique({
+    where: {
+      sourceKey_movementType: {
+        sourceKey: `WASTE:${line.id}:OUT`,
+        movementType: "WASTE_WRITE_OFF",
+      },
+    },
+  });
+  if (!movement)
+    throw new CostingRepositoryError("Waste write-off inventory provenance is missing.");
+  const sourceKey = `WASTE-WRITE-OFF-COST:${line.id}`;
+  await postValuedOutbound(tx, {
+    sourceKey,
+    itemId: line.itemId,
+    inventoryMovementId: movement.id,
+    entryType: "INVENTORY_WRITE_OFF",
+    effectiveAt: line.disposition.dispositionDate,
+    sourceType: "WASTE_DISPOSITION",
+    sourceId: line.disposition.id,
+    sourceNumber: line.disposition.documentNumber,
+    inventoryLotId: line.inventoryLotId ?? undefined,
+    productionLotId: line.productionLotId ?? undefined,
+    notes: line.notes ?? `Inventory write-off: ${line.reason}.`,
+    actorUserId,
+    quantity: line.enteredQuantity.toString(),
+  });
+  const valuation = await tx.inventoryValuationEntry.findUniqueOrThrow({ where: { sourceKey } });
+  const accounting = await postValuationAccounting(tx, valuation.id, actorUserId);
+  if (accounting?.blocked)
+    throw new CostingRepositoryError(
+      "Waste write-off cannot post until its inventory-loss accounting is available.",
+    );
+  return { valuation, accountingJournalId: accounting?.journalId ?? null };
+}
+
+export async function valueWasteWriteOffReversal(
+  tx: Prisma.TransactionClient,
+  originalLineId: string,
+  reversalLineId: string,
+  actorUserId: string,
+) {
+  const [original, reversal] = await Promise.all([
+    tx.wasteDispositionLine.findUnique({ where: { id: originalLineId } }),
+    tx.wasteDispositionLine.findUnique({
+      where: { id: reversalLineId },
+      include: { disposition: true },
+    }),
+  ]);
+  if (
+    !original ||
+    !reversal ||
+    original.action !== "WRITE_OFF" ||
+    !original.originalValuationEntryId ||
+    original.originalValue === null ||
+    original.originalUnitCost === null
+  )
+    throw new CostingRepositoryError("Original write-off valuation provenance is incomplete.");
+  const movement = await tx.inventoryMovement.findUnique({
+    where: {
+      sourceKey_movementType: {
+        sourceKey: `WASTE-REVERSAL:${reversal.id}:IN`,
+        movementType: "WASTE_REVERSAL",
+      },
+    },
+  });
+  if (!movement)
+    throw new CostingRepositoryError("Write-off reversal inventory provenance is missing.");
+  const sourceKey = `WASTE-WRITE-OFF-REVERSAL-COST:${original.id}`;
+  await postValuedInboundExact(tx, {
+    sourceKey,
+    itemId: original.itemId,
+    inventoryMovementId: movement.id,
+    entryType: "INVENTORY_WRITE_OFF_REVERSAL",
+    effectiveAt: reversal.disposition.dispositionDate,
+    sourceType: "WASTE_DISPOSITION_REVERSAL",
+    sourceId: reversal.disposition.id,
+    sourceNumber: reversal.disposition.documentNumber,
+    inventoryLotId: original.inventoryLotId ?? undefined,
+    productionLotId: original.productionLotId ?? undefined,
+    notes: `Exact original-value reversal of write-off line ${original.id}.`,
+    actorUserId,
+    quantity: original.enteredQuantity.toString(),
+    unitCost: original.originalUnitCost.toString(),
+    value: original.originalValue.toString(),
+  });
+  const valuation = await tx.inventoryValuationEntry.findUniqueOrThrow({ where: { sourceKey } });
+  const accounting = await postValuationAccounting(tx, valuation.id, actorUserId);
+  if (accounting?.blocked)
+    throw new CostingRepositoryError(
+      "Write-off reversal cannot post until its accounting period and mappings are available.",
+    );
+  return { valuation, accountingJournalId: accounting?.journalId ?? null };
 }
 
 export async function valueSalesInvoiceOutflow(
@@ -937,6 +1101,7 @@ async function rebuildValuation(tx: Prisma.TransactionClient, actorUserId: strin
           "PURCHASE_RETURN",
           "PRODUCTION_CONSUMPTION",
           "PACKAGING_CONSUMPTION",
+          "REPROCESS_CONSUMPTION",
           "PRODUCTION_OUTPUT",
           "SALES_INVOICE_OUT",
           "SALES_RETURN_RECEIPT",
@@ -977,6 +1142,13 @@ async function rebuildValuation(tx: Prisma.TransactionClient, actorUserId: strin
         await valueProductionConsumption(tx, line.transactionId, actorUserId, true);
       }
     } else if (
+      movement.movementType === "REPROCESS_CONSUMPTION" &&
+      movement.reprocessSourceContributionId &&
+      !documents.has(`RP-CONSUME:${movement.reprocessSourceContributionId}`)
+    ) {
+      documents.add(`RP-CONSUME:${movement.reprocessSourceContributionId}`);
+      await valueReprocessConsumption(tx, movement.reprocessSourceContributionId, actorUserId);
+    } else if (
       movement.movementType === "SALES_INVOICE_OUT" &&
       movement.salesInvoiceId &&
       !documents.has(`SI:${movement.salesInvoiceId}`)
@@ -1004,10 +1176,16 @@ async function rebuildValuation(tx: Prisma.TransactionClient, actorUserId: strin
       const snapshot = output?.productionBatch.productionCostSnapshot;
       if (output?.outputType === "GOOD" && snapshot && output.productionLot)
         await postValuedInbound(tx, {
-          sourceKey: `PRODUCTION-OUTPUT:${output.id}`,
+          sourceKey:
+            output.productionBatch.batchType === "REPROCESS"
+              ? `REPROCESS-OUTPUT:${output.id}`
+              : `PRODUCTION-OUTPUT:${output.id}`,
           itemId: movement.itemId,
           inventoryMovementId: movement.id,
-          entryType: "PRODUCTION_OUTPUT",
+          entryType:
+            output.productionBatch.batchType === "REPROCESS"
+              ? "REPROCESS_OUTPUT"
+              : "PRODUCTION_OUTPUT",
           effectiveAt: movement.postedAt,
           sourceType: "PRODUCTION_OUTPUT",
           sourceId: output.id,
@@ -1037,6 +1215,7 @@ async function batchCosting(client: Client, batchId: string) {
       packagingRequirements: { include: { item: true } },
       productionCostEntries: { include: { createdBy: true }, orderBy: { createdAt: "asc" } },
       productionCostSnapshot: { include: { finalizedBy: true } },
+      reprocessDocument: { include: { sourceContributions: true } },
       outputTransactions: { where: { status: "POSTED" } },
       materialTransactions: {
         where: { status: "POSTED" },
@@ -1048,7 +1227,9 @@ async function batchCosting(client: Client, batchId: string) {
   const valuations = await client.inventoryValuationEntry.findMany({
     where: {
       productionBatchId: batch.id,
-      entryType: { in: ["PRODUCTION_CONSUMPTION", "PACKAGING_CONSUMPTION"] },
+      entryType: {
+        in: ["PRODUCTION_CONSUMPTION", "PACKAGING_CONSUMPTION", "REPROCESS_CONSUMPTION"],
+      },
     },
   });
   const raw = costLines(
@@ -1100,6 +1281,20 @@ async function batchCosting(client: Client, batchId: string) {
     warnings.push("Raw-material consumption has missing valuation basis.");
   if (packaging.some((line) => line.totalCost === null))
     warnings.push("Packaging consumption has missing valuation basis.");
+  const reprocessValuations = valuations.filter(
+    (entry) => entry.entryType === "REPROCESS_CONSUMPTION",
+  );
+  const expectedReprocessSources = batch.reprocessDocument?.sourceContributions.length ?? 0;
+  const reprocessSourceCost =
+    batch.batchType === "NORMAL"
+      ? new Decimal(0)
+      : reprocessValuations.length === expectedReprocessSources &&
+          expectedReprocessSources > 0 &&
+          reprocessValuations.every((entry) => entry.state === "FINAL" && entry.valueDelta !== null)
+        ? sum(reprocessValuations.map((entry) => new Decimal(entry.valueDelta!).abs().toFixed()))
+        : null;
+  if (batch.batchType === "REPROCESS" && !reprocessSourceCost)
+    warnings.push("Reprocess source finished-good carrying value is missing or incomplete.");
   const goodPieces = sum(
     batch.outputTransactions
       .filter((row) => row.outputType === "GOOD")
@@ -1121,8 +1316,9 @@ async function batchCosting(client: Client, batchId: string) {
   );
   const damagedExposure = nullableSum(damagedPackaging.map((line) => line.totalCost));
   const calculated =
-    rawCost && packagingCost
+    rawCost && packagingCost && reprocessSourceCost
       ? calculateProductionCostTotals({
+          reprocessSourceCost: reprocessSourceCost.toFixed(),
           rawMaterialCost: rawCost.toFixed(),
           packagingCost: packagingCost.toFixed(),
           additionalCosts: [additional.toFixed()],
@@ -1163,6 +1359,8 @@ async function batchCosting(client: Client, batchId: string) {
       reference: row.reference,
       createdByName: row.createdBy.name,
     })),
+    reprocessSourceCost:
+      snapshot?.reprocessSourceCost.toString() ?? reprocessSourceCost?.toFixed(6) ?? "0.000000",
     rawMaterialCost: snapshot?.rawMaterialCost.toString() ?? rawCost?.toFixed(6) ?? null,
     packagingCost: snapshot?.packagingCost.toString() ?? packagingCost?.toFixed(6) ?? null,
     additionalCost: snapshot?.additionalCost.toString() ?? additional.toFixed(6),

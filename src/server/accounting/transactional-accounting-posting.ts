@@ -373,6 +373,46 @@ export async function postValuationAccounting(
         },
       ],
     });
+  if (entry.entryType === "REPROCESS_CONSUMPTION")
+    return postAutomaticJournal(tx, {
+      ...common,
+      sourceType: "REPROCESS_CONSUMPTION",
+      description: `Reprocess source consumption: ${entry.sourceNumber ?? entry.sourceKey}.`,
+      lines: [
+        {
+          mapping: "WORK_IN_PROCESS",
+          debit: value.abs().toFixed(),
+          ...(entry.productionBatchId ? { productionBatchId: entry.productionBatchId } : {}),
+          itemId: entry.itemId,
+        },
+        {
+          mapping: "FINISHED_GOODS_INVENTORY",
+          credit: value.abs().toFixed(),
+          ...(entry.productionBatchId ? { productionBatchId: entry.productionBatchId } : {}),
+          itemId: entry.itemId,
+        },
+      ],
+    });
+  if (entry.entryType === "INVENTORY_WRITE_OFF")
+    return postAutomaticJournal(tx, {
+      ...common,
+      sourceType: "INVENTORY_WRITE_OFF",
+      description: `Inventory waste write-off: ${entry.sourceNumber ?? entry.sourceKey}.`,
+      lines: [
+        { mapping: "INVENTORY_LOSS_EXPENSE", debit: value.abs().toFixed(), itemId: entry.itemId },
+        { mapping: inventory, credit: value.abs().toFixed(), itemId: entry.itemId },
+      ],
+    });
+  if (entry.entryType === "INVENTORY_WRITE_OFF_REVERSAL")
+    return postAutomaticJournal(tx, {
+      ...common,
+      sourceType: "INVENTORY_WRITE_OFF_REVERSAL",
+      description: `Inventory write-off reversal: ${entry.sourceNumber ?? entry.sourceKey}.`,
+      lines: [
+        { mapping: inventory, debit: value.abs().toFixed(), itemId: entry.itemId },
+        { mapping: "INVENTORY_LOSS_EXPENSE", credit: value.abs().toFixed(), itemId: entry.itemId },
+      ],
+    });
 }
 
 export async function postSalesInvoiceAccounting(
@@ -1207,6 +1247,9 @@ function inventoryMapping(itemType: string): AccountingMappingKey {
   return "FINISHED_GOODS_INVENTORY";
 }
 export function accountingSourceAuditEntityType(sourceType: AccountingSourceType) {
+  if (sourceType === "REPROCESS_CONSUMPTION") return "REPROCESS_DOCUMENT" as const;
+  if (sourceType === "INVENTORY_WRITE_OFF" || sourceType === "INVENTORY_WRITE_OFF_REVERSAL")
+    return "WASTE_DISPOSITION" as const;
   if (sourceType === "SALES_INVOICE_REVENUE" || sourceType === "SALES_INVOICE_COGS")
     return "SALES_INVOICE" as const;
   if (sourceType === "CUSTOMER_PAYMENT" || sourceType === "CUSTOMER_PAYMENT_REVERSAL")

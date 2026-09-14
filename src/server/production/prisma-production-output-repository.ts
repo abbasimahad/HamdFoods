@@ -15,6 +15,10 @@ import {
   calculateOutputReconciliation,
   normalizeGoodOutput,
 } from "@/modules/production/domain/output-calculations";
+import {
+  calculateReprocessChildExpiry,
+  reconcileReprocessYield,
+} from "@/modules/production/domain/reprocess";
 import { piecesToCartons } from "@/modules/quantity/domain/cartons";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
@@ -100,7 +104,10 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
         where: { id },
         include: {
           productionBatch: {
-            include: { finishedGood: { include: { stockUnit: true } } },
+            include: {
+              finishedGood: { include: { stockUnit: true } },
+              reprocessDocument: true,
+            },
           },
         },
       });
@@ -118,11 +125,24 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
       const existingLot = await transaction.productionLot.findUnique({
         where: { productionBatchId: row.productionBatchId },
       });
+      const reprocess = row.productionBatch.reprocessDocument;
+      if (row.productionBatch.batchType === "REPROCESS" && !reprocess)
+        throw new ProductionOutputRepositoryError(
+          "invalid-reference",
+          "A REPROCESS batch requires its owning Reprocess document.",
+        );
+      if (reprocess && row.outputType !== "GOOD" && !existingLot)
+        throw new ProductionOutputRepositoryError(
+          "invalid-state",
+          "Post the reprocess GOOD child lot before scrap or process-loss output.",
+        );
       const lot =
         existingLot ??
         (await transaction.productionLot.create({
           data: {
-            lotNumber: `LOT-${row.productionBatch.batchNumber}`,
+            lotNumber: reprocess
+              ? `RLOT-${reprocess.documentNumber}`
+              : `LOT-${row.productionBatch.batchNumber}`,
             productionBatchId: row.productionBatchId,
             finishedGoodId: row.productionBatch.finishedGoodId,
             recipeId: row.productionBatch.recipeId,
@@ -139,6 +159,27 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
           "invalid-reference",
           "This batch already has a production lot with different production or expiry dates.",
         );
+      if (reprocess && row.outputType === "GOOD") {
+        const policyExpiry = addDays(row.productionDate, reprocess.shelfLifeDaysSnapshot);
+        const childExpiry = calculateReprocessChildExpiry(
+          row.productionDate,
+          reprocess.shelfLifeDaysSnapshot,
+          reprocess.sourceExpirySnapshot,
+        );
+        if (lot.expiryDate?.valueOf() !== childExpiry.valueOf())
+          throw new ProductionOutputRepositoryError(
+            "invalid-reference",
+            "The reprocess child lot expiry does not match its frozen shelf-life policy.",
+          );
+        await transaction.reprocessDocument.update({
+          where: { id: reprocess.id },
+          data: {
+            childProductionLotId: lot.id,
+            policyExpiry,
+            childExpiry,
+          },
+        });
+      }
       const quantity =
         row.outputType === "GOOD"
           ? row.totalPieces?.toString()
@@ -170,6 +211,7 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
           row.notes ??
           `${row.outputType.replaceAll("_", " ")} for ${row.productionBatch.batchNumber}.`,
         actorUserId,
+        goodStatus: reprocess && row.outputType === "GOOD" ? "QUALITY_HOLD" : undefined,
       });
       await transaction.productionOutputTransaction.update({
         where: { id },
@@ -261,7 +303,7 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
         );
       if (snapshot.blockers.length)
         throw new ProductionOutputRepositoryError("reconciliation", snapshot.blockers.join(" "));
-      if (snapshot.needsExplanation && !explanation)
+      if (snapshot.batchType === "NORMAL" && snapshot.needsExplanation && !explanation)
         throw new ProductionOutputRepositoryError(
           "reconciliation",
           "Explain the incompatible or nonzero physical reconciliation before completion.",
@@ -275,6 +317,47 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
           completionExplanation: explanation ?? null,
         },
       });
+      if (snapshot.batchType === "REPROCESS") {
+        if (!snapshot.reprocessDocumentId || !snapshot.productionDate || !snapshot.childExpiry)
+          throw new ProductionOutputRepositoryError(
+            "invalid-reference",
+            "Reprocess completion genealogy and frozen dates are incomplete.",
+          );
+        await transaction.reprocessDocument.update({
+          where: { id: snapshot.reprocessDocumentId },
+          data: {
+            status: "AWAITING_QC",
+            completionDate: snapshot.productionDate,
+            childExpiry: snapshot.childExpiry,
+            sourceContentConsumed: snapshot.sourceContent,
+            goodContentOutput: snapshot.goodContent,
+            scrapContentOutput: snapshot.scrapContent,
+            processLossContent: snapshot.processLoss,
+            completedByUserId: actorUserId,
+            completedAt: new Date(),
+          },
+        });
+        await recordAuditEvent(transaction, {
+          actorUserId,
+          action: "COMPLETE",
+          entityType: "REPROCESS_DOCUMENT",
+          entityId: snapshot.reprocessDocumentId,
+          entityReference: snapshot.reprocessDocumentNumber,
+          module: "production",
+          description: `Completed reprocess ${snapshot.reprocessDocumentNumber} into quality hold.`,
+          afterSnapshot: {
+            status: "AWAITING_QC",
+            childProductionLotId: snapshot.childProductionLotId,
+            completionDate: snapshot.productionDate.toISOString(),
+            childExpiry: snapshot.childExpiry.toISOString(),
+            sourceContent: snapshot.sourceContent,
+            goodContent: snapshot.goodContent,
+            scrapContent: snapshot.scrapContent,
+            processLoss: snapshot.processLoss,
+          },
+          controlEvent: true,
+        });
+      }
       await recordAuditEvent(transaction, {
         actorUserId,
         action: "COMPLETE",
@@ -306,6 +389,7 @@ async function prepare(input: OutputTransactionInput) {
           include: { stockUnit: true, finishedGoodProfile: { include: { netContentUnit: true } } },
         },
         productContentCanonicalUnit: true,
+        reprocessDocument: true,
       },
     }),
     new PrismaRecipeRepository().listRecipeUnits(),
@@ -317,7 +401,29 @@ async function prepare(input: OutputTransactionInput) {
       "Select an IN_PROGRESS batch with an active finished good and destination warehouse.",
     );
   const productionDate = parseDate(input.productionDate, "Production date");
-  const expiryDate = input.expiryDate ? parseDate(input.expiryDate, "Expiry date") : null;
+  let expiryDate = input.expiryDate ? parseDate(input.expiryDate, "Expiry date") : null;
+  if (batch.batchType === "REPROCESS") {
+    if (!batch.reprocessDocument)
+      throw new ProductionOutputRepositoryError(
+        "invalid-reference",
+        "A REPROCESS batch requires its owning Reprocess document.",
+      );
+    if (input.outputType === "REPROCESS")
+      throw new ProductionOutputRepositoryError(
+        "invalid-reference",
+        "A Reprocess workflow records GOOD, REJECTED scrap, or PROCESS LOSS output only.",
+      );
+    if (input.expiryDate)
+      throw new ProductionOutputRepositoryError(
+        "invalid-reference",
+        "Reprocess child expiry is system-calculated and cannot be overridden.",
+      );
+    expiryDate = calculateReprocessChildExpiry(
+      productionDate,
+      batch.reprocessDocument.shelfLifeDaysSnapshot,
+      batch.reprocessDocument.sourceExpirySnapshot,
+    );
+  }
   if (expiryDate && expiryDate < productionDate)
     throw new ProductionOutputRepositoryError(
       "invalid-reference",
@@ -572,11 +678,16 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
     where: { id: batchId },
     select: {
       batchNumber: true,
+      batchType: true,
       status: true,
       productContentCanonicalDimension: true,
       plannedProductContentNormalizedQuantity: true,
       plannedTotalPieces: true,
       expectedYieldPercent: true,
+      productionLot: true,
+      reprocessDocument: {
+        include: { sourceContributions: true },
+      },
       finishedGood: { select: { finishedGoodProfile: { select: { piecesPerCarton: true } } } },
       outputTransactions: true,
       packagingRequirements: { include: { packagingBomLine: true } },
@@ -632,9 +743,46 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
     );
     return !new Decimal(consumed).eq(standard);
   });
+  const reprocessSource = batch.reprocessDocument
+    ? batch.reprocessDocument.sourceContributions.reduce(
+        (total, contribution) => total.add(contribution.normalizedContentQuantity.toString()),
+        new Decimal(0),
+      )
+    : null;
+  const scrapContent = sum(
+    posted.filter((row) => row.outputType === "REJECTED"),
+    "normalizedQuantity",
+  );
+  const processLoss = sum(
+    posted.filter((row) => row.outputType === "PROCESS_LOSS"),
+    "normalizedQuantity",
+  );
+  let reprocessYieldError: string | null = null;
+  if (batch.batchType === "REPROCESS") {
+    try {
+      reconcileReprocessYield({
+        source: reprocessSource?.toFixed() ?? "0",
+        good: goodContent,
+        scrap: scrapContent,
+        processLoss,
+      });
+    } catch (error) {
+      reprocessYieldError = error instanceof Error ? error.message : "Reprocess yield is invalid.";
+    }
+  }
   return {
     batchNumber: batch.batchNumber,
+    batchType: batch.batchType,
     goodPieces,
+    goodContent,
+    scrapContent,
+    processLoss,
+    sourceContent: reprocessSource?.toFixed() ?? null,
+    reprocessDocumentId: batch.reprocessDocument?.id ?? null,
+    reprocessDocumentNumber: batch.reprocessDocument?.documentNumber ?? null,
+    childProductionLotId: batch.reprocessDocument?.childProductionLotId ?? null,
+    productionDate: batch.productionLot?.productionDate ?? null,
+    childExpiry: batch.reprocessDocument?.childExpiry ?? null,
     status: batch.status,
     blockers: [
       ...(posted.some((row) => row.outputType === "GOOD")
@@ -644,12 +792,17 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
         ? ["Post or cancel every output DRAFT."]
         : []),
       ...(custody.length ? ["Resolve all IN_PRODUCTION custody before completion."] : []),
+      ...(batch.batchType === "REPROCESS" && !batch.reprocessDocument?.childProductionLotId
+        ? ["Reprocess GOOD must create its child production lot."]
+        : []),
+      ...(reprocessYieldError ? [reprocessYieldError] : []),
     ],
     needsExplanation:
-      !reconciliation.compatible ||
-      (reconciliation.unreconciledDifference !== null &&
-        !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
-      packagingMismatch,
+      batch.batchType === "NORMAL" &&
+      (!reconciliation.compatible ||
+        (reconciliation.unreconciledDifference !== null &&
+          !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
+        packagingMismatch),
   };
 }
 
@@ -804,6 +957,11 @@ function parseDate(value: string, label: string) {
   if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value)
     throw new ProductionOutputRepositoryError("invalid-reference", `${label} is invalid.`);
   return date;
+}
+function addDays(value: Date, days: number) {
+  const result = new Date(value.getTime());
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
 }
 async function validateActor(transaction: Prisma.TransactionClient, actorUserId: string) {
   if ((await transaction.user.count({ where: { id: actorUserId, active: true } })) !== 1)

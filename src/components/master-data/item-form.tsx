@@ -82,6 +82,18 @@ export function ItemForm({
             label="Pieces per carton"
             name="piecesPerCarton"
           />
+          <TextField
+            defaultValue={
+              initial?.finishedGoodProfile?.reprocessShelfLifeDays
+                ? String(initial.finishedGoodProfile.reprocessShelfLifeDays)
+                : undefined
+            }
+            help="Maximum shelf life allowed for finished goods produced through reprocessing."
+            inputMode="numeric"
+            label="Reprocess shelf life (days)"
+            name="reprocessShelfLifeDays"
+            required={false}
+          />
         </>
       )}
       <label className="text-sm font-medium md:col-span-2 xl:col-span-4">
@@ -121,11 +133,15 @@ function TextField({
   name,
   defaultValue,
   inputMode,
+  help,
+  required = true,
 }: {
   label: string;
   name: string;
   defaultValue?: string | undefined;
   inputMode?: "decimal" | "numeric" | undefined;
+  help?: string | undefined;
+  required?: boolean | undefined;
 }) {
   return (
     <label className="text-sm font-medium">
@@ -135,8 +151,9 @@ function TextField({
         defaultValue={defaultValue}
         inputMode={inputMode}
         name={name}
-        required
+        required={required}
       />
+      {help && <span className="mt-1 block text-xs text-[var(--muted)]">{help}</span>}
     </label>
   );
 }

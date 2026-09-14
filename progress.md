@@ -22,3 +22,17 @@ Final closure evidence (2026-09-12):
 
 Prior gate: Runtime Stabilization COMPLETE.
 Next subproject: PARTIAL WORKFLOWS. Phase 33 is NOT STARTED.
+
+Partial Workflows closure (2026-09-13):
+
+- Tasks A-J COMPLETE: Reprocess and Waste & Damage are active, end-to-end workflows.
+- Reprocess preserves source-to-child genealogy, conservative shelf life, linked production/WIP costing, and independent QC authority.
+- Waste & Damage controls scrap/reprocess/write-off disposition and safe compensating reversals using original value.
+- Workflow inventory is reconciled to 57 COMPLETE, 0 PARTIAL, and the same 2 untouched MISSING workflows.
+- Final verification passed: 309 unit tests / 2 skips, 27 integration tests / 1 intentional skip, 30/30 E2E, Prisma, TypeScript, ESLint, formatting, and the 89-page production build. Production/Git synchronization uses the established backup-first closure procedure. Phase 33 remains NOT STARTED.
+
+Release closure (2026-09-14):
+
+- Fresh verification repeated successfully: `corepack pnpm verify` passed 309 unit tests / 2 skips and the 89-page production build; disposable integration passed 27 / 1 intentional skip; Chromium E2E passed 30/30 with one worker and zero retries.
+- Production backup `hamd_foods_erp_prod_drill-20260914T155829603Z-9a06f093` was created and SHA-256 verified before deployment. Migration `20260912223500_partial_workflow_foundation` applied successfully; all 40 production migrations are current.
+- The canonical `HamdFoodsERP` task is running on the sole `127.0.0.1:3100` listener, health passes, recent logs contain no error/fatal match, and production auth bypass is disabled.

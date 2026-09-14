@@ -84,6 +84,7 @@ export type ProductionOutputInventoryCommand = {
   quantity: string;
   reason: string;
   actorUserId: string;
+  goodStatus?: "AVAILABLE" | "QUALITY_HOLD" | undefined;
 };
 
 export type SalesOrderReservationInventoryCommand = {
@@ -171,6 +172,346 @@ export type SalesReturnInspectionInventoryCommand = {
   reason: string;
   actorUserId: string;
 };
+
+export type ReprocessReservationInventoryCommand = {
+  operation: "RESERVE" | "RELEASE";
+  reprocessDocumentId: string;
+  documentNumber: string;
+  contributionId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  productionLotId: string;
+  quantity: string;
+  actorUserId: string;
+};
+
+export type ReprocessConsumptionInventoryCommand = {
+  reprocessDocumentId: string;
+  documentNumber: string;
+  contributionId: string;
+  productionBatchId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  productionLotId: string;
+  quantity: string;
+  actorUserId: string;
+};
+
+export type ReprocessQualityInventoryCommand = {
+  reprocessDocumentId: string;
+  documentNumber: string;
+  childProductionLotId: string;
+  productionBatchId: string;
+  itemId: string;
+  warehouseId: string;
+  canonicalUnitId: string;
+  quantity: string;
+  decision: "APPROVED" | "REJECTED";
+  reason: string;
+  actorUserId: string;
+};
+
+export type WasteDispositionInventoryCommand = {
+  dispositionId: string;
+  documentNumber: string;
+  lineId: string;
+  itemId: string;
+  warehouseId: string;
+  inventoryLotId?: string | undefined;
+  productionLotId?: string | undefined;
+  canonicalUnitId: string;
+  sourceStatus: "DAMAGED" | "QUARANTINE" | "SCRAP";
+  action: "MOVE_TO_SCRAP" | "MOVE_TO_REPROCESS" | "WRITE_OFF";
+  quantity: string;
+  reason: string;
+  actorUserId: string;
+};
+
+export async function postReprocessReservationInventory(
+  transaction: Prisma.TransactionClient,
+  command: ReprocessReservationInventoryCommand,
+) {
+  const quantity = new Decimal(exactPositive(command.quantity, "Reprocess quantity"));
+  const sourceStatus = command.operation === "RESERVE" ? "REPROCESS" : "RESERVED";
+  const destinationStatus = command.operation === "RESERVE" ? "RESERVED" : "REPROCESS";
+  const movementType =
+    command.operation === "RESERVE" ? "REPROCESS_RESERVE" : "REPROCESS_RESERVATION_RELEASE";
+  const balance = await transaction.inventoryMovement.aggregate({
+    where:
+      command.operation === "RELEASE"
+        ? { reprocessSourceContributionId: command.contributionId, status: "RESERVED" }
+        : {
+            itemId: command.itemId,
+            warehouseId: command.warehouseId,
+            productionLotId: command.productionLotId,
+            canonicalUnitId: command.canonicalUnitId,
+            status: "REPROCESS",
+          },
+    _sum: { quantity: true },
+  });
+  if (new Decimal(balance._sum.quantity?.toString() ?? "0").lt(quantity))
+    throw new InventoryRepositoryError(
+      "stock",
+      `The source lot no longer has enough ${sourceStatus} quantity.`,
+    );
+  const groupId = randomUUID();
+  const common = {
+    itemId: command.itemId,
+    warehouseId: command.warehouseId,
+    canonicalUnitId: command.canonicalUnitId,
+    movementType,
+    referenceType: "REPROCESS_DOCUMENT",
+    referenceId: command.reprocessDocumentId,
+    groupId,
+    reason:
+      command.operation === "RESERVE"
+        ? `Reserved source lot for reprocess ${command.documentNumber}.`
+        : `Released cancelled reprocess reservation ${command.documentNumber}.`,
+    createdByUserId: command.actorUserId,
+    productionLotId: command.productionLotId,
+    reprocessSourceContributionId: command.contributionId,
+  } as const;
+  await transaction.inventoryMovement.createMany({
+    data: [
+      {
+        ...common,
+        status: sourceStatus,
+        quantity: quantity.negated().toFixed(),
+        sourceKey: `RP:${command.reprocessDocumentId}:${command.contributionId}:${command.operation}:OUT`,
+      },
+      {
+        ...common,
+        status: destinationStatus,
+        quantity: quantity.toFixed(),
+        sourceKey: `RP:${command.reprocessDocumentId}:${command.contributionId}:${command.operation}:IN`,
+      },
+    ],
+  });
+  return groupId;
+}
+
+export async function postReprocessConsumptionInventory(
+  transaction: Prisma.TransactionClient,
+  command: ReprocessConsumptionInventoryCommand,
+) {
+  const quantity = new Decimal(exactPositive(command.quantity, "Reprocess source quantity"));
+  const balance = await transaction.inventoryMovement.aggregate({
+    where: {
+      reprocessSourceContributionId: command.contributionId,
+      status: "RESERVED",
+    },
+    _sum: { quantity: true },
+  });
+  if (new Decimal(balance._sum.quantity?.toString() ?? "0").lt(quantity))
+    throw new InventoryRepositoryError(
+      "stock",
+      "The reserved source lot no longer covers reprocess consumption.",
+    );
+  return transaction.inventoryMovement.create({
+    data: {
+      itemId: command.itemId,
+      warehouseId: command.warehouseId,
+      status: "RESERVED",
+      quantity: quantity.negated().toFixed(),
+      canonicalUnitId: command.canonicalUnitId,
+      movementType: "REPROCESS_CONSUMPTION",
+      referenceType: "REPROCESS_DOCUMENT",
+      referenceId: command.reprocessDocumentId,
+      sourceKey: `RP:${command.reprocessDocumentId}:${command.contributionId}:CONSUMPTION`,
+      groupId: randomUUID(),
+      reason: `Consumed source finished good into WIP for ${command.documentNumber}.`,
+      createdByUserId: command.actorUserId,
+      productionBatchId: command.productionBatchId,
+      productionLotId: command.productionLotId,
+      reprocessSourceContributionId: command.contributionId,
+    },
+  });
+}
+
+export async function postReprocessQualityInventory(
+  transaction: Prisma.TransactionClient,
+  command: ReprocessQualityInventoryCommand,
+) {
+  const quantity = new Decimal(exactPositive(command.quantity, "Reprocess QC quantity"));
+  const balance = await transaction.inventoryMovement.aggregate({
+    where: {
+      itemId: command.itemId,
+      warehouseId: command.warehouseId,
+      productionLotId: command.childProductionLotId,
+      canonicalUnitId: command.canonicalUnitId,
+      status: "QUALITY_HOLD",
+    },
+    _sum: { quantity: true },
+  });
+  if (!new Decimal(balance._sum.quantity?.toString() ?? "0").eq(quantity))
+    throw new InventoryRepositoryError(
+      "stock",
+      "The child lot QUALITY_HOLD quantity does not exactly match its completed GOOD output.",
+    );
+  const destinationStatus = command.decision === "APPROVED" ? "AVAILABLE" : "QUARANTINE";
+  const movementType =
+    command.decision === "APPROVED" ? "REPROCESS_QC_RELEASE" : "REPROCESS_QC_REJECT";
+  const groupId = randomUUID();
+  const common = {
+    itemId: command.itemId,
+    warehouseId: command.warehouseId,
+    canonicalUnitId: command.canonicalUnitId,
+    movementType,
+    referenceType: "REPROCESS_QC",
+    referenceId: command.reprocessDocumentId,
+    groupId,
+    reason: command.reason,
+    createdByUserId: command.actorUserId,
+    productionBatchId: command.productionBatchId,
+    productionLotId: command.childProductionLotId,
+  } as const;
+  await transaction.inventoryMovement.createMany({
+    data: [
+      {
+        ...common,
+        status: "QUALITY_HOLD",
+        quantity: quantity.negated().toFixed(),
+        sourceKey: `RP-QC:${command.reprocessDocumentId}:${command.decision}:OUT`,
+      },
+      {
+        ...common,
+        status: destinationStatus,
+        quantity: quantity.toFixed(),
+        sourceKey: `RP-QC:${command.reprocessDocumentId}:${command.decision}:IN`,
+      },
+    ],
+  });
+  return groupId;
+}
+
+export async function postWasteDispositionInventory(
+  transaction: Prisma.TransactionClient,
+  command: WasteDispositionInventoryCommand,
+) {
+  const quantity = new Decimal(exactPositive(command.quantity, "Disposition quantity"));
+  const balance = await transaction.inventoryMovement.aggregate({
+    where: {
+      itemId: command.itemId,
+      warehouseId: command.warehouseId,
+      canonicalUnitId: command.canonicalUnitId,
+      status: command.sourceStatus,
+      inventoryLotId: command.inventoryLotId ?? null,
+      productionLotId: command.productionLotId ?? null,
+    },
+    _sum: { quantity: true },
+  });
+  if (new Decimal(balance._sum.quantity?.toString() ?? "0").lt(quantity))
+    throw new InventoryRepositoryError(
+      "stock",
+      "Disposition quantity exceeds the selected lot/status balance.",
+    );
+  const groupId = randomUUID();
+  const movementType =
+    command.action === "MOVE_TO_SCRAP"
+      ? "WASTE_MOVE_TO_SCRAP"
+      : command.action === "MOVE_TO_REPROCESS"
+        ? "WASTE_MOVE_TO_REPROCESS"
+        : "WASTE_WRITE_OFF";
+  const common = {
+    itemId: command.itemId,
+    warehouseId: command.warehouseId,
+    canonicalUnitId: command.canonicalUnitId,
+    movementType,
+    referenceType: "WASTE_DISPOSITION",
+    referenceId: command.dispositionId,
+    groupId,
+    reason: command.reason,
+    createdByUserId: command.actorUserId,
+    inventoryLotId: command.inventoryLotId ?? null,
+    productionLotId: command.productionLotId ?? null,
+    wasteDispositionLineId: command.lineId,
+  } as const;
+  const out = await transaction.inventoryMovement.create({
+    data: {
+      ...common,
+      status: command.sourceStatus,
+      quantity: quantity.negated().toFixed(),
+      sourceKey: `WASTE:${command.lineId}:OUT`,
+    },
+  });
+  if (command.action !== "WRITE_OFF")
+    await transaction.inventoryMovement.create({
+      data: {
+        ...common,
+        status: command.action === "MOVE_TO_SCRAP" ? "SCRAP" : "REPROCESS",
+        quantity: quantity.toFixed(),
+        sourceKey: `WASTE:${command.lineId}:IN`,
+      },
+    });
+  return out;
+}
+
+export async function postWasteDispositionReversalInventory(
+  transaction: Prisma.TransactionClient,
+  command: WasteDispositionInventoryCommand & {
+    originalSourceStatus: "DAMAGED" | "QUARANTINE" | "SCRAP";
+  },
+) {
+  const quantity = new Decimal(exactPositive(command.quantity, "Disposition reversal quantity"));
+  const reversalSource =
+    command.action === "MOVE_TO_SCRAP"
+      ? "SCRAP"
+      : command.action === "MOVE_TO_REPROCESS"
+        ? "REPROCESS"
+        : null;
+  if (reversalSource) {
+    const balance = await transaction.inventoryMovement.aggregate({
+      where: {
+        itemId: command.itemId,
+        warehouseId: command.warehouseId,
+        canonicalUnitId: command.canonicalUnitId,
+        status: reversalSource,
+        inventoryLotId: command.inventoryLotId ?? null,
+        productionLotId: command.productionLotId ?? null,
+      },
+      _sum: { quantity: true },
+    });
+    if (!new Decimal(balance._sum.quantity?.toString() ?? "0").eq(quantity))
+      throw new InventoryRepositoryError(
+        "stock",
+        "The exact original disposition quantity is no longer reversible.",
+      );
+  }
+  const groupId = randomUUID();
+  const common = {
+    itemId: command.itemId,
+    warehouseId: command.warehouseId,
+    canonicalUnitId: command.canonicalUnitId,
+    movementType: "WASTE_REVERSAL" as const,
+    referenceType: "WASTE_DISPOSITION_REVERSAL",
+    referenceId: command.dispositionId,
+    groupId,
+    reason: command.reason,
+    createdByUserId: command.actorUserId,
+    inventoryLotId: command.inventoryLotId ?? null,
+    productionLotId: command.productionLotId ?? null,
+    wasteDispositionLineId: command.lineId,
+  };
+  if (reversalSource)
+    await transaction.inventoryMovement.create({
+      data: {
+        ...common,
+        status: reversalSource,
+        quantity: quantity.negated().toFixed(),
+        sourceKey: `WASTE-REVERSAL:${command.lineId}:OUT`,
+      },
+    });
+  return transaction.inventoryMovement.create({
+    data: {
+      ...common,
+      status: command.originalSourceStatus,
+      quantity: quantity.toFixed(),
+      sourceKey: `WASTE-REVERSAL:${command.lineId}:IN`,
+    },
+  });
+}
 
 export async function receiveSalesReturnInventory(
   transaction: Prisma.TransactionClient,
@@ -715,7 +1056,10 @@ export async function postProductionOutputInventory(
     );
   const effect =
     command.outputType === "GOOD"
-      ? { status: "AVAILABLE" as const, movementType: "PRODUCTION_OUTPUT" as const }
+      ? {
+          status: command.goodStatus ?? ("AVAILABLE" as const),
+          movementType: "PRODUCTION_OUTPUT" as const,
+        }
       : command.outputType === "REPROCESS"
         ? { status: "REPROCESS" as const, movementType: "PRODUCTION_REPROCESS_OUTPUT" as const }
         : { status: "SCRAP" as const, movementType: "PRODUCTION_REJECTED_OUTPUT" as const };

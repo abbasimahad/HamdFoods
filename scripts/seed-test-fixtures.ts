@@ -4,7 +4,7 @@ import { seedMasterData } from "../src/modules/master-data/application/seed-mast
 import { PrismaAccessRepository } from "../src/server/access/prisma-access-repository";
 import { PrismaMasterDataRepository } from "../src/server/master-data/prisma-master-data-repository";
 import { prisma } from "../src/server/db/prisma";
-import { PHASE27_ADMIN, PHASE27_VIEWER } from "../src/test/test-environment";
+import { PHASE27_ADMIN, PHASE27_QUALITY, PHASE27_VIEWER } from "../src/test/test-environment";
 
 const access = new PrismaAccessRepository();
 await seedAccessControl(access);
@@ -20,6 +20,31 @@ if (!viewer)
   });
 await access.setUserActive(viewer.id, true);
 await access.ensureUserRole(viewer.id, "VIEWER");
+let quality = await access.findUserByEmail(PHASE27_QUALITY.email);
+if (!quality)
+  quality = await access.createCredentialUser({
+    name: PHASE27_QUALITY.name,
+    email: PHASE27_QUALITY.email,
+    password: PHASE27_QUALITY.password,
+  });
+await access.setUserActive(quality.id, true);
+const [qualityRole, qualityPermissions] = await Promise.all([
+  prisma.role.upsert({
+    where: { code: "REPROCESS_QUALITY" },
+    create: { code: "REPROCESS_QUALITY", name: "Reprocess Quality", isSystem: false },
+    update: { name: "Reprocess Quality" },
+  }),
+  prisma.permission.findMany({ where: { code: { in: ["quality.manage", "dashboard.view"] } } }),
+]);
+for (const permission of qualityPermissions)
+  await prisma.rolePermission.upsert({
+    where: {
+      roleId_permissionId: { roleId: qualityRole.id, permissionId: permission.id },
+    },
+    create: { roleId: qualityRole.id, permissionId: permission.id },
+    update: {},
+  });
+await access.ensureUserRole(quality.id, qualityRole.code);
 
 const [grams, pieces, ingredientCategory, bottleCategory, finishedCategory] = await Promise.all([
   prisma.unit.findUniqueOrThrow({ where: { code: "G" } }),
@@ -162,6 +187,7 @@ const mappingKeys = [
   "DEFAULT_CASH",
   "DEFAULT_BANK",
   "SALES_RETURN_INVENTORY_CLEARING",
+  "INVENTORY_LOSS_EXPENSE",
 ] as const;
 await prisma.accountingSettings.upsert({
   where: { id: "default" },
@@ -225,6 +251,7 @@ function accountTypeFor(mappingKey: (typeof mappingKeys)[number]) {
       "INVENTORY_VARIANCE",
       "PURCHASE_RETURN_VARIANCE",
       "PURCHASE_TAX_EXPENSE",
+      "INVENTORY_LOSS_EXPENSE",
     ].includes(mappingKey)
   )
     return "EXPENSE" as const;

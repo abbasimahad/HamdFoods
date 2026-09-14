@@ -119,6 +119,14 @@ Planned standard, allowance, recommended issue, actual good consumption, and dam
 
 Supplier-lot lineage is resolved through posted raw consumption movements to the production batch and its production lot; source history is referenced rather than copied.
 
+## Reprocess and controlled disposition
+
+- **Reprocess document:** The RP-numbered lifecycle that claims eligible finished-good `REPROCESS` custody, owns exactly one linked `REPROCESS` production batch, and records the immutable path to a distinct child finished-goods lot.
+- **Reprocess child lot:** A new production lot created from accepted Reprocess output. It retains the source lot and Reprocess-document links, receives its own completion/QC dates, and uses the earlier of source expiry or policy-derived expiry.
+- **Independent Reprocess QC:** An immutable approval or rejection performed by a `quality.manage` user other than the initiator and completer. Approval moves the child from `QUALITY_HOLD` to `AVAILABLE`; rejection moves it to `QUARANTINE`.
+- **Waste disposition:** The WD-numbered controlled DRAFT/POSTED/CANCELLED/REVERSED aggregate for exact lot/status custody. Its actions are `MOVE_TO_SCRAP`, `MOVE_TO_REPROCESS`, and `WRITE_OFF`.
+- **Write-off:** Permanent removal of DAMAGED or SCRAP owned quantity using the authoritative carrying value, with a linked balanced loss journal. A safe reversal restores the original value with compensating entries and never edits the original history.
+
 ## Inventory and warehouses
 
 - **Warehouse:** An active/inactive stock location master. Historical warehouses are retained rather than deleted.

@@ -99,6 +99,7 @@ export type BatchCostingRecord = {
     reference: string | null;
     createdByName: string;
   }[];
+  reprocessSourceCost: string;
   rawMaterialCost: string | null;
   packagingCost: string | null;
   additionalCost: string;

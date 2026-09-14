@@ -97,6 +97,8 @@ export type ProductionPackagingRequirementRecord = {
 export type ProductionBatchRecord = {
   id: string;
   batchNumber: string;
+  batchType: "NORMAL" | "REPROCESS";
+  reprocessDocumentId: string | null;
   recipeId: string;
   recipeCode: string;
   recipeName: string;

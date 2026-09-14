@@ -15,6 +15,11 @@ export const PHASE27_VIEWER = {
   email: "phase27.viewer@example.test",
   password: "Phase27-Viewer-Test-Only!",
 } as const;
+export const PHASE27_QUALITY = {
+  name: "Phase 27 Quality Inspector",
+  email: "phase27.quality@example.test",
+  password: "Phase27-Quality-Test-Only!",
+} as const;
 
 export function phase27TestDatabaseUrl() {
   const developmentUrl =

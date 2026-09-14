@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PermissionCode } from "../domain/permissions";
+import { PERMISSIONS, type PermissionCode } from "../domain/permissions";
 import type { AccessSeedStore } from "./ports";
 import { seedAccessControl } from "./seed-access-control";
 
@@ -25,9 +25,9 @@ describe("seedAccessControl", () => {
     const store = new MemorySeedStore();
     await seedAccessControl(store);
     await seedAccessControl(store);
-    expect(store.permissions.size).toBe(16);
+    expect(store.permissions.size).toBe(PERMISSIONS.length);
     expect(store.roles.size).toBe(7);
     expect(store.mappings.get("SALES")).toEqual(["dashboard.view", "sales.view", "sales.manage"]);
-    expect(store.mappings.get("SUPER_ADMIN")?.length).toBe(16);
+    expect(store.mappings.get("SUPER_ADMIN")?.length).toBe(PERMISSIONS.length);
   });
 });

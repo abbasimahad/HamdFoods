@@ -36,6 +36,7 @@ export async function executeSaveItemAction(
             netContentQuantity: formData.get("netContentQuantity"),
             netContentUnitId: formData.get("netContentUnitId"),
             piecesPerCarton: formData.get("piecesPerCarton"),
+            reprocessShelfLifeDays: optionalString(formData.get("reprocessShelfLifeDays")),
           }
         : {};
   const result = await saveItem(

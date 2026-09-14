@@ -58,6 +58,32 @@ export async function postValuedInbound(
   });
 }
 
+export async function postValuedInboundExact(
+  tx: Prisma.TransactionClient,
+  command: BaseCommand & { quantity: string; unitCost: string; value: string },
+) {
+  if (await exists(tx, command.sourceKey)) return;
+  const quantity = positive(command.quantity, "Inbound valuation quantity");
+  const unitCost = nonNegative(command.unitCost, "Inbound unit cost");
+  const valueDelta = money(nonNegative(command.value, "Inbound value"));
+  const balance = await lockedBalance(tx, command.itemId);
+  const runningQuantity = quantity6(balance.ownedQuantity.add(quantity));
+  const runningValue = money(balance.inventoryValue.add(valueDelta));
+  const average = runningQuantity.isZero()
+    ? new Decimal(0)
+    : unit12(runningValue.div(runningQuantity));
+  await createEntry(tx, command, {
+    state: "FINAL",
+    quantityEffect: quantity,
+    unitCost,
+    valueDelta,
+    runningQuantity,
+    runningValue,
+    average,
+    missingBasisCount: balance.missingBasisCount,
+  });
+}
+
 export async function postValuedOutbound(
   tx: Prisma.TransactionClient,
   command: BaseCommand & { quantity: string },

@@ -48,6 +48,7 @@ export const itemInputSchema = z.discriminatedUnion("itemType", [
     netContentQuantity: z.string().trim().refine(isPositiveDecimalString),
     netContentUnitId: z.string().min(1),
     piecesPerCarton: z.coerce.number().int().positive().max(2_147_483_647),
+    reprocessShelfLifeDays: z.coerce.number().int().positive().max(3650).optional(),
   }),
 ]);
 

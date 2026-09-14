@@ -13,6 +13,7 @@ const expectedPermissions = [
   "purchasing.manage",
   "production.view",
   "production.manage",
+  "quality.manage",
   "sales.view",
   "sales.manage",
   "accounting.view",
@@ -63,5 +64,6 @@ describe("access-control domain", () => {
       "sales.view",
       "sales.manage",
     ]);
+    expect(DEFAULT_ROLE_PERMISSIONS.PRODUCTION_MANAGER).not.toContain("quality.manage");
   });
 });
