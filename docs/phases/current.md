@@ -1,5 +1,24 @@
 # Current phase
 
+## Purchase Invoices
+
+**Status:** COMPLETE
+
+### Implemented boundary
+
+- `PurchaseInvoice` is a PO-to-GRN-to-invoice matching and true-up document. `PurchaseInvoiceLine` anchors to a `PurchaseOrderLine` (supporting a pre-GRN draft with zero matches); `PurchaseInvoiceLineMatch` joins a line to one or more QC-completed `GoodsReceiptLine`s, so one invoice line can span multiple GRN lines and one GRN line can be claimed by multiple invoices, bounded by accepted-and-unbilled quantity.
+- POST requires every line's matches to sum exactly to its invoiced quantity (zero tolerance) and re-validates, transactionally under Serializable isolation, that no GRN line's combined POSTED matches exceed what QC accepted. An exact-price/tax match posts no journal and no payable-ledger entry; only a nonzero price or tax variance posts a single true-up journal (`PURCHASE_PRICE_VARIANCE` and/or `INPUT_TAX`/`PURCHASE_TAX_EXPENSE`, against `ACCOUNTS_PAYABLE`) and a dedicated `PURCHASE_INVOICE_VARIANCE` supplier-payable ledger entry. GRNI, existing AP recognition, and FINAL inventory valuation from GRN QC are never re-posted, adjusted, or revalued.
+- Matches, frozen unit cost/tax/variance snapshots, and header content are immutable once POSTED (database trigger), mirroring the existing GRN/purchase-return guard pattern. `(supplierId, supplierInvoiceNumber)` is a database-unique pair, so a duplicate supplier invoice cannot be entered twice, draft or posted.
+- REVERSE is a single-document status flip to `REVERSED`: an exact-match invoice reverses with no fabricated accounting; a variance invoice posts one compensating journal and ledger entry from the frozen header totals, throwing (not blocking) if no OPEN accounting period covers the reversal date. POST and REVERSE are both idempotent under a guarded status-transition claim inside their Serializable transaction, so a duplicate submission or a losing concurrent race creates nothing.
+- `purchasing.manage` gates the full lifecycle, matching every other purchasing workflow; no new permission was added. Due date is informational only and is not read by `payableAging()` or any report.
+
+### Current evidence
+
+- Domain unit tests: 16/16. Application-layer unit tests: 15/15. `pnpm verify`: PASS — Prettier, ESLint, Prisma validate/generate, 340 unit tests passed with 2 skips, TypeScript, and the 91-page Next production build.
+- Disposable PostgreSQL integration (`purchase-invoice.integration.test.ts`, 13 tests): exact match with no accounting; positive and negative price variance with balanced true-up journals and exact reversal; tax variance under `RECOVERABLE` and the `NOT_CONFIGURED` block; incomplete-match POST rejection; partial invoicing and multiple invoices against one GRN line; one invoice matched across two GRN lines; duplicate supplier-invoice-number rejection; pre-GRN draft blocked from posting until matched; concurrent over-invoicing resolved to exactly one winner; closed-period POST block vs. closed-period REVERSE throw; immutability and audit-event assertions. Full disposable-DB run: 40 passed / 1 intentional infrastructure-gated skip, no regression to existing golden-workflow or reconciliation coverage.
+- Disposable-DB Chromium E2E (`purchase-invoices.spec.ts`): create/edit/cancel draft through the active workbench, and permission-denied redirect for a view-only identity. Full E2E run: 32/32, one worker, zero retries.
+- `docs/testing/workflow-inventory.md` is reconciled to 58 `COMPLETE`, 0 `PARTIAL`, 1 `MISSING` (Administration Settings only). Design authority: `docs/specs/2026-09-14-purchase-invoices-design.md` (D1–D8 frozen, D6 amended to a dedicated `PURCHASE_INVOICE_VARIANCE` ledger type).
+
 ## Partial Workflows - Reprocess and Waste & Damage closure
 
 **Status:** COMPLETE
@@ -224,7 +243,7 @@
 
 ## Workflow inventory
 
-The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 55 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 2 `PARTIAL`, and 2 `MISSING` across all 58 sidebar entries. Receivables, Payables, Material Issues, and Packaging Consumption are active first-class workbenches; the duplicate Journal Vouchers entry was removed. Four legitimate planned labels remain: Reprocess and Waste & Damage are `PARTIAL`; Purchase Invoices and Administration Settings are `MISSING`.
+The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 58 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 0 `PARTIAL`, and 1 `MISSING` across all 58 sidebar entries. Receivables, Payables, Material Issues, Packaging Consumption, Reprocess, Waste & Damage, and Purchase Invoices are active first-class workbenches; the duplicate Journal Vouchers entry was removed. One legitimate planned label remains: Administration Settings is `MISSING` and has not been specified or implemented.
 
 ## Navigation and Data Entry UX closure
 
@@ -238,4 +257,8 @@ The final sidebar/workflow classification is recorded in `docs/testing/workflow-
 
 ## Next gate
 
-**Next subproject: PARTIAL WORKFLOWS. Phase 33 is NOT STARTED.** Specify and approve the next workflow boundary before implementation; do not infer or build the remaining partial/missing workflows from their labels alone. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
+**Next subproject: ADMINISTRATION SETTINGS SPECIFICATION. Phase 33 is NOT STARTED.** Administration Settings is the sole remaining `MISSING` workflow; it needs a product specification (what belongs under it, and confirmation it does not duplicate existing accounting mappings/periods, inventory authority, or user/RBAC administration) before any implementation. Do not infer or build it from the route label alone. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
+
+### Production deployment note (2026-09-14)
+
+Purchase Invoices' code and disposable-DB verification are complete (see above). The corresponding production migration (`20260914170607_purchase_invoices_matching_variance`) was **not applied to production** in this session — the environment's own permission control explicitly blocked the production-migrate action, and the subsequent attempt to revert the already-rebuilt production deployment back to the prior consistent build was also blocked. The production `HamdFoodsERP` task was left **stopped** (the safe state: not serving code that expects unmigrated tables) pending an operator decision. A verified pre-change backup (`hamd_foods_erp_prod_drill-20260914T175438645Z-ad60729b.dump`) was taken before the blocked migration attempt. Before the next production start, either apply `prisma migrate deploy` against production (bringing the schema in line with the already-built code) or rebuild/redeploy the prior commit's code (keeping schema and code in sync) — do not start the task with the current build against the unmigrated database.

@@ -665,6 +665,225 @@ export async function postGoodsReceiptAcceptanceAccounting(
     });
 }
 
+/**
+ * Purchase Invoice true-up: GRN QC already recognized full AP/GRNI/tax
+ * (postGoodsReceiptAcceptanceAccounting above). This posts ONLY the delta
+ * between the supplier's invoiced price/tax and the GRN-derived basis,
+ * frozen per PurchaseInvoiceLineMatch at POST. An exact match creates no
+ * journal and no ledger entry. GRNI is never referenced here.
+ */
+export async function postPurchaseInvoiceVarianceAccounting(
+  tx: Client,
+  invoiceId: string,
+  actorUserId: string,
+) {
+  const invoice = await tx.purchaseInvoice.findUnique({
+    where: { id: invoiceId },
+    include: { lines: { include: { matches: true } } },
+  });
+  if (!invoice) return { journalId: null, blocked: false } as const;
+  const priceVariance = sum(
+    invoice.lines.flatMap((line) =>
+      line.matches.map((match) => new Decimal(match.priceVarianceAmount.toString())),
+    ),
+  );
+  const taxVariance = sum(
+    invoice.lines.flatMap((line) =>
+      line.matches.map((match) => new Decimal(match.taxVarianceAmount.toString())),
+    ),
+  );
+  if (priceVariance.isZero() && taxVariance.isZero())
+    return { journalId: null, blocked: false } as const;
+
+  const common = {
+    sourceType: "PURCHASE_INVOICE_VARIANCE" as const,
+    sourceId: invoice.id,
+    sourceNumber: invoice.number,
+    accountingDate: invoice.invoiceDate,
+    actorUserId,
+  };
+  let settings: { purchaseTaxTreatment: string } | null = null;
+  if (!taxVariance.isZero()) {
+    settings = await tx.accountingSettings.findUnique({ where: { id: "default" } });
+    if (!settings || settings.purchaseTaxTreatment === "NOT_CONFIGURED")
+      return block(
+        tx,
+        { ...common, description: "", lines: [] },
+        `PURCHASE_INVOICE_VARIANCE:${invoice.id}`,
+        "PURCHASE_TAX_NOT_CONFIGURED",
+        "Purchase tax treatment must be configured before invoice tax-variance posting.",
+      );
+    if (settings.purchaseTaxTreatment === "CAPITALIZE")
+      return block(
+        tx,
+        { ...common, description: "", lines: [] },
+        `PURCHASE_INVOICE_VARIANCE:${invoice.id}`,
+        "PURCHASE_TAX_POLICY_REQUIRES_VALUATION_SUPPORT",
+        "Purchase-tax capitalization is blocked because Phase 21 valuation excludes tax from inventory cost.",
+      );
+  }
+  const taxMapping: AccountingMappingKey =
+    settings?.purchaseTaxTreatment === "EXPENSE" ? "PURCHASE_TAX_EXPENSE" : "INPUT_TAX";
+  const netVariance = priceVariance.add(taxVariance);
+  const lines: AccountingLineInput[] = [
+    ...(priceVariance.isZero()
+      ? []
+      : [
+          priceVariance.gt(0)
+            ? { mapping: "PURCHASE_PRICE_VARIANCE" as const, debit: priceVariance.toFixed() }
+            : {
+                mapping: "PURCHASE_PRICE_VARIANCE" as const,
+                credit: priceVariance.abs().toFixed(),
+              },
+        ]),
+    ...(taxVariance.isZero()
+      ? []
+      : [
+          taxVariance.gt(0)
+            ? { mapping: taxMapping, debit: taxVariance.toFixed() }
+            : { mapping: taxMapping, credit: taxVariance.abs().toFixed() },
+        ]),
+    ...(netVariance.isZero()
+      ? []
+      : [
+          netVariance.gt(0)
+            ? {
+                mapping: "ACCOUNTS_PAYABLE" as const,
+                credit: netVariance.toFixed(),
+                supplierId: invoice.supplierId,
+              }
+            : {
+                mapping: "ACCOUNTS_PAYABLE" as const,
+                debit: netVariance.abs().toFixed(),
+                supplierId: invoice.supplierId,
+              },
+        ]),
+  ];
+  const result = await postAutomaticJournal(tx, {
+    ...common,
+    description: `Purchase invoice price/tax true-up: ${invoice.number} (${invoice.supplierInvoiceNumber}).`,
+    lines,
+  });
+  if (result.journalId && !netVariance.isZero())
+    await tx.supplierPayableLedgerEntry.upsert({
+      where: { sourceKey: `PURCHASE_INVOICE_VARIANCE:${invoice.id}` },
+      create: {
+        sourceKey: `PURCHASE_INVOICE_VARIANCE:${invoice.id}`,
+        supplierId: invoice.supplierId,
+        entryType: "PURCHASE_INVOICE_VARIANCE",
+        entryDate: invoice.invoiceDate,
+        signedAmount: netVariance.toFixed(),
+        sourceType: "PURCHASE_INVOICE",
+        sourceId: invoice.id,
+        sourceNumber: invoice.number,
+        description: `Purchase invoice variance true-up for ${invoice.number}.`,
+        journalId: result.journalId,
+      },
+      update: {},
+    });
+  return result;
+}
+
+/**
+ * Compensating reversal for a POSTED purchase invoice's variance. Uses the
+ * frozen header totals only -- never recalculates from source, and never
+ * edits/deletes the original journal or ledger entry. Throws (does not
+ * block) on a closed period, matching reverseSupplierPayment().
+ */
+export async function reversePurchaseInvoiceVarianceAccounting(
+  tx: Client,
+  invoiceId: string,
+  actorUserId: string,
+  reversalDate: Date,
+  reason: string,
+) {
+  const invoice = await tx.purchaseInvoice.findUniqueOrThrow({ where: { id: invoiceId } });
+  const priceVariance = new Decimal(invoice.priceVarianceTotal.toString());
+  const taxVariance = new Decimal(invoice.taxVarianceTotal.toString());
+  if (priceVariance.isZero() && taxVariance.isZero()) return { journalId: null } as const;
+  const netVariance = priceVariance.add(taxVariance);
+  const settings = await tx.accountingSettings.findUniqueOrThrow({ where: { id: "default" } });
+  const taxMapping: AccountingMappingKey =
+    settings.purchaseTaxTreatment === "EXPENSE" ? "PURCHASE_TAX_EXPENSE" : "INPUT_TAX";
+  const lines: DirectAccountJournalLineInput[] = [
+    ...(priceVariance.isZero()
+      ? []
+      : [
+          priceVariance.gt(0)
+            ? {
+                accountId: await resolveMappedAccount(tx, "PURCHASE_PRICE_VARIANCE"),
+                credit: priceVariance.toFixed(),
+              }
+            : {
+                accountId: await resolveMappedAccount(tx, "PURCHASE_PRICE_VARIANCE"),
+                debit: priceVariance.abs().toFixed(),
+              },
+        ]),
+    ...(taxVariance.isZero()
+      ? []
+      : [
+          taxVariance.gt(0)
+            ? {
+                accountId: await resolveMappedAccount(tx, taxMapping),
+                credit: taxVariance.toFixed(),
+              }
+            : {
+                accountId: await resolveMappedAccount(tx, taxMapping),
+                debit: taxVariance.abs().toFixed(),
+              },
+        ]),
+    ...(netVariance.isZero()
+      ? []
+      : [
+          netVariance.gt(0)
+            ? {
+                accountId: await resolveMappedAccount(tx, "ACCOUNTS_PAYABLE"),
+                debit: netVariance.toFixed(),
+                supplierId: invoice.supplierId,
+              }
+            : {
+                accountId: await resolveMappedAccount(tx, "ACCOUNTS_PAYABLE"),
+                credit: netVariance.abs().toFixed(),
+                supplierId: invoice.supplierId,
+              },
+        ]),
+  ];
+  const journalId = await postDirectAccountJournal(tx, {
+    sourceType: "PURCHASE_INVOICE_REVERSAL",
+    sourceId: `reversal:${invoice.id}`,
+    sourceNumber: invoice.number,
+    accountingDate: reversalDate,
+    description: `Reversal of purchase invoice variance: ${invoice.number}. ${reason}`,
+    actorUserId,
+    lines,
+  });
+  if (!netVariance.isZero())
+    await tx.supplierPayableLedgerEntry.create({
+      data: {
+        sourceKey: `PURCHASE_INVOICE_REVERSAL:${invoice.id}`,
+        supplierId: invoice.supplierId,
+        entryType: "ADJUSTMENT",
+        entryDate: reversalDate,
+        signedAmount: netVariance.negated().toFixed(),
+        sourceType: "PURCHASE_INVOICE_REVERSAL",
+        sourceId: invoice.id,
+        sourceNumber: invoice.number,
+        description: `Reversal of purchase invoice variance for ${invoice.number}.`,
+        journalId,
+      },
+    });
+  return { journalId } as const;
+}
+async function resolveMappedAccount(tx: Client, mappingKey: AccountingMappingKey) {
+  const mapping = await tx.accountingAccountMapping.findUnique({
+    where: { accountingSettingsId_mappingKey: { accountingSettingsId: "default", mappingKey } },
+    include: { account: true },
+  });
+  if (!mapping?.account.active || !mapping.account.postingAllowed)
+    throw new AccountingPostingError(`Accounting mapping ${mappingKey} is missing or unusable.`);
+  return mapping.accountId;
+}
+
 export async function postSalesReturnAccounting(
   tx: Client,
   returnId: string,
@@ -1259,6 +1478,8 @@ export function accountingSourceAuditEntityType(sourceType: AccountingSourceType
   if (sourceType === "GOODS_RECEIPT" || sourceType === "GOODS_RECEIPT_ACCEPTANCE")
     return "GRN" as const;
   if (sourceType === "PURCHASE_RETURN") return "PURCHASE_RETURN" as const;
+  if (sourceType === "PURCHASE_INVOICE_VARIANCE" || sourceType === "PURCHASE_INVOICE_REVERSAL")
+    return "PURCHASE_INVOICE" as const;
   if (sourceType === "VALUATION_ADJUSTMENT") return "VALUATION_ADJUSTMENT" as const;
   if (
     sourceType === "PRODUCTION_OUTPUT" ||

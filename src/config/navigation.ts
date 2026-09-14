@@ -164,7 +164,7 @@ export const appNavigation: readonly NavigationItem[] = [
     children: [
       active("Purchase Orders", routes.future.purchasing.purchaseOrders, "purchasing.view"),
       active("Goods Receiving", routes.future.purchasing.goodsReceiving, "purchasing.view"),
-      planned("Purchase Invoices", routes.future.purchasing.purchaseInvoices),
+      active("Purchase Invoices", routes.future.purchasing.purchaseInvoices, "purchasing.view"),
       active("Purchase Returns", routes.future.purchasing.purchaseReturns, "purchasing.view"),
       active("Suppliers", routes.future.purchasing.suppliers, "purchasing.view"),
       active("Supplier Payments", routes.future.purchasing.supplierPayments, "accounting.view"),

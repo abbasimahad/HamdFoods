@@ -82,7 +82,11 @@ describe("application navigation", () => {
     });
     expect(children["Manual Journals"]?.status).toBe("active");
     expect(children["Journal Vouchers"]).toBeUndefined();
-    expect(children["Purchase Invoices"]?.status).toBe("planned");
+    expect(children["Purchase Invoices"]).toMatchObject({
+      href: "/purchasing/purchase-invoices",
+      status: "active",
+      permission: "purchasing.view",
+    });
     expect(children.Settings?.status).toBe("planned");
     expect(children.Reprocess).toMatchObject({ status: "active" });
     expect(children["Waste & Damage"]).toMatchObject({ status: "active" });

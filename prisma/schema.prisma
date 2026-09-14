@@ -268,6 +268,13 @@ enum PurchaseReturnReason {
   OTHER
 }
 
+enum PurchaseInvoiceStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+  REVERSED
+}
+
 enum RecipeStatus {
   DRAFT
   APPROVED
@@ -471,6 +478,7 @@ enum AuditEntityType {
   COSTING_FINALIZATION
   REPROCESS_DOCUMENT
   WASTE_DISPOSITION
+  PURCHASE_INVOICE
 }
 
 enum AuditReasonCode {
@@ -521,6 +529,7 @@ enum AccountingMappingKey {
   DEFAULT_BANK
   SALES_RETURN_INVENTORY_CLEARING
   INVENTORY_LOSS_EXPENSE
+  PURCHASE_PRICE_VARIANCE
 }
 
 enum AccountingSourceType {
@@ -549,6 +558,8 @@ enum AccountingSourceType {
   REPROCESS_CONSUMPTION
   INVENTORY_WRITE_OFF
   INVENTORY_WRITE_OFF_REVERSAL
+  PURCHASE_INVOICE_VARIANCE
+  PURCHASE_INVOICE_REVERSAL
 }
 
 enum TreasuryAccountType {
@@ -592,6 +603,7 @@ enum SupplierLedgerEntryType {
   CREDIT_NOTE
   OPENING_BALANCE
   ADJUSTMENT
+  PURCHASE_INVOICE_VARIANCE
 }
 
 enum QcRejectionReason {
@@ -694,6 +706,10 @@ model User {
   wasteDispositionsCancelled   WasteDisposition[]              @relation("WasteDispositionCancelledBy")
   wasteDispositionsReversed    WasteDisposition[]              @relation("WasteDispositionReversedBy")
   auditEvents                  AuditEvent[]                    @relation("AuditEventActor")
+  purchaseInvoicesCreated      PurchaseInvoice[]               @relation("PurchaseInvoiceCreatedBy")
+  purchaseInvoicesPosted       PurchaseInvoice[]               @relation("PurchaseInvoicePostedBy")
+  purchaseInvoicesCancelled    PurchaseInvoice[]               @relation("PurchaseInvoiceCancelledBy")
+  purchaseInvoicesReversed     PurchaseInvoice[]               @relation("PurchaseInvoiceReversedBy")
 
   @@map("user")
 }
@@ -898,6 +914,7 @@ model Item {
   inventoryValuationAdjustments      InventoryValuationAdjustment[]
   reprocessDocuments                 ReprocessDocument[]                 @relation("ReprocessFinishedGood")
   wasteDispositionLines              WasteDispositionLine[]
+  purchaseInvoiceLines               PurchaseInvoiceLine[]
 
   @@unique([id, itemType], map: "item_id_type_uidx")
   @@index([itemType, active, name])
@@ -1063,6 +1080,7 @@ model Supplier {
   payableLedgerEntries SupplierPayableLedgerEntry[]
   supplierPayments     SupplierPayment[]
   expenseVouchers      ExpenseVoucher[]
+  purchaseInvoices     PurchaseInvoice[]
 
   @@index([active, name])
   @@index([city, active])
@@ -1749,6 +1767,7 @@ model PurchaseOrderLine {
   canonicalUnit       Unit                 @relation("PurchaseOrderCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
   goodsReceiptLines   GoodsReceiptLine[]
   purchaseReturnLines PurchaseReturnLine[]
+  purchaseInvoiceLines PurchaseInvoiceLine[]
 
   @@unique([purchaseOrderId, position])
   @@unique([id, itemId, canonicalUnitId], map: "purchase_order_line_identity_uidx")
@@ -1834,6 +1853,7 @@ model GoodsReceiptLine {
   purchaseReturnLine          PurchaseReturnLine?     @relation(fields: [purchaseReturnLineId], references: [id], onDelete: Restrict)
   originalPurchaseReturnLines PurchaseReturnLine[]    @relation("OriginalPurchaseReturnLine")
   landedCostAllocations       LandedCostAllocation[]
+  purchaseInvoiceLineMatches  PurchaseInvoiceLineMatch[]
 
   @@unique([goodsReceiptId, position])
   @@unique([goodsReceiptId, purchaseOrderLineId], map: "goods_receipt_line_po_line_uidx")
@@ -1991,6 +2011,93 @@ model PurchaseReturnSequence {
   nextValue Int
 
   @@map("purchase_return_sequence")
+}
+
+model PurchaseInvoice {
+  id                     String                @id @default(uuid())
+  number                 String                @unique
+  supplierId             String
+  supplierInvoiceNumber  String
+  invoiceDate            DateTime              @db.Date
+  dueDate                DateTime?             @db.Date
+  status                 PurchaseInvoiceStatus @default(DRAFT)
+  notes                  String?
+  subtotal               Decimal               @db.Decimal(24, 6)
+  taxTotal               Decimal               @db.Decimal(24, 6)
+  grandTotal             Decimal               @db.Decimal(24, 6)
+  priceVarianceTotal     Decimal               @default(0) @db.Decimal(24, 6)
+  taxVarianceTotal       Decimal               @default(0) @db.Decimal(24, 6)
+  createdByUserId        String
+  postedByUserId         String?
+  postedAt               DateTime?
+  cancelledByUserId      String?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  reversedByUserId       String?
+  reversedAt             DateTime?
+  reversalReason         String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  supplier               Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy               User                 @relation("PurchaseInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy                User?                @relation("PurchaseInvoicePostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy              User?               @relation("PurchaseInvoiceCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  reversedBy               User?               @relation("PurchaseInvoiceReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
+  lines                  PurchaseInvoiceLine[]
+
+  @@unique([supplierId, supplierInvoiceNumber], map: "purchase_invoice_supplier_number_uidx")
+  @@index([status, invoiceDate])
+  @@index([supplierId, invoiceDate])
+  @@map("purchase_invoice")
+}
+
+model PurchaseInvoiceLine {
+  id                  String                     @id @default(uuid())
+  purchaseInvoiceId   String
+  position            Int
+  purchaseOrderLineId String
+  itemId              String
+  invoicedQuantity    Decimal                    @db.Decimal(24, 6)
+  invoicedUnitRate    Decimal                    @db.Decimal(24, 6)
+  taxPercent          Decimal                    @db.Decimal(7, 4)
+  grossAmount         Decimal                    @db.Decimal(24, 6)
+  taxAmount           Decimal                    @db.Decimal(24, 6)
+  netAmount           Decimal                    @db.Decimal(24, 6)
+  notes               String?
+  purchaseInvoice     PurchaseInvoice            @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  purchaseOrderLine   PurchaseOrderLine          @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict)
+  item                Item                       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  matches             PurchaseInvoiceLineMatch[]
+
+  @@unique([purchaseInvoiceId, position])
+  @@index([purchaseOrderLineId])
+  @@index([itemId])
+  @@map("purchase_invoice_line")
+}
+
+model PurchaseInvoiceLineMatch {
+  id                     String              @id @default(uuid())
+  purchaseInvoiceLineId  String
+  goodsReceiptLineId     String
+  matchedQuantity        Decimal             @db.Decimal(24, 6)
+  grnDerivedUnitCost     Decimal             @default(0) @db.Decimal(30, 12)
+  grnDerivedTaxAmount    Decimal             @default(0) @db.Decimal(24, 6)
+  priceVarianceAmount    Decimal             @default(0) @db.Decimal(24, 6)
+  taxVarianceAmount      Decimal             @default(0) @db.Decimal(24, 6)
+  createdAt              DateTime            @default(now())
+  purchaseInvoiceLine    PurchaseInvoiceLine @relation(fields: [purchaseInvoiceLineId], references: [id], onDelete: Cascade)
+  goodsReceiptLine       GoodsReceiptLine    @relation(fields: [goodsReceiptLineId], references: [id], onDelete: Restrict)
+
+  @@unique([purchaseInvoiceLineId, goodsReceiptLineId], map: "purchase_invoice_line_match_uidx")
+  @@index([goodsReceiptLineId])
+  @@map("purchase_invoice_line_match")
+}
+
+model PurchaseInvoiceSequence {
+  year      Int @id
+  nextValue Int
+
+  @@map("purchase_invoice_sequence")
 }
 
 model Recipe {

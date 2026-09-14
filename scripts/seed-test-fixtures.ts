@@ -188,6 +188,7 @@ const mappingKeys = [
   "DEFAULT_BANK",
   "SALES_RETURN_INVENTORY_CLEARING",
   "INVENTORY_LOSS_EXPENSE",
+  "PURCHASE_PRICE_VARIANCE",
 ] as const;
 await prisma.accountingSettings.upsert({
   where: { id: "default" },
@@ -252,6 +253,7 @@ function accountTypeFor(mappingKey: (typeof mappingKeys)[number]) {
       "PURCHASE_RETURN_VARIANCE",
       "PURCHASE_TAX_EXPENSE",
       "INVENTORY_LOSS_EXPENSE",
+      "PURCHASE_PRICE_VARIANCE",
     ].includes(mappingKey)
   )
     return "EXPENSE" as const;

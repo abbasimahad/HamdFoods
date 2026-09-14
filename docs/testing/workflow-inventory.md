@@ -29,7 +29,7 @@ Final reconciliation completed 2026-09-13 after Reprocess and Waste & Damage clo
 | Purchasing     | Purchasing            | `/purchasing`                       | active        | COMPLETE       | Implemented module hub.                                                                                                                                                                  |
 | Purchasing     | Purchase Orders       | `/purchasing/purchase-orders`       | active        | COMPLETE       | Draft/edit/approve/cancel/print lifecycle exists.                                                                                                                                        |
 | Purchasing     | Goods Receiving       | `/purchasing/goods-receiving`       | active        | COMPLETE       | GRN create/edit/post/QC lifecycle exists.                                                                                                                                                |
-| Purchasing     | Purchase Invoices     | `/purchasing/purchase-invoices`     | planned       | MISSING        | GRNs create payable/accounting effects, but there is no supplier-invoice aggregate, matching lifecycle, route, or UI.                                                                    |
+| Purchasing     | Purchase Invoices     | `/purchasing/purchase-invoices`     | active        | COMPLETE       | PO-line-anchored matching against QC-completed GRN lines, price/tax variance true-up (no AP re-origination, no GRNI, no revaluation), draft/post/cancel/reverse lifecycle exists.        |
 | Purchasing     | Purchase Returns      | `/purchasing/purchase-returns`      | active        | COMPLETE       | Return, quarantine, replacement, and lifecycle controls exist.                                                                                                                           |
 | Purchasing     | Suppliers             | `/purchasing/suppliers`             | active        | COMPLETE       | Supplier master/detail/statement workflow exists.                                                                                                                                        |
 | Purchasing     | Supplier Payments     | `/purchasing/supplier-payments`     | active        | COMPLETE       | Draft/post/allocation/reversal workflow exists.                                                                                                                                          |
@@ -76,12 +76,12 @@ Final reconciliation completed 2026-09-13 after Reprocess and Waste & Damage clo
 
 | Classification                 |  Count |
 | ------------------------------ | -----: |
-| COMPLETE                       |     57 |
+| COMPLETE                       |     58 |
 | BACKEND EXISTS / UI INCOMPLETE |      0 |
 | PARTIAL                        |      0 |
-| MISSING                        |      2 |
+| MISSING                        |      1 |
 | **Total sidebar entries**      | **58** |
 
 Account Security is available from the shell rather than the sidebar and is `COMPLETE`: password change and session-revocation controls are implemented and E2E-covered.
 
-Two planned labels remain: Purchase Invoices and Administration Settings (`MISSING`). Reprocess and Waste & Damage are active and complete. The duplicate Journal Vouchers entry was removed; Manual Journals remains the sole manual-journal workflow.
+One planned label remains: Administration Settings (`MISSING`). Purchase Invoices, Reprocess, and Waste & Damage are active and complete. The duplicate Journal Vouchers entry was removed; Manual Journals remains the sole manual-journal workflow.
