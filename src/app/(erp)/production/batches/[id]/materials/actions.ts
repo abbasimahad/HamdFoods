@@ -8,7 +8,7 @@ import {
   postMaterialTransaction,
   saveMaterialTransaction,
 } from "@/modules/production/application/manage-material-transactions";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaProductionMaterialRepository } from "@/server/production/prisma-production-material-repository";
 
 const repository = new PrismaProductionMaterialRepository();

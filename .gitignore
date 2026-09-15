@@ -42,5 +42,14 @@ installer/prerequisites/*.zip
 installer/prerequisites/*.sha256
 installer/signing/
 scratch/
+
+# Phase 33 licensing: vendor Ed25519 private signing key and generated
+# license files must never be committed. Only the public key (embedded in
+# src/server/licensing/public-keys.ts) is checked in. .license-runtime/ is
+# the local fallback data root used only when HAMDFOODS_DATA_ROOT is unset
+# (dev, test, and local `pnpm production:*` runs), never real ProgramData.
+.licensing/
+*.lic
+.license-runtime/
 *.pfx
 *.p12

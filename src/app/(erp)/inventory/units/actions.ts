@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { MasterActionState } from "@/components/master-data/action-state";
 import { saveUnit, setUnitActive } from "@/modules/master-data/application/manage-units";
 import { PrismaMasterDataRepository } from "@/server/master-data/prisma-master-data-repository";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 
 const repository = new PrismaMasterDataRepository();
 const statusSchema = z.object({ id: z.string().min(1), active: z.enum(["true", "false"]) });

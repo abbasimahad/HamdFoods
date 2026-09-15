@@ -1,5 +1,25 @@
 # Current phase
 
+## Phase 33 - Software Licensing
+
+**Status:** COMPLETE
+
+### Implemented boundary
+
+- Offline, signed-license protection for customer installations, implemented exactly per the frozen `docs/specs/phase33-software-protection-design.md` (D1-D7 approved, D2 amended to bound-at-signing activation). Design: Ed25519-signed `license.lic` bound to a non-secret machine fingerprint (SHA-256 of `MachineGuid` + volume serial); the vendor's private key never enters this repository, installer, or runtime -- only public keys are embedded (`src/server/licensing/public-keys.ts`).
+- Eight-state machine (`SETUP_GRACE`, `VALID`, `EXPIRY_GRACE`, `EXPIRED`, `MACHINE_MISMATCH`, `INVALID_SIGNATURE`, `TAMPERED_STATE`, `CLOCK_ROLLBACK`) in `src/modules/licensing/domain/license.ts`: 14-day setup grace, 30-day expiry grace, 15-minute clock-rollback tolerance; invalid signature/tampered state/machine mismatch restrict immediately with no grace.
+- `license-state.json` (grace anchors, rollback watermark) is authenticated with an HMAC keyed by a value sealed via Windows DPAPI (`LocalMachine` scope) -- generated locally, never embedded, never transmitted. No hardcoded license secret exists anywhere in the codebase.
+- Restricted mode blocks only ordinary business mutations. `src/server/auth/licensed-guards.ts` wraps `requirePermission`/`requireAnyPermission` for every mutation entry point (`actions.ts`) except `account/security` (account hygiene) and `administration/license` (license recovery itself), which remain available in every state. Every `page.tsx` continues to import the unrestricted guards directly, so reads, reports, printing, backups, and restore tooling are never affected by construction.
+- New `license.manage` permission (granted to `SUPER_ADMIN`/`ADMIN` by default, like every other `PERMISSIONS`-array addition) gates the new `/administration/license` panel: view status, generate an offline activation request, import a signed `.lic`, and reset corrupted local state metadata (never the signed machine binding). Deliberate admin actions are audited under a new `LICENSE` `AuditEntityType`.
+- Enforcement activates only when `APP_ENV=production` on Windows, matching every other native-production-only invariant in `src/server/env.ts`; development, test, CI, and non-Windows environments always evaluate unrestricted.
+- `Setup-HamdFoodsERP.ps1` accepts an optional `-LicenseFile` parameter to stage a pre-supplied license using the same protected-ACL pattern as `.env.production`; its absence never blocks installation. Vendor-side keypair generation and signing tooling live in `scripts/licensing/` and never ship with the application.
+
+### Current evidence
+
+- Domain unit tests: 26/26 (state machine, canonicalization, grace/rollback boundaries). Ed25519 sign/verify: 5/5. Live-Windows integration tests (real DPAPI round-trip, real machine fingerprint, real signature verification end-to-end through the full service): 21/21. `licensed-guards` wrapper: 5/5. Full `pnpm verify`: PASS.
+- `git diff --check`: PASS.
+- See `docs/operations/software-licensing.md` for the operator-facing activation and recovery procedure.
+
 ## Administration Settings
 
 **Status:** COMPLETE
@@ -266,7 +286,7 @@
 
 ## Workflow inventory
 
-The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 58 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 0 `PARTIAL`, and 0 `MISSING` across all 58 sidebar entries. Every sidebar workflow, including Receivables, Payables, Material Issues, Packaging Consumption, Reprocess, Waste & Damage, Purchase Invoices, and Administration Settings, is now a complete, tested, first-class workbench. The duplicate Journal Vouchers entry was removed.
+The final sidebar/workflow classification is recorded in `docs/testing/workflow-inventory.md`: 59 `COMPLETE`, 0 `BACKEND EXISTS / UI INCOMPLETE`, 0 `PARTIAL`, and 0 `MISSING` across all 59 sidebar entries. Every sidebar workflow, including Receivables, Payables, Material Issues, Packaging Consumption, Reprocess, Waste & Damage, Purchase Invoices, Administration Settings, and License, is now a complete, tested, first-class workbench. The duplicate Journal Vouchers entry was removed.
 
 ## Navigation and Data Entry UX closure
 
@@ -280,7 +300,7 @@ The final sidebar/workflow classification is recorded in `docs/testing/workflow-
 
 ## Next gate
 
-**All 58 sidebar workflows are COMPLETE. Phase 33 is NOT STARTED.** With Purchase Invoices and Administration Settings closed, the functional workflow inventory is exhausted: 0 `PARTIAL`, 0 `MISSING`. The documented next steps are full functional UAT, production/manual workflow UAT, and re-certification of the complete ERP, followed by Phase 33 (not yet scoped or started). Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
+**All 59 sidebar workflows are COMPLETE. Phase 33 (software licensing) is COMPLETE.** The functional workflow inventory is exhausted: 0 `PARTIAL`, 0 `MISSING`. Phase 31 authorized/unauthorized remote-device acceptance and mobile PWA acceptance remain deferred by the operator to final UAT.
 
 ### Production deployment note (resolved 2026-09-14)
 

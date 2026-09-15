@@ -8,7 +8,7 @@ import {
   postPackagingTransaction,
   savePackagingTransaction,
 } from "@/modules/production/application/manage-packaging-transactions";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaProductionPackagingRepository } from "@/server/production/prisma-production-packaging-repository";
 
 const repository = new PrismaProductionPackagingRepository();

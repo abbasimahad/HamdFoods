@@ -9,7 +9,7 @@ import {
   reserveRedeliveryStock,
   saveSalesOrder,
 } from "@/modules/sales/application/manage-sales-orders";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaSalesOrderRepository } from "@/server/sales/prisma-sales-order-repository";
 
 const repository = new PrismaSalesOrderRepository();

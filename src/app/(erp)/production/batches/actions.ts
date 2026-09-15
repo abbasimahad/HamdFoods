@@ -9,7 +9,7 @@ import {
   releaseProductionBatch,
   saveProductionBatch,
 } from "@/modules/production/application/manage-batches";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaProductionBatchRepository } from "@/server/production/prisma-production-batch-repository";
 
 const repository = new PrismaProductionBatchRepository();

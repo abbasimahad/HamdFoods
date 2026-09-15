@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { replaceRolePermissions } from "@/modules/access/application/manage-role-permissions";
 import { PrismaAccessRepository } from "@/server/access/prisma-access-repository";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 
 export type RoleActionState = { status: "idle" | "success" | "error"; message: string };
 export const initialRoleActionState: RoleActionState = { status: "idle", message: "" };

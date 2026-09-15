@@ -10,7 +10,7 @@ import {
   inactivateRecipe,
   saveRecipe,
 } from "@/modules/production/application/manage-recipes";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaRecipeRepository } from "@/server/production/prisma-recipe-repository";
 
 const repository = new PrismaRecipeRepository();

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { PurchasingActionState } from "@/components/purchasing/action-state";
 import { saveSupplier, setSupplierActive } from "@/modules/purchasing/application/manage-suppliers";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaPurchasingRepository } from "@/server/purchasing/prisma-purchasing-repository";
 
 const repository = new PrismaPurchasingRepository();

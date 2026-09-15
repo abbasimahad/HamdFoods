@@ -23,7 +23,7 @@ import {
   saveTreasuryTransfer,
 } from "@/modules/accounting/application/manage-treasury";
 import { PrismaExpenseRepository } from "@/server/accounting/prisma-expense-repository";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { Phase23AccountingError } from "@/server/accounting/prisma-phase23-repository";
 import { PrismaSupplierPaymentRepository } from "@/server/accounting/prisma-supplier-payment-repository";
 import { PrismaTreasuryRepository } from "@/server/accounting/prisma-treasury-repository";

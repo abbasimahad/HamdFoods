@@ -29,13 +29,17 @@ function Brand({ compact = false, companyName }: { compact?: boolean; companyNam
   );
 }
 
+export type LicenseBanner = { message: string; tone: "warning" | "restricted" } | null;
+
 export function AppShell({
   children,
   companyName,
+  licenseBanner,
   principal,
 }: {
   children: ReactNode;
   companyName: string;
+  licenseBanner?: LicenseBanner;
   principal: ApplicationPrincipal;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -158,6 +162,18 @@ export function AppShell({
             principal={principal}
           />
         </div>
+        {licenseBanner && (
+          <div
+            className={`px-4 py-2 text-center text-sm font-medium ${
+              licenseBanner.tone === "restricted"
+                ? "bg-red-100 text-red-900"
+                : "bg-amber-100 text-amber-900"
+            }`}
+            role="status"
+          >
+            {licenseBanner.message}
+          </div>
+        )}
         <main>{children}</main>
       </div>
     </div>

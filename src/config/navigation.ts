@@ -79,6 +79,7 @@ export const routes = {
       rolesPermissions: "/administration/roles-permissions",
       settings: "/administration/settings",
       auditLog: "/administration/audit-log",
+      license: "/administration/license",
     },
   },
 } as const;
@@ -241,7 +242,14 @@ export const appNavigation: readonly NavigationItem[] = [
     label: "Administration",
     href: routes.administration,
     icon: "administration",
-    anyPermissions: ["users.view", "users.manage", "roles.manage", "audit.view", "settings.manage"],
+    anyPermissions: [
+      "users.view",
+      "users.manage",
+      "roles.manage",
+      "audit.view",
+      "settings.manage",
+      "license.manage",
+    ],
     children: [
       {
         label: "Users",
@@ -257,6 +265,7 @@ export const appNavigation: readonly NavigationItem[] = [
       },
       active("Settings", routes.future.administration.settings, "settings.manage"),
       active("Audit Log", routes.future.administration.auditLog, "audit.view"),
+      active("License", routes.future.administration.license, "license.manage"),
     ],
   },
 ] as const;

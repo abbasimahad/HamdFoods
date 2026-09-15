@@ -8,7 +8,7 @@ import {
   postSalesDispatch,
   saveSalesDispatch,
 } from "@/modules/sales/application/manage-sales-dispatches";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaSalesDispatchRepository } from "@/server/sales/prisma-sales-dispatch-repository";
 const repository = new PrismaSalesDispatchRepository();
 function refresh(id?: string) {

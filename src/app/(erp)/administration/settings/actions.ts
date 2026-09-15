@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { saveCompanyProfile } from "@/modules/administration/application/manage-company-profile";
 import type { CompanyProfileMutationResult } from "@/modules/administration/application/company-profile-contracts";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 
 const repository = new PrismaCompanyProfileRepository();

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { type AccountingMappingKey } from "@/generated/prisma/client";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { prisma } from "@/server/db/prisma";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import {

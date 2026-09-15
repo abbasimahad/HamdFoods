@@ -6,7 +6,7 @@ import {
   postSalesInvoice,
   cancelSalesInvoice,
 } from "@/modules/sales/application/manage-sales-invoices";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaSalesInvoiceRepository } from "@/server/sales/prisma-sales-invoice-repository";
 const repo = new PrismaSalesInvoiceRepository();
 const refresh = (id?: string) => {

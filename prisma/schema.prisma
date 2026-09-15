@@ -480,6 +480,7 @@ enum AuditEntityType {
   WASTE_DISPOSITION
   PURCHASE_INVOICE
   COMPANY_PROFILE
+  LICENSE
 }
 
 enum AuditReasonCode {

@@ -12,7 +12,7 @@ import {
   startReprocess,
   updateReprocessDraft,
 } from "@/modules/production/application/manage-reprocess";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaReprocessRepository } from "@/server/production/prisma-reprocess-repository";
 
 const repository = new PrismaReprocessRepository();

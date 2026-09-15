@@ -9,7 +9,7 @@ import {
   reverseCustomerPayment,
   saveCustomerPayment,
 } from "@/modules/sales/application/manage-customer-payments";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaCustomerPaymentRepository } from "@/server/sales/prisma-customer-payment-repository";
 
 const repository = new PrismaCustomerPaymentRepository();

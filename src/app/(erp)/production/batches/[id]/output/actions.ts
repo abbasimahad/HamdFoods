@@ -9,7 +9,7 @@ import {
   postOutputTransaction,
   saveOutputTransaction,
 } from "@/modules/production/application/manage-output-transactions";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaProductionOutputRepository } from "@/server/production/prisma-production-output-repository";
 
 const repository = new PrismaProductionOutputRepository();

@@ -7,7 +7,7 @@ import {
   saveWarehouse,
   setWarehouseActive,
 } from "@/modules/inventory/application/manage-warehouses";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaInventoryRepository } from "@/server/inventory/prisma-inventory-repository";
 
 const repository = new PrismaInventoryRepository();

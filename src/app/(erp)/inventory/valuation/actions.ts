@@ -8,7 +8,7 @@ import {
   postValuationAdjustment,
   rebuildValuation,
 } from "@/modules/costing/application/manage-costing";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaInventoryValuationRepository } from "@/server/costing/prisma-inventory-valuation-repository";
 
 const repository = new PrismaInventoryValuationRepository();

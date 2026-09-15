@@ -9,7 +9,7 @@ import {
   quarantinePurchasedMaterial,
   savePurchaseReturn,
 } from "@/modules/purchasing/application/manage-purchase-returns";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaPurchaseReturnRepository } from "@/server/purchasing/prisma-purchase-return-repository";
 
 const repository = new PrismaPurchaseReturnRepository();

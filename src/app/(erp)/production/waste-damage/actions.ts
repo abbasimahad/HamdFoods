@@ -10,7 +10,7 @@ import {
   reverseWasteDisposition,
   saveWasteDispositionDraft,
 } from "@/modules/inventory/application/manage-waste-dispositions";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 
 const repository = new PrismaWasteDispositionRepository();

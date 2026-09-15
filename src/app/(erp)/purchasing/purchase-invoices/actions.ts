@@ -9,7 +9,7 @@ import {
   reversePurchaseInvoice,
   savePurchaseInvoice,
 } from "@/modules/purchasing/application/manage-purchase-invoices";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaPurchaseInvoiceRepository } from "@/server/purchasing/prisma-purchase-invoice-repository";
 
 const repository = new PrismaPurchaseInvoiceRepository();

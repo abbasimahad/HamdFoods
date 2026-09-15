@@ -10,7 +10,7 @@ import {
   saveSalesperson,
   setSalesMasterActive,
 } from "@/modules/sales/application/manage-sales";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaSalesRepository } from "@/server/sales/prisma-sales-repository";
 
 const repository = new PrismaSalesRepository();

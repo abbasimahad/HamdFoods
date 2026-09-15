@@ -9,7 +9,8 @@ param(
   [string]$DatabaseName = 'hamd_foods_erp',
   [string]$RoleName = 'hamd_erp',
   [switch]$InstallBackupTask,
-  [switch]$Drill
+  [switch]$Drill,
+  [string]$LicenseFile
 )
 
 Set-StrictMode -Version Latest
@@ -163,6 +164,8 @@ try {
     Write-ProtectedConfiguration -DatabasePassword $secrets.DatabasePassword -AuthSecret $secrets.AuthSecret -Postgres $postgres
     Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
     Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
+
+    Register-PreSuppliedLicense
   } else {
     $stage = 'ConfigurationValidation'
     Import-HamdFoodsEnvironment -EnvironmentFile $configPath
@@ -516,6 +519,34 @@ function Write-ProtectedConfiguration {
   )
   [IO.File]::WriteAllText($configPath, (($lines -join "`r`n") + "`r`n"), [Text.UTF8Encoding]::new($false))
   Protect-HamdFoodsPath -Path $configPath
+}
+
+function Register-PreSuppliedLicense {
+  # Phase 33 software licensing: optionally stages a vendor-signed .lic file
+  # supplied at install time, using the exact same protected-config pattern
+  # as .env.production. Absence is never a failure -- the application enters
+  # its own SETUP_GRACE period and a license can always be activated later
+  # from Administration -> License. A staging failure is logged and
+  # swallowed rather than aborting the installation, because licensing must
+  # never block setup from completing (see the Phase 33 design, Section 8).
+  if ([string]::IsNullOrWhiteSpace($LicenseFile)) { return }
+  $licenseDestination = Join-Path $configDirectory 'license.lic'
+  try {
+    if (Test-Path -LiteralPath $licenseDestination -PathType Leaf) {
+      Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage 'LicenseStaging' -Status 'PASS' -Message 'A license already exists; the supplied file was not applied.'
+      return
+    }
+    if (-not (Test-Path -LiteralPath $LicenseFile -PathType Leaf)) {
+      Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage 'LicenseStaging' -Status 'FAIL' -Message 'The supplied license file could not be found.'
+      return
+    }
+    Copy-Item -LiteralPath $LicenseFile -Destination $licenseDestination -Force
+    Protect-HamdFoodsPath -Path $licenseDestination
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage 'LicenseStaging' -Status 'PASS'
+  } catch {
+    $safeMessage = ConvertTo-HamdFoodsSafeLogText -Text $_.Exception.Message -SensitiveValues (Get-HamdFoodsSensitiveValues)
+    Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage 'LicenseStaging' -Status 'FAIL' -Message $safeMessage
+  }
 }
 
 function Assert-ExistingConfiguration {

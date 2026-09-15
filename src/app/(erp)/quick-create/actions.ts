@@ -9,7 +9,7 @@ import type {
   QuickCreateKind,
   QuickCreateResult,
 } from "@/modules/workflow-ux/application/quick-create-contracts";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaMasterDataRepository } from "@/server/master-data/prisma-master-data-repository";
 import { PrismaPurchasingRepository } from "@/server/purchasing/prisma-purchasing-repository";
 import { dispatchQuickCreate } from "@/server/quick-create/quick-create-dispatch";

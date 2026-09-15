@@ -8,7 +8,7 @@ import {
   postGoodsReceipt,
   saveGoodsReceipt,
 } from "@/modules/purchasing/application/manage-goods-receipts";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaGoodsReceiptRepository } from "@/server/purchasing/prisma-goods-receipt-repository";
 const repository = new PrismaGoodsReceiptRepository();
 export async function saveGoodsReceiptAction(

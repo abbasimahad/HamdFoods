@@ -8,7 +8,7 @@ import {
   receiveSalesReturn,
   saveSalesReturn,
 } from "@/modules/sales/application/manage-sales-returns";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 import { PrismaSalesReturnRepository } from "@/server/sales/prisma-sales-return-repository";
 const repository = new PrismaSalesReturnRepository();
 function refresh(id?: string) {

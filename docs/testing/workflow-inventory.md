@@ -1,6 +1,6 @@
 # Workflow Inventory
 
-Final reconciliation completed 2026-09-15 after Purchase Invoices and Administration Settings closure verification. All 58 sidebar entries are `COMPLETE`; zero `PARTIAL`/`MISSING` remain. Phase 33 remains unstarted.
+Reconciliation updated 2026-09-15 after Phase 33 software licensing closure. All 59 sidebar entries are `COMPLETE`; zero `PARTIAL`/`MISSING` remain.
 
 ## Classification rules
 
@@ -71,17 +71,18 @@ Final reconciliation completed 2026-09-15 after Purchase Invoices and Administra
 | Administration | Roles & Permissions   | `/administration/roles-permissions` | active        | COMPLETE       | Role-permission management with protected-role rules exists.                                                                                                                                                                |
 | Administration | Settings              | `/administration/settings`          | active        | COMPLETE       | Company/factory profile (name, address, phone, email, tax registration) used on printed documents and application branding; `settings.manage`-gated, audited; accounting settings remain a separate, unduplicated workflow. |
 | Administration | Audit Log             | `/administration/audit-log`         | active        | COMPLETE       | Filtered immutable audit list/detail exists.                                                                                                                                                                                |
+| Administration | License               | `/administration/license`           | active        | COMPLETE       | Offline signed-license status, activation-request generation, import, and local-state recovery exist; `license.manage`-gated, audited.                                                                                      |
 
 ## Summary
 
 | Classification                 |  Count |
 | ------------------------------ | -----: |
-| COMPLETE                       |     58 |
+| COMPLETE                       |     59 |
 | BACKEND EXISTS / UI INCOMPLETE |      0 |
 | PARTIAL                        |      0 |
 | MISSING                        |      0 |
-| **Total sidebar entries**      | **58** |
+| **Total sidebar entries**      | **59** |
 
-Account Security is available from the shell rather than the sidebar and is `COMPLETE`: password change and session-revocation controls are implemented and E2E-covered.
+Account Security is available from the shell rather than the sidebar and is `COMPLETE`: password change and session-revocation controls are implemented and E2E-covered. Account Security and the License panel's own management actions are deliberately exempt from license-restricted mode (see `docs/operations/software-licensing.md`) so account hygiene and license recovery remain available in every license state.
 
 No planned labels remain. Every sidebar entry is `COMPLETE`. The duplicate Journal Vouchers entry was removed; Manual Journals remains the sole manual-journal workflow.
