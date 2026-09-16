@@ -51,5 +51,12 @@ scratch/
 .licensing/
 *.lic
 .license-runtime/
+
+# Phase 34 secure updates: .update-runtime/ caches a dev/test-only esbuild
+# bundle of the update orchestrator; real installations use the bundled
+# operations\update-orchestrator.mjs staged by scripts/installer.ts.
+# *.hfupdate packages are vendor/operator-built artifacts, not repo content.
+.update-runtime/
+*.hfupdate
 *.pfx
 *.p12

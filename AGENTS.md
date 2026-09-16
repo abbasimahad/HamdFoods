@@ -1,6 +1,6 @@
 # Factory ERP
 
-Production-oriented food manufacturing ERP. Phases 1-33 plus the Reprocess/Waste & Damage, Purchase Invoices, and Administration Settings closures are complete; all 59 sidebar workflows are `COMPLETE` (see `docs/testing/workflow-inventory.md`). Phase 33 adds offline, signed-license activation and restricted mode (`docs/operations/software-licensing.md`). It is a TypeScript modular monolith: Next.js presentation, module-owned application/domain code, server infrastructure, Prisma, and PostgreSQL.
+Production-oriented food manufacturing ERP. Phases 1-33 plus the Reprocess/Waste & Damage, Purchase Invoices, and Administration Settings closures are complete; all 59 sidebar workflows are `COMPLETE` (see `docs/testing/workflow-inventory.md`). Phase 33 adds offline, signed-license activation and restricted mode (`docs/operations/software-licensing.md`). Phase 34 adds offline, signed software updates and failed-update recovery (`docs/operations/software-updates.md`), verified via a live-Windows update drill and production deployment (see `docs/phases/current.md`). It is a TypeScript modular monolith: Next.js presentation, module-owned application/domain code, server infrastructure, Prisma, and PostgreSQL.
 
 Verify with `pnpm verify`; use `pnpm test` for focused tests and `pnpm db:check` for live database connectivity. Local setup is in `README.md`.
 

@@ -80,6 +80,7 @@ export const routes = {
       settings: "/administration/settings",
       auditLog: "/administration/audit-log",
       license: "/administration/license",
+      updates: "/administration/updates",
     },
   },
 } as const;
@@ -249,6 +250,7 @@ export const appNavigation: readonly NavigationItem[] = [
       "audit.view",
       "settings.manage",
       "license.manage",
+      "updates.manage",
     ],
     children: [
       {
@@ -266,6 +268,7 @@ export const appNavigation: readonly NavigationItem[] = [
       active("Settings", routes.future.administration.settings, "settings.manage"),
       active("Audit Log", routes.future.administration.auditLog, "audit.view"),
       active("License", routes.future.administration.license, "license.manage"),
+      active("Updates", routes.future.administration.updates, "updates.manage"),
     ],
   },
 ] as const;

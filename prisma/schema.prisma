@@ -481,6 +481,7 @@ enum AuditEntityType {
   PURCHASE_INVOICE
   COMPANY_PROFILE
   LICENSE
+  SOFTWARE_UPDATE
 }
 
 enum AuditReasonCode {

@@ -214,6 +214,7 @@ try {
   $stage = 'TaskRegistration'
   Register-ApplicationTask
   if ($InstallBackupTask) { Register-BackupTask } else { Unregister-ScheduledTask -TaskName $BackupTaskName -Confirm:$false -ErrorAction SilentlyContinue }
+  Register-UpdateTask
   Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
   Complete-HamdFoodsProvisioningStage -State $managedState -Stage $stage
 
@@ -323,7 +324,8 @@ function Stop-HamdFoodsManagedRuntime {
 function Remove-HamdFoodsScheduledTasks {
   Stop-HamdFoodsManagedRuntime
   Stop-ScheduledTask -TaskName $BackupTaskName -ErrorAction SilentlyContinue
-  foreach ($name in @($TaskName, $BackupTaskName)) {
+  Stop-ScheduledTask -TaskName "$TaskName-Update" -ErrorAction SilentlyContinue
+  foreach ($name in @($TaskName, $BackupTaskName, "$TaskName-Update")) {
     Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
   }
 }
@@ -635,6 +637,24 @@ function Register-BackupTask {
   $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
   $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
   Register-ScheduledTask -TaskName $BackupTaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+}
+
+function Register-UpdateTask {
+  # Phase 34: a trigger-less SYSTEM task, armed on demand (Start-ScheduledTask)
+  # by the Administration -> Updates admin action, or by an operator-chosen
+  # one-time off-hours trigger. It never receives an arbitrary path as an
+  # argument -- Update-HamdFoodsERP.ps1 reads which package to install from
+  # the ACL-protected pending-update.json this task's own fixed arguments
+  # point it at, matching the "controlled updateId, not a filesystem path"
+  # requirement.
+  $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  $runner = Join-Path $AppRoot 'windows\Update-HamdFoodsERP.ps1'
+  $drillArgument = if ($Drill) { ' -Drill' } else { '' }
+  $arguments = "-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$runner`" -AppRoot `"$AppRoot`" -DataRoot `"$DataRoot`" -TaskName `"$TaskName`" -Port $Port$drillArgument"
+  $action = New-ScheduledTaskAction -Execute $powershell -Argument $arguments -WorkingDirectory $AppRoot
+  $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+  $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+  Register-ScheduledTask -TaskName "$TaskName-Update" -Action $action -Settings $settings -Principal $principal -Force | Out-Null
 }
 
 function Invoke-InstalledBackup {

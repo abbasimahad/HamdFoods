@@ -443,7 +443,7 @@ describe("Windows installer PowerShell architecture boundaries", () => {
 
       expect(result.status, result.stderr).toBe(0);
       expect(result.stdout.trim()).toBe(
-        "stop:HamdFoodsERP-InstallDrill,sleep:2,taskkill:/PID:4242:/T:/F,stop:HamdFoodsERP-InstallDrill-Backup,unregister:HamdFoodsERP-InstallDrill,unregister:HamdFoodsERP-InstallDrill-Backup",
+        "stop:HamdFoodsERP-InstallDrill,sleep:2,taskkill:/PID:4242:/T:/F,stop:HamdFoodsERP-InstallDrill-Backup,stop:HamdFoodsERP-InstallDrill-Update,unregister:HamdFoodsERP-InstallDrill,unregister:HamdFoodsERP-InstallDrill-Backup,unregister:HamdFoodsERP-InstallDrill-Update",
       );
     },
   );

@@ -96,6 +96,10 @@ Remove-Item Env:HAMDFOODS_RUN_INSTALLER_DRILL
 
 The command prepares and verifies the same payload, compiles the isolated Inno variant, and launches it only with that explicit opt-in. It checks recovery, exact-origin login/dashboard/direct-signup rejection, repair, the same authentication checks again, and then runs the isolated uninstaller. Verify elevation, payload, config ACL, migrations discovered at execution time, seed, bootstrap, SYSTEM task, loopback 3200 health/login, backup create/verify, uninstall preservation, and that the live 3100 task/Serve configuration never changed. An absent compiler means the drill is not run and Phase 32 remains partial; do not simulate evidence.
 
+## Software updates (Phase 34)
+
+`Setup-HamdFoodsERP.ps1` additionally registers a trigger-less SYSTEM `HamdFoodsERP-Update` Scheduled Task (and its isolated-drill counterpart), armed on demand from `Administration -> Updates` rather than by any trigger. The installed layout stays exactly as described above until the first update actually runs: an update lazily adopts a versioned `releases\<version>\{app,operations,runtime}` layout plus an atomic `AppRoot\active-release.json` pointer, while `AppRoot\windows` and the original `AppRoot\runtime\node` are never touched by an update. `Remove-HamdFoodsScheduledTasks` (repair/uninstall) also stops and unregisters `HamdFoodsERP-Update`. See `docs/operations/software-updates.md` for the full update model, secure extraction rules, and rollback policy.
+
 ## Troubleshooting
 
 - `Installer Compiler: FAIL`: install official Inno Setup 7 machine-wide or per-user, or set `INNO_SETUP_COMPILER` to an absolute standalone `ISCC.exe`. A configured but invalid override fails closed instead of silently selecting another executable.

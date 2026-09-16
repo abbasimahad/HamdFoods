@@ -16,6 +16,8 @@ export default defineConfig([
     "out/**",
     "src/generated/**",
     "scratch/**",
+    ".update-runtime/**",
+    ".license-runtime/**",
     "next-env.d.ts",
   ]),
 ]);

@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   "audit.view",
   "settings.manage",
   "license.manage",
+  "updates.manage",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number];
@@ -46,4 +47,5 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<PermissionCode, string>> =
   "audit.view": "View audit history",
   "settings.manage": "Manage company/factory profile settings",
   "license.manage": "View and manage software license activation",
+  "updates.manage": "Upload, verify, install, and recover software updates",
 };

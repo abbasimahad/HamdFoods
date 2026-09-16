@@ -25,6 +25,7 @@ const expectedPermissions = [
   "audit.view",
   "settings.manage",
   "license.manage",
+  "updates.manage",
 ] as const;
 
 function principal(permissions: readonly PermissionCode[], active = true): ApplicationPrincipal {

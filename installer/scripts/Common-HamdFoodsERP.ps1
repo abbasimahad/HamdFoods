@@ -228,3 +228,114 @@ function Test-HamdFoodsAdministrator {
   $principal = [Security.Principal.WindowsPrincipal]::new($identity)
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+
+# --- Phase 34 secure updates: versioned-release resolution -----------------
+#
+# The installer keeps installing into the flat AppRoot\{app,operations,
+# windows,runtime} layout unchanged (Phase 32). Phase 34 adds an optional,
+# lazily-adopted layered layout on top: AppRoot\releases\<version>\{app,
+# operations,windows,runtime} plus AppRoot\active-release.json. An
+# installation that has never received an update has no active-release.json
+# and keeps running the original flat layout exactly as before -- every
+# function below is written to fall back to that flat layout so existing
+# and freshly-installed instances are unaffected until/unless an update
+# actually runs. AppRoot\windows and AppRoot\runtime\node themselves are
+# never touched by an update (only releases\<version>\ subtrees are
+# created), so they serve as the stable "bootstrap" component the Phase 34
+# design requires without needing a separate directory.
+
+function Get-HamdFoodsActiveReleasePointerPath {
+  param([Parameter(Mandatory = $true)][string]$AppRoot)
+  return Join-Path $AppRoot 'active-release.json'
+}
+
+function Resolve-HamdFoodsActiveRelease {
+  param([Parameter(Mandatory = $true)][string]$AppRoot)
+  $pointerPath = Get-HamdFoodsActiveReleasePointerPath -AppRoot $AppRoot
+  if (-not (Test-Path -LiteralPath $pointerPath -PathType Leaf)) {
+    return [pscustomobject]@{
+      Layered = $false
+      Version = $null
+      AppDir = Join-Path $AppRoot 'app'
+      OperationsDir = Join-Path $AppRoot 'operations'
+      NodeExe = Join-Path $AppRoot 'runtime\node\node.exe'
+    }
+  }
+  $pointer = [IO.File]::ReadAllText($pointerPath) | ConvertFrom-Json
+  if ($pointer.version -notmatch '^\d+\.\d+\.\d+$') { throw 'Active release pointer is invalid.' }
+  $releaseRoot = Join-Path $AppRoot "releases\$($pointer.version)"
+  if (-not (Test-Path -LiteralPath $releaseRoot -PathType Container)) { throw 'Active release directory is missing.' }
+  return [pscustomobject]@{
+    Layered = $true
+    Version = $pointer.version
+    ReleaseRoot = $releaseRoot
+    AppDir = Join-Path $releaseRoot 'app'
+    OperationsDir = Join-Path $releaseRoot 'operations'
+    NodeExe = Join-Path $releaseRoot 'runtime\node\node.exe'
+  }
+}
+
+function Set-HamdFoodsActiveRelease {
+  param([Parameter(Mandatory = $true)][string]$AppRoot, [Parameter(Mandatory = $true)][string]$Version)
+  if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Release version is invalid.' }
+  $pointerPath = Get-HamdFoodsActiveReleasePointerPath -AppRoot $AppRoot
+  $temporary = Join-Path $AppRoot ("active-release-{0}.tmp" -f [Guid]::NewGuid().ToString('N'))
+  $payload = @{ version = $Version; activatedAt = [DateTimeOffset]::Now.ToString('o') } | ConvertTo-Json -Compress
+  [IO.File]::WriteAllText($temporary, $payload, [Text.UTF8Encoding]::new($false))
+  Move-Item -LiteralPath $temporary -Destination $pointerPath -Force
+  Protect-HamdFoodsPath -Path $pointerPath
+}
+
+# --- Phase 34 secure updates: runtime stop/confirm/start/health ------------
+
+function Stop-HamdFoodsManagedRuntimeForRelease {
+  param(
+    [Parameter(Mandatory = $true)][string]$TaskName,
+    [Parameter(Mandatory = $true)][int]$Port,
+    [Parameter(Mandatory = $true)][string]$ExpectedNodeExe
+  )
+  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 2
+  $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+  foreach ($listener in $listeners) {
+    if ($listener.LocalAddress -notin @('127.0.0.1', '::1')) { throw "Port $Port has a non-loopback listener; will not terminate it." }
+    $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+    if (-not $process) {
+      if (-not (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object OwningProcess -eq $listener.OwningProcess)) { continue }
+      throw "Port $Port owner could not be identity-checked; will not terminate it."
+    }
+    if ($process.ProcessName -ne 'node' -or -not [StringComparer]::OrdinalIgnoreCase.Equals([string]$process.Path, $ExpectedNodeExe)) {
+      throw "Port $Port is not owned by the exact active release runtime; will not terminate it."
+    }
+    $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+    $termination = Start-Process -FilePath $taskkill -ArgumentList @('/PID', [string]$listener.OwningProcess, '/T', '/F') -WindowStyle Hidden -Wait -PassThru
+    if ($termination.ExitCode -ne 0 -and (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object OwningProcess -eq $listener.OwningProcess)) {
+      throw "Native termination failed for exact active release runtime PID $($listener.OwningProcess)."
+    }
+  }
+  $deadline = [DateTime]::UtcNow.AddSeconds(30)
+  while ((Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $deadline) {
+    Start-Sleep -Milliseconds 250
+  }
+  if (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) { throw "Port $Port remains occupied after stopping the active release runtime." }
+}
+
+function Test-HamdFoodsRuntimeStopped {
+  param([Parameter(Mandatory = $true)][string]$TaskName, [Parameter(Mandatory = $true)][int]$Port)
+  $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  $taskStopped = (-not $task) -or ($task.State -ne 'Running')
+  $portClear = -not (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+  return ($taskStopped -and $portClear)
+}
+
+function Wait-HamdFoodsHealthy {
+  param([Parameter(Mandatory = $true)][int]$Port, [int]$TimeoutSeconds = 60)
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  do {
+    try {
+      $response = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 5
+      if ($response.status -eq 'ok') { return $true }
+    } catch { Start-Sleep -Seconds 2 }
+  } while ([DateTime]::UtcNow -lt $deadline)
+  return $false
+}

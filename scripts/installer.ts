@@ -489,6 +489,7 @@ async function stageOperationalBundles() {
     ["scripts/bootstrap-super-admin.ts", "bootstrap-super-admin.mjs"],
     ["scripts/database-backup.ts", "database-backup.mjs"],
     ["scripts/account-recovery.ts", "account-recovery.mjs"],
+    ["scripts/updates/update-orchestrator-cli.ts", "update-orchestrator.mjs"],
   ] as const;
   for (const [entry, output] of entries)
     await build({

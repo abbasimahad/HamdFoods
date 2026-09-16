@@ -46,9 +46,9 @@ describe("license state store (live Windows DPAPI)", () => {
   windowsIt("detects a hand-edited state file as corrupted", () => {
     const paths = resolveLicenseStateStorePaths(tempDataRoot());
     writeLicenseState(paths, scriptPath, createInitialLicenseStateData(new Date()));
-    const raw = JSON.parse(readFileSync(paths.stateFile, "utf8"));
+    const raw = JSON.parse(readFileSync(paths.dataFile, "utf8"));
     raw.state.setupGraceAnchor = "2020-01-01T00:00:00.000Z";
-    writeFileSync(paths.stateFile, JSON.stringify(raw));
+    writeFileSync(paths.dataFile, JSON.stringify(raw));
     expect(readLicenseState(paths, scriptPath)).toEqual({ kind: "corrupted" });
   });
 

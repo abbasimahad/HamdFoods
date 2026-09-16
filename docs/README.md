@@ -28,6 +28,7 @@ This directory is the durable source of project context. Read only the documents
 - [`operations/tailscale-private-access.md`](operations/tailscale-private-access.md): Phase 31 private HTTPS Serve, Grants, remote health, and device acceptance
 - [`operations/windows-installer.md`](operations/windows-installer.md): Phase 32 native installer, factory-PC setup, repair, backup task, and safe uninstall
 - [`operations/software-licensing.md`](operations/software-licensing.md): Phase 33 offline signed-license activation, restricted mode, and recovery
+- [`operations/software-updates.md`](operations/software-updates.md): Phase 34 offline signed software updates, secure extraction, and failed-update recovery
 - [`pwa/mobile-pwa.md`](pwa/mobile-pwa.md): Phase 29 installability, conservative caching, offline boundaries, and responsive mobile use
 
 ## Project control
