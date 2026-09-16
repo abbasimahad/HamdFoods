@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -36,9 +36,32 @@ function testKeypair() {
   };
 }
 
-function importSigned(dataRoot: string, privateKeyPem: string, payload: LicensePayload) {
+function importSigned(
+  dataRoot: string,
+  privateKeyPem: string,
+  payload: LicensePayload,
+  trustedKeys: Readonly<Record<string, string>>,
+) {
   const signature = signEd25519({ message: canonicalizeLicensePayload(payload), privateKeyPem });
-  importLicenseFile(resolveLicenseFilePaths(dataRoot), JSON.stringify({ payload, signature }));
+  importLicenseFile(
+    resolveLicenseFilePaths(dataRoot),
+    JSON.stringify({ payload, signature }),
+    trustedKeys,
+  );
+}
+
+/**
+ * Places a signed license file directly on disk, bypassing importLicenseFile's
+ * verify-before-write check (Phase 35 L2) -- for scenarios that must exist as
+ * an already-on-disk fact regardless of whether today's import would accept
+ * it (an untrusted/since-rotated-out key, a hand-corrupted file), not for
+ * simulating a normal admin upload.
+ */
+function writeSignedDirectly(dataRoot: string, privateKeyPem: string, payload: LicensePayload) {
+  const signature = signEd25519({ message: canonicalizeLicensePayload(payload), privateKeyPem });
+  const paths = resolveLicenseFilePaths(dataRoot);
+  mkdirSync(paths.configDirectory, { recursive: true });
+  writeFileSync(paths.licenseFile, JSON.stringify({ payload, signature }));
 }
 
 describe("getLicenseStatus outside production", () => {
@@ -86,7 +109,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
         expiresAt: null,
         machineFingerprint: fingerprint,
       };
-      importSigned(dataRoot, privateKeyPem, payload);
+      importSigned(dataRoot, privateKeyPem, payload, { "test-vendor": publicKeyPem });
 
       const status = computeLicenseStatus(dataRoot, new Date(), { "test-vendor": publicKeyPem });
       expect(status.state).toBe("VALID");
@@ -111,7 +134,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
         expiresAt: null,
         machineFingerprint: "f".repeat(64),
       };
-      importSigned(dataRoot, privateKeyPem, payload);
+      importSigned(dataRoot, privateKeyPem, payload, { "test-vendor": publicKeyPem });
 
       const status = computeLicenseStatus(dataRoot, new Date(), { "test-vendor": publicKeyPem });
       expect(status.state).toBe("MACHINE_MISMATCH");
@@ -132,7 +155,11 @@ describe("computeLicenseStatus (live Windows integration)", () => {
       expiresAt: null,
       machineFingerprint: "a".repeat(64),
     };
-    importSigned(dataRoot, privateKeyPem, payload);
+    // A real upload of this content is now correctly rejected at import time
+    // (Phase 35 L2) -- this test instead covers the read-side fact of a file
+    // already on disk under a key that isn't (or is no longer) trusted, e.g.
+    // after a key rotation.
+    writeSignedDirectly(dataRoot, privateKeyPem, payload);
 
     const status = computeLicenseStatus(dataRoot, new Date(), {});
     expect(status.state).toBe("INVALID_SIGNATURE");

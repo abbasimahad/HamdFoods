@@ -4,13 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ProductionActionState } from "@/components/production/action-state";
 import type { PackagingState, ScaleState } from "@/components/production/recipe-calculators";
+import { RecipeRepositoryError } from "@/modules/production/application/contracts";
 import {
   approveRecipe,
   createNewRecipeVersion,
   inactivateRecipe,
   saveRecipe,
 } from "@/modules/production/application/manage-recipes";
+import { QuantityDomainError } from "@/modules/quantity/domain/quantity";
 import { requirePermission } from "@/server/auth/licensed-guards";
+import { safeActionErrorMessage } from "@/server/shared/action-error";
 import { PrismaRecipeRepository } from "@/server/production/prisma-recipe-repository";
 
 const repository = new PrismaRecipeRepository();
@@ -76,7 +79,14 @@ export async function scaleRecipeAction(
       ),
     };
   } catch (error) {
-    return { message: error instanceof Error ? error.message : "Recipe could not be scaled." };
+    return {
+      message: safeActionErrorMessage(
+        error,
+        "Recipe could not be scaled.",
+        RecipeRepositoryError,
+        QuantityDomainError,
+      ),
+    };
   }
 }
 export async function calculatePackagingAction(
@@ -95,7 +105,12 @@ export async function calculatePackagingAction(
     };
   } catch (error) {
     return {
-      message: error instanceof Error ? error.message : "Packaging could not be calculated.",
+      message: safeActionErrorMessage(
+        error,
+        "Packaging could not be calculated.",
+        RecipeRepositoryError,
+        QuantityDomainError,
+      ),
     };
   }
 }

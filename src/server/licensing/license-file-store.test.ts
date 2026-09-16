@@ -68,15 +68,18 @@ describe("readLicenseFileVerdict", () => {
     const { publicKeyPem, privateKeyPem } = keypair();
     const paths = resolveLicenseFilePaths(tempDataRoot());
     const licensePayload = payload({ keyId: "vendor-1" });
-    importLicenseFile(paths, signedLicenseFile(privateKeyPem, licensePayload));
-    const verdict = readLicenseFileVerdict(paths, { "vendor-1": publicKeyPem });
+    const trustedKeys = { "vendor-1": publicKeyPem };
+    importLicenseFile(paths, signedLicenseFile(privateKeyPem, licensePayload), trustedKeys);
+    const verdict = readLicenseFileVerdict(paths, trustedKeys);
     expect(verdict).toEqual({ kind: "valid", payload: licensePayload });
   });
 
   it("reports invalid-signature for an untrusted keyId", () => {
     const { privateKeyPem } = keypair();
     const paths = resolveLicenseFilePaths(tempDataRoot());
-    importLicenseFile(paths, signedLicenseFile(privateKeyPem, payload({ keyId: "unknown-key" })));
+    const licensePayload = payload({ keyId: "unknown-key" });
+    mkdirSync(paths.configDirectory, { recursive: true });
+    writeFileSync(paths.licenseFile, signedLicenseFile(privateKeyPem, licensePayload));
     expect(readLicenseFileVerdict(paths, { "vendor-1": keypair().publicKeyPem })).toEqual({
       kind: "invalid-signature",
     });
@@ -117,5 +120,48 @@ describe("importLicenseFile", () => {
     expect(() => importLicenseFile(paths, JSON.stringify({ foo: "bar" }))).toThrow(
       LicenseFileError,
     );
+  });
+
+  // Phase 35 L2: the signature must be verified before anything is ever
+  // written to disk, not after -- these cases would previously have passed
+  // (shape-only checked) and only failed much later, on next read.
+  it("rejects a well-formed but unsigned-by-any-trusted-key file, and never writes it to disk", () => {
+    const { privateKeyPem } = keypair();
+    const paths = resolveLicenseFilePaths(tempDataRoot());
+    const content = signedLicenseFile(privateKeyPem, payload({ keyId: "unknown-key" }));
+    expect(() => importLicenseFile(paths, content, { "vendor-1": keypair().publicKeyPem })).toThrow(
+      LicenseFileError,
+    );
+    expect(readLicenseFileVerdict(paths, {})).toEqual({ kind: "absent" });
+  });
+
+  it("rejects a tampered-payload file, and never writes it to disk", () => {
+    const { publicKeyPem, privateKeyPem } = keypair();
+    const paths = resolveLicenseFilePaths(tempDataRoot());
+    const licensePayload = payload({ keyId: "vendor-1" });
+    const signature = signEd25519({
+      message: canonicalizeLicensePayload(licensePayload),
+      privateKeyPem,
+    });
+    const tampered = JSON.stringify({
+      payload: { ...licensePayload, customer: "Attacker" },
+      signature,
+    });
+    expect(() => importLicenseFile(paths, tampered, { "vendor-1": publicKeyPem })).toThrow(
+      LicenseFileError,
+    );
+    expect(readLicenseFileVerdict(paths, { "vendor-1": publicKeyPem })).toEqual({ kind: "absent" });
+  });
+
+  it("accepts and persists a correctly signed file under a trusted key", () => {
+    const { publicKeyPem, privateKeyPem } = keypair();
+    const paths = resolveLicenseFilePaths(tempDataRoot());
+    const licensePayload = payload({ keyId: "vendor-1" });
+    const trustedKeys = { "vendor-1": publicKeyPem };
+    importLicenseFile(paths, signedLicenseFile(privateKeyPem, licensePayload), trustedKeys);
+    expect(readLicenseFileVerdict(paths, trustedKeys)).toEqual({
+      kind: "valid",
+      payload: licensePayload,
+    });
   });
 });

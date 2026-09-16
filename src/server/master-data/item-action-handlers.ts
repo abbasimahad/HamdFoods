@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { MasterActionState } from "@/components/master-data/action-state";
 import { saveItem, setItemActive } from "@/modules/master-data/application/manage-items";
 import type { ItemType } from "@/modules/master-data/domain/master-data";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requirePermission } from "@/server/auth/licensed-guards";
 
 import { PrismaMasterDataRepository } from "./prisma-master-data-repository";
 

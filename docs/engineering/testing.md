@@ -22,6 +22,14 @@ pnpm verify
 pnpm db:check
 ```
 
+Phase 35 adds a dependency-vulnerability check, kept separate from `verify` because it requires live network access to the npm registry advisory database and cannot run fully offline:
+
+```powershell
+pnpm security:audit
+```
+
+This runs `pnpm audit --prod --audit-level=high` and exits non-zero on any HIGH or CRITICAL advisory in a production dependency. Run it before every release and periodically otherwise; `.github/dependabot.yml` also opens weekly update PRs, which still go through the normal `pnpm verify`/integration/E2E gates before merge. A flagged finding is not automatically a defect -- assess actual reachability from the running server (see `docs/specs/phase35-security-hardening-design.md` Section 2 for the reasoning behind several currently-accepted findings that are build-tool-only transitive dependencies, never imported by the running application).
+
 Database-backed tests are also separate and may run only with a disposable PostgreSQL database whose name is explicitly test-only:
 
 ```powershell

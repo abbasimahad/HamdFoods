@@ -32,14 +32,18 @@ export function resolveLicenseFilePaths(dataRoot: string): LicenseFilePaths {
   };
 }
 
-export function readLicenseFileVerdict(
-  paths: LicenseFilePaths,
-  trustedKeys: Readonly<Record<string, string>> = TRUSTED_LICENSE_PUBLIC_KEYS,
+/**
+ * Parses and Ed25519-verifies a license file's raw JSON text in memory,
+ * touching no filesystem. Shared by readLicenseFileVerdict (the already-
+ * on-disk file) and importLicenseFile (Phase 35 L2: an admin-uploaded file
+ * must be verified before it is ever written to disk, not after).
+ */
+function verifyLicenseFileContent(
+  content: string,
+  trustedKeys: Readonly<Record<string, string>>,
 ): LicenseFileVerdict {
-  if (!existsSync(paths.licenseFile)) return { kind: "absent" };
-
   try {
-    const raw: unknown = JSON.parse(readFileSync(paths.licenseFile, "utf8"));
+    const raw: unknown = JSON.parse(content);
     if (
       typeof raw !== "object" ||
       raw === null ||
@@ -62,8 +66,25 @@ export function readLicenseFileVerdict(
   }
 }
 
-/** Validates minimal shape before accepting an admin-uploaded .lic file. */
-export function importLicenseFile(paths: LicenseFilePaths, content: string): void {
+export function readLicenseFileVerdict(
+  paths: LicenseFilePaths,
+  trustedKeys: Readonly<Record<string, string>> = TRUSTED_LICENSE_PUBLIC_KEYS,
+): LicenseFileVerdict {
+  if (!existsSync(paths.licenseFile)) return { kind: "absent" };
+  return verifyLicenseFileContent(readFileSync(paths.licenseFile, "utf8"), trustedKeys);
+}
+
+/**
+ * Verifies an admin-uploaded .lic file's signature before it is ever
+ * written to disk -- an unsigned, tampered, or wrong-key upload never
+ * touches config/license.lic, matching the same verify-before-trust
+ * ordering already used for Phase 34 update packages.
+ */
+export function importLicenseFile(
+  paths: LicenseFilePaths,
+  content: string,
+  trustedKeys: Readonly<Record<string, string>> = TRUSTED_LICENSE_PUBLIC_KEYS,
+): void {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -77,6 +98,13 @@ export function importLicenseFile(paths: LicenseFilePaths, content: string): voi
     typeof (parsed as Record<string, unknown>).payload !== "object"
   ) {
     throw new LicenseFileError("The uploaded file is not a recognized license format.");
+  }
+
+  const verdict = verifyLicenseFileContent(content, trustedKeys);
+  if (verdict.kind !== "valid") {
+    throw new LicenseFileError(
+      "The uploaded license file's signature could not be verified. It was not saved.",
+    );
   }
 
   mkdirSync(paths.configDirectory, { recursive: true });

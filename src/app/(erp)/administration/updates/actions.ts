@@ -5,8 +5,13 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
 import { recordAuditEvent } from "@/server/audit/audit-event";
-import { armUpdate, verifyAndStageUploadedPackage } from "@/server/updates/update-service";
+import {
+  armUpdate,
+  UpdateServiceError,
+  verifyAndStageUploadedPackage,
+} from "@/server/updates/update-service";
 import { startUpdateTask } from "@/server/updates/update-task";
+import { safeActionErrorMessage } from "@/server/shared/action-error";
 
 // This module deliberately imports requirePermission from server-guards.ts
 // (unrestricted), not licensed-guards.ts. A legitimate signed update must
@@ -92,7 +97,7 @@ export async function installUpdateNowAction(
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Could not start the update.",
+      message: safeActionErrorMessage(error, "Could not start the update.", UpdateServiceError),
     };
   }
 }

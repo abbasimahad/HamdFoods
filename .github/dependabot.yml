@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # This repo pins exact versions deliberately (see docs/specs/
+    # phase35-security-hardening-design.md D3) -- Dependabot's own PRs still
+    # go through the same pnpm verify / integration / E2E gates as any other
+    # change before merge, they are never auto-merged.
+    versioning-strategy: "increase"

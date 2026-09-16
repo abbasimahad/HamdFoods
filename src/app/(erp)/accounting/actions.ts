@@ -6,6 +6,7 @@ import { type AccountingMappingKey } from "@/generated/prisma/client";
 import { requirePermission } from "@/server/auth/licensed-guards";
 import { prisma } from "@/server/db/prisma";
 import { recordAuditEvent } from "@/server/audit/audit-event";
+import { safeActionErrorMessage } from "@/server/shared/action-error";
 import {
   closeAccountingPeriod,
   PeriodCloseError,
@@ -97,10 +98,11 @@ export async function postManualJournalAction(
   } catch (error) {
     return {
       ok: false,
-      message:
-        error instanceof AccountingPostingError || error instanceof Error
-          ? error.message
-          : "Manual journal could not be posted.",
+      message: safeActionErrorMessage(
+        error,
+        "Manual journal could not be posted.",
+        AccountingPostingError,
+      ),
     };
   }
 }
@@ -131,7 +133,11 @@ export async function reverseManualJournalAction(
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Journal could not be reversed.",
+      message: safeActionErrorMessage(
+        error,
+        "Journal could not be reversed.",
+        AccountingPostingError,
+      ),
     };
   }
 }
@@ -149,7 +155,11 @@ export async function backfillAccountingAction(): Promise<Result> {
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Accounting backfill could not run.",
+      message: safeActionErrorMessage(
+        error,
+        "Accounting backfill could not run.",
+        AccountingPostingError,
+      ),
     };
   }
 }
@@ -198,10 +208,11 @@ export async function setAccountingPeriodStatusAction(
   } catch (error) {
     return {
       ok: false,
-      message:
-        error instanceof PeriodCloseError || error instanceof Error
-          ? error.message
-          : "Period status could not be changed.",
+      message: safeActionErrorMessage(
+        error,
+        "Period status could not be changed.",
+        PeriodCloseError,
+      ),
     };
   }
 }

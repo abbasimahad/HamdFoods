@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -129,6 +131,14 @@ writeFileSync(path.join(stagingDir, "manifest.sig"), signature);
 const zipTemp = `${outPath}.zip`;
 rmSync(zipTemp, { force: true });
 rmSync(outPath, { force: true });
+// Phase 35 L1: every path is passed as its own bound PowerShell parameter
+// (see compress-update-package.ps1), never interpolated into a -Command
+// script string -- a path containing a quote or other special character
+// cannot break out of a hand-built command this way.
+const compressScript = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "compress-update-package.ps1",
+);
 execFileSync(
   String.raw`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`,
   [
@@ -137,18 +147,20 @@ execFileSync(
     "-NonInteractive",
     "-ExecutionPolicy",
     "Bypass",
-    "-Command",
-    `Compress-Archive -Path '${stagingDir}\\manifest.json','${stagingDir}\\manifest.sig','${payloadRoot}' -DestinationPath '${zipTemp}' -Force`,
+    "-File",
+    compressScript,
+    "-ManifestPath",
+    path.join(stagingDir, "manifest.json"),
+    "-SignaturePath",
+    path.join(stagingDir, "manifest.sig"),
+    "-PayloadRoot",
+    payloadRoot,
+    "-DestinationZip",
+    zipTemp,
   ],
   { stdio: "inherit" },
 );
-execFileSync(String.raw`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`, [
-  "-NoLogo",
-  "-NoProfile",
-  "-NonInteractive",
-  "-Command",
-  `Move-Item -LiteralPath '${zipTemp}' -Destination '${outPath}' -Force`,
-]);
+renameSync(zipTemp, outPath);
 rmSync(stagingDir, { recursive: true, force: true });
 
 console.log(
