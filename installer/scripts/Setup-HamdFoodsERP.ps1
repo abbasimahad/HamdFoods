@@ -360,21 +360,43 @@ function ConvertFrom-SecureValue {
 function Get-PostgresAdministratorPassword {
   if ($Drill -and $env:HAMDFOODS_AUTOMATED_INSTALL_DRILL -eq '1') {
     # The automated drill never assumes PostgreSQL trust authentication -- this
-    # machine's PostgreSQL correctly requires SCRAM, matching production. The
-    # operator supplies the real local postgres superuser password through this
-    # process-scoped environment variable (set in their own elevated session,
-    # never a command-line argument, never committed, never logged: it flows
-    # into the existing $postgresPassword variable, which the caller already
-    # scrubs from provisioning-failure logs via Get-HamdFoodsSensitiveValues's
-    # caller and clears in its `finally` block, and into Invoke-Psql's
-    # short-lived, per-call $env:PGPASSWORD, exactly as a real installation's
-    # interactive Get-Credential path already does). Missing it fails closed;
-    # there is no trust or empty-password fallback.
+    # machine's PostgreSQL correctly requires SCRAM, matching production. CI/
+    # unattended automation supplies the real local postgres superuser
+    # password through this process-scoped environment variable (set in the
+    # caller's own elevated session, never a command-line argument, never
+    # committed, never logged: it flows into the existing $postgresPassword
+    # variable, which the caller already scrubs from provisioning-failure
+    # logs via Get-HamdFoodsSensitiveValues and clears in its `finally` block,
+    # and into Invoke-Psql's short-lived, per-call $env:PGPASSWORD, exactly as
+    # the interactive Get-Credential path below already does).
     $automated = $env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD
-    if ([string]::IsNullOrEmpty($automated)) {
-      throw 'HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD is required for an automated installer drill. Set it to the real local PostgreSQL administrator password in your own elevated session before running the drill; this setup never assumes PostgreSQL trust authentication.'
+    if (-not [string]::IsNullOrEmpty($automated)) { return $automated }
+
+    # No CI/automation credential was supplied. Fall back to a masked,
+    # interactive local prompt -- Read-Host -AsSecureString never echoes the
+    # input and it is converted to plaintext only in local process memory,
+    # then disposed immediately. Only attempt this against a real,
+    # non-redirected console: an automated invocation's stdin is redirected
+    # (Node's spawnSync stdio:'ignore', a Scheduled Task, a piped CI runner),
+    # and Read-Host against that either hangs waiting for input that will
+    # never arrive or, under -NonInteractive, throws -- neither of which is
+    # the clear, immediate failure automation needs. [Console]::IsInputRedirected
+    # detects a redirected/closed stdin reliably regardless of -NonInteractive,
+    # so a redirected-stdin invocation fails closed immediately instead of
+    # risking an indefinite hang. Either way, an EOF/empty read is never
+    # treated as a valid empty password -- there is still no trust or
+    # empty-password fallback.
+    $missingCredentialMessage = 'A PostgreSQL administrator credential is required for an automated installer drill: set HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD for unattended automation, or supply one at the interactive prompt from a real, non-redirected console. This setup never assumes PostgreSQL trust authentication.'
+    if ([Console]::IsInputRedirected) { throw $missingCredentialMessage }
+    $secure = Read-Host -Prompt 'PostgreSQL 16 administrator password for this drill (used only for provisioning, never stored)' -AsSecureString
+    try {
+      if ($null -eq $secure -or $secure.Length -eq 0) { throw $missingCredentialMessage }
+      $plain = ConvertFrom-SecureValue $secure
+      if ([string]::IsNullOrEmpty($plain)) { throw $missingCredentialMessage }
+      return $plain
+    } finally {
+      if ($null -ne $secure) { $secure.Dispose() }
     }
-    return $automated
   }
   $credential = Get-Credential -UserName 'postgres' -Message 'Enter the PostgreSQL 16 administrator password. It is used only for provisioning and is not stored.'
   if ($null -eq $credential) { throw 'PostgreSQL credential entry was cancelled.' }

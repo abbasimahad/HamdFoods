@@ -88,7 +88,12 @@ Never drill against the live `HamdFoodsERP`/3100 deployment. The drill build har
 - database/role: `hamd_foods_erp_installer_drill` / `hamd_erp_installer_drill`
 - shortcuts/group: `Hamd Foods ERP Installer Drill` (never the production shortcut names)
 
-The drill never assumes PostgreSQL trust authentication -- the local PostgreSQL instance is expected to use the same SCRAM authentication as production. Before running the drill, set `HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD` in your own elevated session to the real local `postgres` superuser password. This is a process-scoped environment variable only: never a command-line argument, never committed, never written to a file, never logged (it is included in every provisioning-failure log's sensitive-value scrub list alongside `PGPASSWORD`/`BOOTSTRAP_ADMIN_PASSWORD`). A missing or empty value fails the drill closed with a clear error before any PostgreSQL resource is touched; there is no trust or empty-password fallback.
+The drill never assumes PostgreSQL trust authentication -- the local PostgreSQL instance is expected to use the same SCRAM authentication as production. There are two ways to supply the real local `postgres` superuser password for provisioning:
+
+- **Unattended automation (CI, `pnpm installer:drill` run non-interactively):** set `HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD` in your own elevated session before running the drill. This is a process-scoped environment variable only: never a command-line argument, never committed, never written to a file, never logged (it is included in every provisioning-failure log's sensitive-value scrub list alongside `PGPASSWORD`/`BOOTSTRAP_ADMIN_PASSWORD`).
+- **A human running the drill at a real console, without pre-setting that variable:** setup prompts interactively with `Read-Host -AsSecureString` (no echo), converts it to plaintext only in local process memory, and disposes the `SecureString` immediately after use.
+
+Either way, a missing/empty credential fails the drill closed with a clear error before any PostgreSQL resource is touched -- there is no trust or empty-password fallback. The interactive prompt is only ever attempted against a real, non-redirected console (`[Console]::IsInputRedirected` is checked first): a redirected/closed stdin -- a Scheduled Task, a piped CI runner, or this project's own automated `installer:drill` invocation without the environment variable set -- fails immediately instead of risking an indefinite hang waiting for input that will never arrive.
 
 ```powershell
 $env:HAMDFOODS_RUN_INSTALLER_DRILL = "1"
@@ -97,6 +102,8 @@ corepack pnpm installer:drill
 Remove-Item Env:HAMDFOODS_RUN_INSTALLER_DRILL
 Remove-Item Env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD
 ```
+
+`corepack pnpm installer:drill` always runs through `runSilentDrillInstaller`'s automated pipeline, which redirects the installer's stdio for unattended operation -- so the interactive prompt above is only reachable when running `installer\scripts\Setup-HamdFoodsERP.ps1 -Drill` directly at a real console (without `HAMDFOODS_AUTOMATED_INSTALL_DRILL` and without the environment variable set), not through the `pnpm` wrapper.
 
 The command prepares and verifies the same payload, compiles the isolated Inno variant, and launches it only with that explicit opt-in. It checks recovery, exact-origin login/dashboard/direct-signup rejection, repair, the same authentication checks again, and then runs the isolated uninstaller. Verify elevation, payload, config ACL, migrations discovered at execution time, seed, bootstrap, SYSTEM task, loopback 3200 health/login, backup create/verify, uninstall preservation, and that the live 3100 task/Serve configuration never changed. An absent compiler means the drill is not run and Phase 32 remains partial; do not simulate evidence.
 

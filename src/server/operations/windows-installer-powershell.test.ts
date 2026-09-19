@@ -334,8 +334,15 @@ describe("Windows installer PowerShell architecture boundaries", () => {
   );
 
   windowsIt(
-    "fails closed without a trust/empty fallback when the automated drill credential is missing",
+    "fails closed immediately, never hanging on Read-Host, when the automated drill credential is missing under redirected stdin",
     () => {
+      // Defect risk caught while implementing the interactive fallback below:
+      // a naive Read-Host fallback would hang indefinitely (or throw a
+      // confusing NonInteractive-mode error) against the drill's actual
+      // redirected/ignored stdin instead of failing fast and clearly, which
+      // is worse for automation than the original unconditional throw. This
+      // spawnSync call's stdin is an unfed pipe (redirected, not a real
+      // console), matching that real automated invocation shape.
       const command = extractGetPostgresAdministratorPasswordCommand([
         "$env:HAMDFOODS_AUTOMATED_INSTALL_DRILL = '1'",
         "Remove-Item Env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD -ErrorAction SilentlyContinue",
@@ -347,8 +354,10 @@ describe("Windows installer PowerShell architecture boundaries", () => {
       expect(`${result.stdout}\n${result.stderr}`).toContain(
         "HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD",
       );
+      expect(`${result.stdout}\n${result.stderr}`).toContain("non-redirected console");
       expect(`${result.stdout}\n${result.stderr}`).not.toContain("interactive credential prompt");
     },
+    5_000,
   );
 
   windowsIt("forbids an implicit PostgreSQL password prompt during provisioning", () => {
