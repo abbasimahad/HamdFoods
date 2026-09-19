@@ -593,6 +593,7 @@ function isRuntimePayloadFile(candidate: string) {
   return (
     !name.endsWith(".map") &&
     !/\.d\.[cm]?ts$/.test(name) &&
+    !/\.test\.[cm]?[jt]sx?$/.test(name) &&
     !name.endsWith(".md") &&
     !name.endsWith(".markdown")
   );
