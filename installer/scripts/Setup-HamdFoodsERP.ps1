@@ -358,7 +358,24 @@ function ConvertFrom-SecureValue {
 }
 
 function Get-PostgresAdministratorPassword {
-  if ($Drill -and $env:HAMDFOODS_AUTOMATED_INSTALL_DRILL -eq '1') { return '' }
+  if ($Drill -and $env:HAMDFOODS_AUTOMATED_INSTALL_DRILL -eq '1') {
+    # The automated drill never assumes PostgreSQL trust authentication -- this
+    # machine's PostgreSQL correctly requires SCRAM, matching production. The
+    # operator supplies the real local postgres superuser password through this
+    # process-scoped environment variable (set in their own elevated session,
+    # never a command-line argument, never committed, never logged: it flows
+    # into the existing $postgresPassword variable, which the caller already
+    # scrubs from provisioning-failure logs via Get-HamdFoodsSensitiveValues's
+    # caller and clears in its `finally` block, and into Invoke-Psql's
+    # short-lived, per-call $env:PGPASSWORD, exactly as a real installation's
+    # interactive Get-Credential path already does). Missing it fails closed;
+    # there is no trust or empty-password fallback.
+    $automated = $env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD
+    if ([string]::IsNullOrEmpty($automated)) {
+      throw 'HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD is required for an automated installer drill. Set it to the real local PostgreSQL administrator password in your own elevated session before running the drill; this setup never assumes PostgreSQL trust authentication.'
+    }
+    return $automated
+  }
   $credential = Get-Credential -UserName 'postgres' -Message 'Enter the PostgreSQL 16 administrator password. It is used only for provisioning and is not stored.'
   if ($null -eq $credential) { throw 'PostgreSQL credential entry was cancelled.' }
   return ConvertFrom-SecureValue $credential.Password

@@ -273,6 +273,10 @@ async function runDrill() {
     throw new Error(
       "Drill installer compiled but was not launched. Set HAMDFOODS_RUN_INSTALLER_DRILL=1 only during an approved isolated drill.",
     );
+  if (!process.env.HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD)
+    throw new Error(
+      "HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD is required for an automated installer drill. Set it in your own elevated session to the real local PostgreSQL administrator password before running the drill; this project never assumes PostgreSQL trust authentication, in drills or in production.",
+    );
   const installer = newestInstaller("InstallDrill");
   const passwordBytes = randomBytes(32);
   let password: string | undefined = passwordBytes.toString("base64url");

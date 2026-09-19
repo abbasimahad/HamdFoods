@@ -116,7 +116,8 @@ function Get-HamdFoodsSensitiveValues {
     $env:DATABASE_URL,
     $env:BETTER_AUTH_SECRET,
     $env:PGPASSWORD,
-    $env:BOOTSTRAP_ADMIN_PASSWORD
+    $env:BOOTSTRAP_ADMIN_PASSWORD,
+    $env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD
   ) | Where-Object { -not [string]::IsNullOrEmpty($_) }
 }
 

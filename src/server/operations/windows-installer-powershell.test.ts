@@ -274,48 +274,80 @@ describe("Windows installer PowerShell architecture boundaries", () => {
     expect(`${result.stdout}\n${result.stderr}`).not.toContain("temporary-password-sentinel");
   });
 
+  function extractGetPostgresAdministratorPasswordCommand(body: string[]) {
+    const psLiteral = (value: string) => value.replaceAll("'", "''");
+    return [
+      "$tokens = $null",
+      "$errors = $null",
+      `$ast = [Management.Automation.Language.Parser]::ParseFile('${psLiteral(setupScript)}', [ref]$tokens, [ref]$errors)`,
+      "$function = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-PostgresAdministratorPassword' }, $true)",
+      "if ($null -eq $function) { Write-Output 'PROMPT_REQUIRED'; exit 0 }",
+      ". ([scriptblock]::Create($function.Extent.Text))",
+      "$Drill = $true",
+      "function Get-Credential { throw 'interactive credential prompt was called' }",
+      ...body,
+    ].join("; ");
+  }
+
+  function runPowerShellCommand(command: string) {
+    const windowsRoot = process.env.SystemRoot ?? "C:\\Windows";
+    const powershell = path.win32.join(
+      windowsRoot,
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    );
+    return spawnSync(
+      powershell,
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        command,
+      ],
+      { encoding: "utf8" },
+    );
+  }
+
   windowsIt(
-    "uses the host's passwordless local PostgreSQL administration only for an automated drill",
+    "returns the operator-supplied real credential for an automated drill, never a passwordless/trust fallback",
     () => {
-      // Defect caught: the approved unattended fresh drill still opened Get-Credential for PostgreSQL.
-      const windowsRoot = process.env.SystemRoot ?? "C:\\Windows";
-      const powershell = path.win32.join(
-        windowsRoot,
-        "System32",
-        "WindowsPowerShell",
-        "v1.0",
-        "powershell.exe",
-      );
-      const psLiteral = (value: string) => value.replaceAll("'", "''");
-      const command = [
-        "$tokens = $null",
-        "$errors = $null",
-        `$ast = [Management.Automation.Language.Parser]::ParseFile('${psLiteral(setupScript)}', [ref]$tokens, [ref]$errors)`,
-        "$function = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-PostgresAdministratorPassword' }, $true)",
-        "if ($null -eq $function) { Write-Output 'PROMPT_REQUIRED'; exit 0 }",
-        ". ([scriptblock]::Create($function.Extent.Text))",
-        "$Drill = $true",
+      // Defect caught: the automated drill unconditionally returned an empty
+      // password, assuming PostgreSQL trust authentication on loopback. The
+      // real machine correctly requires SCRAM, so this always failed outside
+      // an environment specially configured to trust local connections.
+      const command = extractGetPostgresAdministratorPasswordCommand([
         "$env:HAMDFOODS_AUTOMATED_INSTALL_DRILL = '1'",
-        "function Get-Credential { throw 'interactive credential prompt was called' }",
-        "$password = Get-PostgresAdministratorPassword",
-        "if ($null -eq $password -or $password -eq '') { Write-Output 'PASSWORDLESS_LOCAL_ADMIN' } else { Write-Output 'PASSWORD_RETURNED' }",
-      ].join("; ");
-      const result = spawnSync(
-        powershell,
-        [
-          "-NoLogo",
-          "-NoProfile",
-          "-NonInteractive",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-Command",
-          command,
-        ],
-        { encoding: "utf8" },
-      );
+        "$env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD = 'test-only-scram-credential-sentinel'",
+        "try { Get-PostgresAdministratorPassword } finally { Remove-Item Env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD -ErrorAction SilentlyContinue }",
+      ]);
+      const result = runPowerShellCommand(command);
 
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout.trim()).toBe("PASSWORDLESS_LOCAL_ADMIN");
+      expect(result.stdout.trim()).toBe("test-only-scram-credential-sentinel");
+      expect(`${result.stdout}\n${result.stderr}`).not.toContain("interactive credential prompt");
+    },
+  );
+
+  windowsIt(
+    "fails closed without a trust/empty fallback when the automated drill credential is missing",
+    () => {
+      const command = extractGetPostgresAdministratorPasswordCommand([
+        "$env:HAMDFOODS_AUTOMATED_INSTALL_DRILL = '1'",
+        "Remove-Item Env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD -ErrorAction SilentlyContinue",
+        "Get-PostgresAdministratorPassword",
+      ]);
+      const result = runPowerShellCommand(command);
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain(
+        "HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD",
+      );
+      expect(`${result.stdout}\n${result.stderr}`).not.toContain("interactive credential prompt");
     },
   );
 

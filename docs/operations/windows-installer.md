@@ -88,10 +88,14 @@ Never drill against the live `HamdFoodsERP`/3100 deployment. The drill build har
 - database/role: `hamd_foods_erp_installer_drill` / `hamd_erp_installer_drill`
 - shortcuts/group: `Hamd Foods ERP Installer Drill` (never the production shortcut names)
 
+The drill never assumes PostgreSQL trust authentication -- the local PostgreSQL instance is expected to use the same SCRAM authentication as production. Before running the drill, set `HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD` in your own elevated session to the real local `postgres` superuser password. This is a process-scoped environment variable only: never a command-line argument, never committed, never written to a file, never logged (it is included in every provisioning-failure log's sensitive-value scrub list alongside `PGPASSWORD`/`BOOTSTRAP_ADMIN_PASSWORD`). A missing or empty value fails the drill closed with a clear error before any PostgreSQL resource is touched; there is no trust or empty-password fallback.
+
 ```powershell
 $env:HAMDFOODS_RUN_INSTALLER_DRILL = "1"
+$env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD = "<your real local postgres superuser password>"
 corepack pnpm installer:drill
 Remove-Item Env:HAMDFOODS_RUN_INSTALLER_DRILL
+Remove-Item Env:HAMDFOODS_DRILL_POSTGRES_ADMIN_PASSWORD
 ```
 
 The command prepares and verifies the same payload, compiles the isolated Inno variant, and launches it only with that explicit opt-in. It checks recovery, exact-origin login/dashboard/direct-signup rejection, repair, the same authentication checks again, and then runs the isolated uninstaller. Verify elevation, payload, config ACL, migrations discovered at execution time, seed, bootstrap, SYSTEM task, loopback 3200 health/login, backup create/verify, uninstall preservation, and that the live 3100 task/Serve configuration never changed. An absent compiler means the drill is not run and Phase 32 remains partial; do not simulate evidence.
