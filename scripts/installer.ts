@@ -375,7 +375,7 @@ if ($finalListeners.Count -ne 1 -or $finalListeners[0].LocalAddress -ne '127.0.0
     throw new Error(`Elevated InstallDrill ${operation} verification failed.`);
 }
 
-function runSilentDrillUninstaller() {
+async function runSilentDrillUninstaller() {
   const appRoot = "C:\\Program Files\\HamdFoodsERP-InstallDrill";
   const uninstaller = path.join(appRoot, "unins000.exe");
   if (!existsSync(uninstaller)) throw new Error("Isolated installer drill uninstaller is missing.");
@@ -386,6 +386,13 @@ function runSilentDrillUninstaller() {
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error("Isolated installer uninstall drill failed.");
+  // Inno Setup's uninstaller cannot delete its own running executable; it removes the
+  // remaining directory via a short-lived helper process immediately after this process
+  // exits, so a brief poll avoids a false failure on a benign self-deletion race.
+  const deadline = Date.now() + 5_000;
+  while (existsSync(appRoot) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
   if (existsSync(appRoot))
     throw new Error("Isolated installer left its Program Files payload behind.");
 }
