@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import {
   SalesReturnInspectionClassification,
@@ -53,7 +54,10 @@ export async function saveSalesReturn(
   if (denied) return denied;
   const parsed = document.safeParse({ ...form, lines: decode(form.linesJson) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid sales return." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid sales return.",
+    };
   if ((parsed.data.type === "INVOICED_RETURN") !== Boolean(parsed.data.salesInvoiceId))
     return {
       ok: false,
@@ -107,7 +111,10 @@ export async function cancelSalesReturn(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelSalesReturn(parsed.data.id, parsed.data.reason, actor.id);
     return { ok: true, id };
@@ -127,7 +134,10 @@ export async function inspectSalesReturn(
     .object({ id: z.string().uuid(), inspections: z.array(inspection).min(1).max(1000) })
     .safeParse({ id, inspections: decode(form.inspectionsJson) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid inspection." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid inspection.",
+    };
   try {
     await repository.inspectSalesReturn(
       parsed.data.id,

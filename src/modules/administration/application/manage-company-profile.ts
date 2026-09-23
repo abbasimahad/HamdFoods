@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { validateCompanyProfile } from "../domain/company-profile";
@@ -33,7 +34,10 @@ export async function saveCompanyProfile(
     taxRegistrationNo: text(form.taxRegistrationNo),
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid company profile." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid company profile.",
+    };
   try {
     const validated = validateCompanyProfile(parsed.data);
     await repository.saveCompanyProfile({ ...validated, actorUserId: actor.id });

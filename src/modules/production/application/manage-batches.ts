@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import {
@@ -38,7 +39,10 @@ export async function saveProductionBatch(
     notes: text(form.notes),
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid production batch." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid production batch.",
+    };
   const input: ProductionBatchInput = { ...parsed.data, actorUserId: actor.id };
   try {
     const id = input.id

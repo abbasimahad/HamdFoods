@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import { CustomerPaymentMethod, CustomerPaymentStatus } from "@/generated/prisma/client";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -36,7 +37,10 @@ export async function saveCustomerPayment(
   if (denied) return denied;
   const parsed = payment.safeParse({ ...form, allocations: decode(form.allocationsJson) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid customer payment." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid customer payment.",
+    };
   try {
     const input: CustomerPaymentInput = { ...parsed.data, actorUserId: actor.id };
     return {
@@ -77,7 +81,10 @@ export async function cancelCustomerPayment(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelCustomerPayment(parsed.data.id, parsed.data.reason, actor.id);
     return { ok: true, id };
@@ -108,7 +115,10 @@ export async function allocateCustomerCredit(
     .object({ id: z.string().uuid(), allocations: z.array(allocation).min(1).max(200) })
     .safeParse({ id, allocations: decode(form.allocationsJson) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid allocation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid allocation.",
+    };
   try {
     await repository.allocatePostedCustomerCredit(
       parsed.data.id,

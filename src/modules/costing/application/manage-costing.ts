@@ -7,6 +7,7 @@ import {
   type InventoryValuationRepository,
 } from "./contracts";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
+import { describeValidationIssue } from "@/server/shared/validation-message";
 
 const optional = (max: number) =>
   z.preprocess((value) => String(value ?? "").trim() || undefined, z.string().max(max).optional());
@@ -28,7 +29,8 @@ export async function initializeValuationIssue(
   if (!parsed.success)
     return {
       ok: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid valuation initialization.",
+      message:
+        describeValidationIssue(parsed.error.issues[0]) ?? "Invalid valuation initialization.",
     };
   try {
     return {
@@ -77,7 +79,10 @@ export async function postValuationAdjustment(
     })
     .safeParse(form);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cost adjustment." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cost adjustment.",
+    };
   try {
     return {
       ok: true,
@@ -112,7 +117,10 @@ export async function postLandedCost(
     })
     .safeParse(form);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid landed cost." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid landed cost.",
+    };
   let allocations: unknown = [];
   try {
     allocations = JSON.parse(parsed.data.allocationsJson);
@@ -159,7 +167,10 @@ export async function addProductionCost(
     })
     .safeParse(form);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid production cost." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid production cost.",
+    };
   try {
     return {
       ok: true,

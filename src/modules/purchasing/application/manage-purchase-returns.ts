@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { PurchasingMutationResult } from "./contracts";
@@ -53,7 +54,10 @@ export async function savePurchaseReturn(
     lines: lines.value,
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid purchase return." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid purchase return.",
+    };
   const input: PurchaseReturnInput = { ...parsed.data, actorUserId: actor.id };
   try {
     const id = input.id
@@ -84,7 +88,10 @@ export async function cancelPurchaseReturn(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelPurchaseReturn(id, parsed.data.reason, actor.id);
     return { ok: true, id };
@@ -101,7 +108,10 @@ export async function quarantinePurchasedMaterial(
   if (denied) return denied;
   const parsed = quarantineSchema.safeParse({ ...form, notes: text(form.notes) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid quarantine request." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid quarantine request.",
+    };
   try {
     const input: PurchasedMaterialQuarantineInput = { ...parsed.data, actorUserId: actor.id };
     return { ok: true, id: await repository.quarantinePurchasedMaterial(input) };

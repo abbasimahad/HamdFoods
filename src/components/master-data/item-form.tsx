@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 
 import type {
   CategoryRecord,
@@ -27,6 +28,31 @@ export function ItemForm({
   initial?: ItemRecord;
 }) {
   const [state, formAction, pending] = useActionState(action, initialMasterActionState);
+  const missingCategory = categories.length === 0;
+  const missingUnit =
+    units.length === 0 || (itemType === "FINISHED_GOOD" && contentUnits.length === 0);
+  if (missingCategory || missingUnit) {
+    return (
+      <p
+        className="rounded-lg bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-ink)] md:col-span-2 xl:col-span-4"
+        role="alert"
+      >
+        This item cannot be created yet. Create{" "}
+        {missingCategory && (
+          <Link className="font-semibold underline underline-offset-4" href="/inventory/categories">
+            a category
+          </Link>
+        )}
+        {missingCategory && missingUnit && " and "}
+        {missingUnit && (
+          <Link className="font-semibold underline underline-offset-4" href="/inventory/units">
+            a unit
+          </Link>
+        )}{" "}
+        first, then return here.
+      </p>
+    );
+  }
   return (
     <form action={formAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {initial && <input name="id" type="hidden" value={initial.id} />}

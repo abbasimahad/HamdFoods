@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import {
@@ -37,7 +38,7 @@ export async function saveMaterialTransaction(
   if (!parsed.success)
     return {
       ok: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid material transaction.",
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid material transaction.",
     };
   if (parsed.data.transactionType === "RETURN" && !parsed.data.destinationWarehouseId)
     return { ok: false, message: "Material return requires a destination warehouse." };

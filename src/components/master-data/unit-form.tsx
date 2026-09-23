@@ -5,7 +5,7 @@ import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 
 import { initialMasterActionState, type MasterAction } from "@/components/master-data/action-state";
-import { UNIT_DIMENSIONS } from "@/modules/master-data/domain/master-data";
+import { UNIT_DIMENSIONS, UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
 import type { UnitRecord } from "@/modules/master-data/application/contracts";
 
 export function UnitForm({ action, initial }: { action: MasterAction; initial?: UnitRecord }) {
@@ -25,7 +25,9 @@ export function UnitForm({ action, initial }: { action: MasterAction; initial?: 
           required
         >
           {UNIT_DIMENSIONS.map((dimension) => (
-            <option key={dimension}>{dimension}</option>
+            <option key={dimension} value={dimension}>
+              {UNIT_DIMENSION_LABELS[dimension]}
+            </option>
           ))}
         </select>
       </label>

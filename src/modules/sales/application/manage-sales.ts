@@ -11,6 +11,7 @@ import type {
   SalesRouteInput,
 } from "./contracts";
 import { requireSalesManager } from "./contracts";
+import { describeValidationIssue } from "@/server/shared/validation-message";
 
 const optionalText = (max: number) =>
   z.preprocess(
@@ -131,7 +132,10 @@ async function save<T>(
   if (denied) return denied;
   const parsed = schema.safeParse(data);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid sales master." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid sales master.",
+    };
   try {
     return { ok: true, id: await operation(parsed.data) };
   } catch (error) {

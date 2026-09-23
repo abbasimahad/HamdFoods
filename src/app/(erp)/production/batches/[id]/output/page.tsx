@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
 import { PageHeader } from "@/components/layout/page-header";
 import { OutputTransactionForm } from "@/components/production/output-transaction-form";
 import {
@@ -171,7 +172,7 @@ export default async function ProductionOutputPage({
           {view.inputComponents.map((part) => (
             <Info
               key={`${part.dimension}:${part.unitSymbol}`}
-              label={`Actual ${part.dimension} input`}
+              label={`Actual ${UNIT_DIMENSION_LABELS[part.dimension]} input`}
               value={`${part.quantity} ${part.unitSymbol}`}
             />
           ))}

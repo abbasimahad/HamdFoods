@@ -61,7 +61,7 @@ test("inventory posting exposes pending state and dispatches a rapid double subm
   await adjustment.getByRole("textbox", { name: "Quantity", exact: true }).fill("1");
   await adjustment
     .getByRole("combobox", { name: "Quantity unit", exact: true })
-    .selectOption({ label: "g · MASS" });
+    .selectOption({ label: "g · Mass (weight)" });
   await adjustment.getByLabel("Unit cost (canonical unit)", { exact: true }).fill("1");
   await adjustment
     .getByLabel("Source key (optional)", { exact: true })

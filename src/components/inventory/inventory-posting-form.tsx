@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
 
 import type {
   InventoryItemOption,
@@ -104,7 +105,7 @@ export function InventoryPostingForm({
         required={false}
         options={units.map((unit) => ({
           value: unit.id,
-          label: `${unit.symbol} · ${unit.dimension}`,
+          label: `${unit.symbol} · ${UNIT_DIMENSION_LABELS[unit.dimension]}`,
         }))}
       />
       <Field

@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { SalesDispatchStatus } from "@/generated/prisma/client";
@@ -43,7 +44,10 @@ export async function saveSalesDispatch(
   if (denied) return denied;
   const parsed = inputSchema.safeParse({ ...form, lines: decode(form.linesJson) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid dispatch." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid dispatch.",
+    };
   try {
     const input: SalesDispatchInput = { ...parsed.data, actorUserId: actor.id };
     return {
@@ -87,7 +91,7 @@ export async function confirmSalesDispatchDelivery(
   if (!parsed.success)
     return {
       ok: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid delivery confirmation.",
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid delivery confirmation.",
     };
   try {
     await repository.confirmSalesDispatchDelivery(
@@ -113,7 +117,10 @@ export async function cancelSalesDispatch(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelSalesDispatch(parsed.data.id, parsed.data.reason, actor.id);
     return { ok: true, id };

@@ -3,6 +3,11 @@ export type ItemType = (typeof ITEM_TYPES)[number];
 
 export const UNIT_DIMENSIONS = ["MASS", "VOLUME", "COUNT"] as const;
 export type UnitDimension = (typeof UNIT_DIMENSIONS)[number];
+export const UNIT_DIMENSION_LABELS: Record<UnitDimension, string> = {
+  MASS: "Mass (weight)",
+  VOLUME: "Volume",
+  COUNT: "Count (pieces)",
+};
 
 export const PACKAGING_KINDS = [
   "BOTTLE",

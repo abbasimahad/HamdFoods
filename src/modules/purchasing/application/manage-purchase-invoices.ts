@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { requirePurchasingManager, type PurchasingMutationResult } from "./contracts";
 import type { PurchaseInvoiceInput, PurchaseInvoiceRepository } from "./purchase-invoice-contracts";
+import { describeValidationIssue } from "@/server/shared/validation-message";
 
 const optional = (max: number) => z.string().trim().max(max).optional();
 const matchSchema = z.object({
@@ -47,7 +48,10 @@ export async function savePurchaseInvoice(
     lines: lines.value,
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid purchase invoice." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid purchase invoice.",
+    };
   const input: PurchaseInvoiceInput = { ...parsed.data, actorUserId: actor.id };
   try {
     const id = input.id
@@ -79,7 +83,10 @@ export async function cancelPurchaseInvoice(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelPurchaseInvoice(id, parsed.data.reason, actor.id);
     return { ok: true, id };
@@ -100,7 +107,10 @@ export async function reversePurchaseInvoice(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid reversal." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid reversal.",
+    };
   try {
     await repository.reversePurchaseInvoice(id, parsed.data.reason, actor.id);
     return { ok: true, id };

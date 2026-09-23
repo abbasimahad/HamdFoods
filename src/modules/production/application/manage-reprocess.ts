@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -43,7 +44,10 @@ export async function saveReprocessDraft(
     notes: text(form.notes),
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid reprocess draft." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid reprocess draft.",
+    };
   const input: ReprocessDraftInput = { ...parsed.data, actorUserId: actor.id };
   try {
     return { ok: true, id: await repository.createDraft(input) };
@@ -70,7 +74,10 @@ export async function updateReprocessDraft(
     })
     .safeParse({ ...form, notes: text(form.notes) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid reprocess draft." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid reprocess draft.",
+    };
   const input: ReprocessDraftMetadataInput = { ...parsed.data, actorUserId: actor.id };
   try {
     await repository.updateDraftMetadata(input);
@@ -108,7 +115,10 @@ export async function decideReprocessQuality(
     })
     .safeParse({ ...form, rejectionReason: text(form.rejectionReason), notes: text(form.notes) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid quality decision." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid quality decision.",
+    };
   if (parsed.data.decision === "REJECTED" && !parsed.data.rejectionReason)
     return { ok: false, message: "A rejection reason is required." };
   if (parsed.data.decision === "APPROVED" && parsed.data.rejectionReason)

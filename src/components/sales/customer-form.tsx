@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import Link from "next/link";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 import type { CustomerRecord, SalesReferenceData } from "@/modules/sales/application/contracts";
@@ -22,6 +23,20 @@ export function CustomerForm({
       references.routes.filter((route) => route.areaId === areaId || route.id === initial?.routeId),
     [areaId, initial?.routeId, references.routes],
   );
+  if (references.areas.length === 0) {
+    return (
+      <p
+        className="rounded-lg bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-ink)] md:col-span-2 xl:col-span-3"
+        role="alert"
+      >
+        A customer must be assigned to a sales area, and no sales area exists yet. Create one on the{" "}
+        <Link className="font-semibold underline underline-offset-4" href="/sales/areas">
+          Sales Areas
+        </Link>{" "}
+        page first, then return here to create the customer.
+      </p>
+    );
+  }
   return (
     <form action={formAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {initial && <input name="id" type="hidden" value={initial.id} />}

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { hasPermission } from "@/modules/access/domain/principal";
+import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
 import { parseListQuery } from "@/modules/master-data/application/listing";
 import { PrismaMasterDataRepository } from "@/server/master-data/prisma-master-data-repository";
 import { requirePermission } from "@/server/auth/server-guards";
@@ -52,7 +53,7 @@ export default async function UnitsPage({
                   <td className="p-4 font-mono text-xs">{unit.code}</td>
                   <td className="p-4 font-medium">{unit.name}</td>
                   <td className="p-4">{unit.symbol}</td>
-                  <td className="p-4">{unit.dimension}</td>
+                  <td className="p-4">{UNIT_DIMENSION_LABELS[unit.dimension]}</td>
                   <td className="p-4">{unit.active ? "Active" : "Inactive"}</td>
                   <td className="p-4">
                     {canManage && (

@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -55,7 +56,10 @@ export async function savePurchaseOrder(
   };
   const parsed = orderSchema.safeParse(cleaned);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid purchase order." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid purchase order.",
+    };
   const input: PurchaseOrderInput = { ...parsed.data, actorUserId: actor.id };
   try {
     const id = input.id
@@ -96,7 +100,10 @@ export async function cancelPurchaseOrder(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelPurchaseOrder(parsed.data.id, parsed.data.reason, actor.id);
     return { ok: true, id };

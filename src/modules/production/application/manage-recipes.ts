@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { normalizeMasterCode } from "@/modules/master-data/domain/master-data";
@@ -72,7 +73,10 @@ export async function saveRecipe(
     packagingLines: packagingLines.value,
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid recipe." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid recipe.",
+    };
   if (Boolean(parsed.data.expectedOutputQuantity) !== Boolean(parsed.data.expectedOutputUnitId))
     return { ok: false, message: "Expected output quantity and unit must be supplied together." };
   const input: RecipeInput = { ...parsed.data, actorUserId: actor.id };

@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -41,7 +42,10 @@ export async function saveSupplier(
   if (denied) return denied;
   const parsed = supplierSchema.safeParse(input);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid supplier." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid supplier.",
+    };
   try {
     return {
       ok: true,

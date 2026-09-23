@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
 import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
 import type { QuickCreateReferences } from "@/components/quick-create/quick-create-fields";
 import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
@@ -163,7 +164,7 @@ export function RecipeForm({
           defaultValue={initial?.standardBatchUnitId ?? ""}
           options={units.map((unit) => ({
             value: unit.id,
-            label: `${unit.code} (${unit.dimension})`,
+            label: `${unit.code} (${UNIT_DIMENSION_LABELS[unit.dimension]})`,
           }))}
         />
         <Field
@@ -179,7 +180,7 @@ export function RecipeForm({
           defaultValue={initial?.expectedOutputUnitId ?? ""}
           options={units.map((unit) => ({
             value: unit.id,
-            label: `${unit.code} (${unit.dimension})`,
+            label: `${unit.code} (${UNIT_DIMENSION_LABELS[unit.dimension]})`,
           }))}
         />
         <label className="text-sm font-medium md:col-span-2 xl:col-span-4">

@@ -1,4 +1,5 @@
 import type { QuantityUnitRecord } from "@/modules/quantity/application/contracts";
+import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
 
 export function UnitConversionForm({
   units,
@@ -65,7 +66,7 @@ function UnitSelect({
         </option>
         {units.map((unit) => (
           <option key={unit.id} value={unit.id}>
-            {unit.name} ({unit.symbol}) · {unit.dimension}
+            {unit.name} ({unit.symbol}) · {UNIT_DIMENSION_LABELS[unit.dimension]}
           </option>
         ))}
       </select>

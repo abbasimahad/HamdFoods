@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { MaterialMutationResult } from "./material-contracts";
@@ -40,7 +41,7 @@ export async function savePackagingTransaction(
   if (!parsed.success)
     return {
       ok: false,
-      message: parsed.error.issues[0]?.message ?? "Invalid packaging transaction.",
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid packaging transaction.",
     };
   if (parsed.data.transactionType === "RETURN" && !parsed.data.destinationWarehouseId)
     return { ok: false, message: "Packaging return requires a destination warehouse." };

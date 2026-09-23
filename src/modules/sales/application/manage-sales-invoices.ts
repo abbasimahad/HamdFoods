@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { SalesInvoiceStatus } from "@/generated/prisma/client";
@@ -31,7 +32,10 @@ export async function saveSalesInvoice(
   if (denied) return denied;
   const parsed = schema.safeParse({ ...form, lines: decode(form.linesJson) });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid invoice." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid invoice.",
+    };
   try {
     const input: SalesInvoiceInput = { ...parsed.data, actorUserId: actor.id };
     return {
@@ -72,7 +76,10 @@ export async function cancelSalesInvoice(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelSalesInvoice(parsed.data.id, parsed.data.reason, actor.id);
     return { ok: true, id };

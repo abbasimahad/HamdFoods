@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { MaterialMutationResult } from "./material-contracts";
@@ -47,7 +48,10 @@ export async function saveOutputTransaction(
     notes: text(form.notes),
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid output transaction." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid output transaction.",
+    };
   const data = parsed.data;
   if (data.outputType === "GOOD" && data.cartons === undefined && data.loosePieces === undefined)
     return { ok: false, message: "Enter cartons or loose finished pieces." };

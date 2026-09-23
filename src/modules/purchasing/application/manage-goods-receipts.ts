@@ -1,3 +1,4 @@
+import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { PurchasingMutationResult } from "./contracts";
@@ -63,7 +64,10 @@ export async function saveGoodsReceipt(
     lines: lines.value,
   });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid goods receipt." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid goods receipt.",
+    };
   const input: GoodsReceiptInput = { ...parsed.data, actorUserId: actor.id };
   try {
     const id = input.id
@@ -94,7 +98,10 @@ export async function cancelGoodsReceipt(
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
     .safeParse({ id, reason });
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid cancellation." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid cancellation.",
+    };
   try {
     await repository.cancelGoodsReceipt(id, parsed.data.reason, actor.id);
     return { ok: true, id };
@@ -116,7 +123,10 @@ export async function completeGoodsReceiptQc(
   if (!decoded.ok) return decoded.result;
   const parsed = z.array(decisionSchema).min(1).max(100).safeParse(decoded.value);
   if (!parsed.success)
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid QC decisions." };
+    return {
+      ok: false,
+      message: describeValidationIssue(parsed.error.issues[0]) ?? "Invalid QC decisions.",
+    };
   try {
     await repository.completeGoodsReceiptQc(id, parsed.data, actor.id);
     return { ok: true, id };

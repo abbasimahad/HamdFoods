@@ -1,5 +1,6 @@
 "use client";
 import { useActionState } from "react";
+import Link from "next/link";
 import type { SalesMasterRecord } from "@/modules/sales/application/contracts";
 import { initialSalesActionState, type SalesAction } from "./action-state";
 export function SalesMasterForm({
@@ -15,6 +16,20 @@ export function SalesMasterForm({
 }) {
   const [state, formAction, pending] = useActionState(action, initialSalesActionState);
   const label = kind === "group" ? "Customer group" : kind === "area" ? "Area" : "Route";
+  if (kind === "route" && (areas?.length ?? 0) === 0) {
+    return (
+      <p
+        className="rounded-lg bg-[var(--warning-surface)] p-4 text-sm text-[var(--warning-ink)] md:col-span-2"
+        role="alert"
+      >
+        A route must be assigned to a sales area, and no sales area exists yet. Create one on the{" "}
+        <Link className="font-semibold underline underline-offset-4" href="/sales/areas">
+          Sales Areas
+        </Link>{" "}
+        page first, then return here to create the route.
+      </p>
+    );
+  }
   return (
     <form action={formAction} className="grid gap-3 md:grid-cols-2">
       {initial && <input name="id" type="hidden" value={initial.id} />}
