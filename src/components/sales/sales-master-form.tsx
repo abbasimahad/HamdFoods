@@ -1,5 +1,5 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import type { SalesMasterRecord } from "@/modules/sales/application/contracts";
 import { initialSalesActionState, type SalesAction } from "./action-state";
@@ -15,6 +15,7 @@ export function SalesMasterForm({
   kind: "group" | "area" | "route";
 }) {
   const [state, formAction, pending] = useActionState(action, initialSalesActionState);
+  const [areaId, setAreaId] = useState(initial?.areaId ?? "");
   const label = kind === "group" ? "Customer group" : kind === "area" ? "Area" : "Route";
   if (kind === "route" && (areas?.length ?? 0) === 0) {
     return (
@@ -40,9 +41,10 @@ export function SalesMasterForm({
           Area
           <select
             className="mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] px-3"
-            defaultValue={initial?.areaId ?? ""}
             name="areaId"
+            onChange={(event) => setAreaId(event.target.value)}
             required
+            value={areaId}
           >
             <option value="">Select area</option>
             {areas?.map((area) => (

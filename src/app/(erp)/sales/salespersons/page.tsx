@@ -38,6 +38,7 @@ export default async function SalespersonsPage({
             </summary>
             <div className="mt-4">
               <SalespersonForm
+                key={selected?.id ?? "create"}
                 action={saveSalespersonAction}
                 initial={selected ?? undefined}
                 references={references}

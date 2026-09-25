@@ -200,7 +200,19 @@ export class PrismaSalesRepository implements SalesRepository {
         input.areaId,
         current?.areaId,
       );
-      return saveMaster(tx.salesRoute as unknown as MasterDelegate, input);
+      const data = {
+        code: input.code,
+        name: input.name,
+        description: input.description,
+        area: { connect: { id: input.areaId } },
+      };
+      try {
+        return input.id
+          ? (await tx.salesRoute.update({ where: { id: input.id }, data })).id
+          : (await tx.salesRoute.create({ data })).id;
+      } catch (error) {
+        throw mapped(error, "route");
+      }
     });
   }
   async saveSalesperson(input: SalespersonInput) {
@@ -220,23 +232,43 @@ export class PrismaSalesRepository implements SalesRepository {
         throw new SalesRepositoryError(
           "Each assigned route must have its area assigned to the salesperson.",
         );
-      const data = {
+      const base = {
         code: input.code,
         name: input.name,
         phone: input.phone,
         email: input.email,
         linkedUserId: input.linkedUserId,
         notes: input.notes,
-        areaAssignments: { deleteMany: {}, create: input.areaIds.map((areaId) => ({ areaId })) },
-        routeAssignments: {
-          deleteMany: {},
-          create: input.routeIds.map((routeId) => ({ routeId })),
-        },
       };
       try {
+        // `deleteMany` is only a valid nested write against an existing record's
+        // assignments; a brand-new salesperson has none to delete first.
         return input.id
-          ? (await tx.salesperson.update({ where: { id: input.id }, data })).id
-          : (await tx.salesperson.create({ data })).id;
+          ? (
+              await tx.salesperson.update({
+                where: { id: input.id },
+                data: {
+                  ...base,
+                  areaAssignments: {
+                    deleteMany: {},
+                    create: input.areaIds.map((areaId) => ({ areaId })),
+                  },
+                  routeAssignments: {
+                    deleteMany: {},
+                    create: input.routeIds.map((routeId) => ({ routeId })),
+                  },
+                },
+              })
+            ).id
+          : (
+              await tx.salesperson.create({
+                data: {
+                  ...base,
+                  areaAssignments: { create: input.areaIds.map((areaId) => ({ areaId })) },
+                  routeAssignments: { create: input.routeIds.map((routeId) => ({ routeId })) },
+                },
+              })
+            ).id;
       } catch (error) {
         throw mapped(error, "salesperson");
       }
@@ -501,7 +533,9 @@ function mapped(error: unknown, entity: string) {
     return new SalesRepositoryError(`A ${entity} with that code already exists.`);
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025")
     return new SalesRepositoryError("Record no longer exists.");
-  return error instanceof Error
-    ? error
-    : new SalesRepositoryError(`The ${entity} could not be saved.`);
+  if (error instanceof SalesRepositoryError) return error;
+  // Anything else (a raw Prisma validation/engine error, etc.) is a bug, not a
+  // user-facing message: log it server-side and never show its internal text.
+  console.error(`Unexpected error saving ${entity}:`, error);
+  return new SalesRepositoryError(`The ${entity} could not be saved.`);
 }

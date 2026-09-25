@@ -37,6 +37,7 @@ export default async function CustomerGroupsPage({
             </summary>
             <div className="mt-4">
               <SalesMasterForm
+                key={selected?.id ?? "create"}
                 action={saveCustomerGroupAction}
                 initial={selected ?? undefined}
                 kind="group"

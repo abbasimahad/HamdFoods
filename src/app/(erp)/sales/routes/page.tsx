@@ -38,6 +38,7 @@ export default async function RoutesPage({
             </summary>
             <div className="mt-4">
               <SalesMasterForm
+                key={selected?.id ?? "create"}
                 action={saveRouteAction}
                 initial={selected ?? undefined}
                 kind="route"

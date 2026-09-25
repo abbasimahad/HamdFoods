@@ -37,6 +37,7 @@ export default async function AreasPage({
             </summary>
             <div className="mt-4">
               <SalesMasterForm
+                key={selected?.id ?? "create"}
                 action={saveAreaAction}
                 initial={selected ?? undefined}
                 kind="area"
