@@ -36,7 +36,11 @@ Thumbs.db
 # Phase 32 installer build inputs and outputs
 .installer-cache/
 .installer-work/
-installer/output/
+installer/output/*
+# Exception: the compiled end-user Setup installer is intentionally committed
+# so it can be downloaded directly from GitHub without a local build. The
+# isolated-drill installer is never distributed and stays ignored.
+!installer/output/HamdFoodsERP-*-Setup-*.exe
 installer/prerequisites/*.exe
 installer/prerequisites/*.zip
 installer/prerequisites/*.sha256
