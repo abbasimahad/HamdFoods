@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
 import type { QuickCreateReferences } from "@/components/quick-create/quick-create-fields";
 import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
@@ -138,7 +139,9 @@ export function SalesOrderForm({
           label="Order date"
           name="orderDate"
           type="date"
-          defaultValue={dateValue(initial?.orderDate ?? new Date())}
+          defaultValue={
+            initial?.orderDate ? dateValue(initial.orderDate) : todayInFactoryTimeZone()
+          }
           required
         />
         <Field

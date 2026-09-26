@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { ProductionActionState } from "./action-state";
 import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import type { RecipeUnit } from "@/modules/production/application/contracts";
@@ -31,7 +32,7 @@ export function OutputTransactionForm({
 }) {
   const [state, formAction, pending] = useActionState(action, { ok: false, message: "" });
   const contentUnits = units.filter((unit) => unit.dimension === view.productContentDimension);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInFactoryTimeZone();
   return (
     <form action={formAction} className="space-y-5">
       {initial && <input name="id" type="hidden" value={initial.id} />}

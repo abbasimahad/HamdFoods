@@ -1,4 +1,5 @@
 import { describeValidationIssue } from "@/server/shared/validation-message";
+import { optionalDateOnly, optionalUuid } from "@/server/shared/zod-form-helpers";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { PurchasingMutationResult } from "./contracts";
@@ -15,19 +16,13 @@ const lineSchema = z.object({
   quantity: z.string().trim().min(1).max(80),
   unitId: z.string().uuid(),
   supplierLotNumber: optional(120),
-  manufacturingDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  expiryDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
+  manufacturingDate: optionalDateOnly(),
+  expiryDate: optionalDateOnly(),
   notes: optional(500),
-  purchaseReturnLineId: z.string().uuid().optional(),
+  purchaseReturnLineId: optionalUuid(),
 });
 const receiptSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   purchaseOrderId: z.string().uuid(),
   receiptDate: z.string().min(16).max(35),
   warehouseId: z.string().uuid(),
@@ -36,7 +31,7 @@ const receiptSchema = z.object({
   notes: optional(2000),
   lines: z.array(lineSchema).min(1).max(100),
   purpose: z.enum(["PURCHASE", "SUPPLIER_REPLACEMENT"]).default("PURCHASE"),
-  purchaseReturnId: z.string().uuid().optional(),
+  purchaseReturnId: optionalUuid(),
 });
 const decisionSchema = z.object({
   goodsReceiptLineId: z.string().uuid(),

@@ -2,10 +2,8 @@
 
 import { useActionState } from "react";
 
-import {
-  initialUserActionState,
-  resetUserPasswordAction,
-} from "@/app/(erp)/administration/users/actions";
+import { resetUserPasswordAction } from "@/app/(erp)/administration/users/actions";
+import { initialUserActionState } from "@/components/access/user-action-state";
 
 export function UserPasswordResetForm({ userId }: { userId: string }) {
   const [state, action, pending] = useActionState(resetUserPasswordAction, initialUserActionState);

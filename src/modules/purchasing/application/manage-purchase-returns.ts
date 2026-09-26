@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -20,7 +21,7 @@ const lineSchema = z.object({
   notes: optional(500),
 });
 const returnSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   returnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   reasonNotes: optional(2000),
   supplierReturnReference: optional(120),

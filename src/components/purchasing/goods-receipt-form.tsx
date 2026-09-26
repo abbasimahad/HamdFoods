@@ -8,6 +8,7 @@ import type {
 } from "@/modules/purchasing/application/receiving-contracts";
 import type { PurchaseCatalogUnit } from "@/modules/purchasing/application/contracts";
 import type { ReplacementTarget } from "@/modules/purchasing/application/return-contracts";
+import { factoryLocalDateTimeValue } from "@/server/shared/factory-local-time";
 import { initialPurchasingActionState, type PurchasingAction } from "./action-state";
 
 type DraftLine = {
@@ -175,7 +176,9 @@ export function GoodsReceiptForm({
           name="receiptDate"
           type="datetime-local"
           required
-          defaultValue={initial ? dateTimeLocal(initial.receiptDate) : dateTimeLocal(new Date())}
+          defaultValue={
+            initial ? dateTimeLocal(initial.receiptDate) : factoryLocalDateTimeValue(new Date())
+          }
         />
         <label className="text-sm font-medium">
           Warehouse

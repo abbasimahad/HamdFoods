@@ -4,8 +4,9 @@ import { readableInventoryQuantity } from "@/components/inventory/quantity-displ
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
+import { InventoryMovementType } from "@/generated/prisma/client";
 import { parseMovementHistoryQuery } from "@/modules/inventory/application/listing";
-import { INVENTORY_MOVEMENT_TYPES, INVENTORY_STATUSES } from "@/modules/inventory/domain/inventory";
+import { INVENTORY_STATUSES } from "@/modules/inventory/domain/inventory";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaInventoryRepository } from "@/server/inventory/prisma-inventory-repository";
 
@@ -53,7 +54,7 @@ export default async function StockMovementsPage({
             defaultValue={query.movementType}
             label="Movement"
             name="movementType"
-            options={INVENTORY_MOVEMENT_TYPES.map((value) => ({
+            options={Object.values(InventoryMovementType).map((value) => ({
               value,
               label: value.replaceAll("_", " "),
             }))}

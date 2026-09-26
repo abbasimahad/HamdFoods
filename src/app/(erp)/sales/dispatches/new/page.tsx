@@ -24,7 +24,12 @@ export default async function NewSalesDispatchPage({
         description="Create a draft delivery note from an approved order. Posting moves allocated pieces from RESERVED to IN TRANSIT."
       />
       <Card className="p-5">
-        <SalesDispatchForm action={saveSalesDispatchAction} order={order} references={references} />
+        <SalesDispatchForm
+          key={order?.id ?? "none"}
+          action={saveSalesDispatchAction}
+          order={order}
+          references={references}
+        />
       </Card>
     </ResponsiveContainer>
   );

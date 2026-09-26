@@ -1,9 +1,7 @@
 "use client";
 import { useActionState } from "react";
-import {
-  initialRoleActionState,
-  replaceRolePermissionsAction,
-} from "@/app/(erp)/administration/roles-permissions/actions";
+import { replaceRolePermissionsAction } from "@/app/(erp)/administration/roles-permissions/actions";
+import { initialRoleActionState } from "@/components/access/role-action-state";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 import { PERMISSION_DESCRIPTIONS, PERMISSIONS } from "@/modules/access/domain/permissions";

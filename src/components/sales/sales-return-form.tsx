@@ -1,5 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type {
   SalesReturnReferences,
   SalesReturnSource,
@@ -91,7 +92,7 @@ export function SalesReturnForm({
           Return date
           <input
             className="mt-1 min-h-11 w-full rounded border p-2"
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={todayInFactoryTimeZone()}
             name="returnDate"
             required
             type="date"

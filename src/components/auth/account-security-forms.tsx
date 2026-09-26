@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import {
   changeLoginEmailAction,
   changePasswordAction,
-  initialAccountSecurityState,
   updateDisplayNameAction,
-  type AccountSecurityActionState,
 } from "@/app/(erp)/account/security/actions";
+import {
+  initialAccountSecurityState,
+  type AccountSecurityActionState,
+} from "@/components/auth/account-security-state";
 
 const inputClass = "mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] px-3";
 const buttonClass =

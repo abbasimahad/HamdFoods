@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SingleFlightForm } from "@/components/ui/single-flight-form";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import { initialProductionActionState, type ProductionAction } from "./action-state";
 
 type Source = {
@@ -200,7 +201,7 @@ function key(source: Source) {
   return `${source.productionLotId}:${source.warehouseId}:${source.unitId}`;
 }
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayInFactoryTimeZone();
 }
 function Field({
   label,

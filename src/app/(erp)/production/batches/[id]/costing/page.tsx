@@ -21,7 +21,11 @@ export default async function BatchCostingPage({ params }: { params: Promise<{ i
     <ResponsiveContainer>
       <PageHeader
         title={`${costing.batchNumber} Costing`}
-        description={`${costing.finishedGoodCode} — ${costing.finishedGoodName}; ${costing.costingStatus}. Costing has no physical quantity or General Ledger side effect.`}
+        description={`${costing.finishedGoodCode} — ${costing.finishedGoodName}; ${costing.costingStatus}. ${
+          costing.costingStatus === "FINALIZED"
+            ? "Finalizing posted the finished-goods cost pool to the General Ledger; no further physical quantity effect."
+            : "Costing has no physical quantity or General Ledger side effect until finalized."
+        }`}
       />
       {costing.warnings.length > 0 && (
         <Card className="mb-5 border-amber-300 bg-amber-50 p-5">

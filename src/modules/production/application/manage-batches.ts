@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -11,7 +12,7 @@ import {
 const decimal = z.string().trim().min(1).max(80);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const batchSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   recipeId: z.string().uuid(),
   plannedBatchQuantity: decimal,
   plannedBatchUnitId: z.string().uuid(),

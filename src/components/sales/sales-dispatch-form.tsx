@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Decimal from "decimal.js";
 import { normalizeCartonQuantity } from "@/modules/quantity/domain/cartons";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type {
   DispatchOrderLine,
   SalesDispatchRecord,
@@ -132,7 +133,9 @@ export function SalesDispatchForm({
           label="Dispatch date"
           name="dispatchDate"
           type="date"
-          defaultValue={dateValue(initial?.dispatchAt ?? new Date())}
+          defaultValue={
+            initial?.dispatchAt ? dateValue(initial.dispatchAt) : todayInFactoryTimeZone()
+          }
           required
         />
         <Field

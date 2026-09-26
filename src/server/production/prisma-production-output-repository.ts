@@ -943,7 +943,10 @@ async function nextNumber(transaction: Prisma.TransactionClient) {
   const value = sequence.nextValue - 1;
   if (value > 999999)
     throw new ProductionOutputRepositoryError("conflict", "Annual output sequence is exhausted.");
-  return `PO-${year}-${String(value).padStart(6, "0")}`;
+  // "PO-" already denotes a Purchase Order elsewhere in the system; reusing
+  // it here let a production output transaction and a purchase order share
+  // the same document number in the same year.
+  return `POUT-${year}-${String(value).padStart(6, "0")}`;
 }
 
 function parseDateTime(value: string) {

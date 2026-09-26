@@ -13,6 +13,7 @@ import { formatMoney } from "@/modules/purchasing/domain/purchasing";
 import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
 import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
 import { ActionFeedback } from "@/components/ui/action-feedback";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import { FormActions } from "@/components/ui/form-actions";
 import { LineEditorControls } from "@/components/ui/line-editor-controls";
 import { SingleFlightForm } from "@/components/ui/single-flight-form";
@@ -122,7 +123,7 @@ export function PurchaseOrderForm({
           label="Order date"
           name="orderDate"
           type="date"
-          defaultValue={initial ? dateValue(initial.orderDate) : dateValue(new Date())}
+          defaultValue={initial ? dateValue(initial.orderDate) : todayInFactoryTimeZone()}
           required
         />
         <Field

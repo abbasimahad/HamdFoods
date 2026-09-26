@@ -34,7 +34,13 @@ export default async function SalesOrderDetailPage({
     <ResponsiveContainer>
       <PageHeader
         title={order.number}
-        description={`Sales order ${order.status.replaceAll("_", " ")}; no dispatch, receivable, revenue, or COGS effect.`}
+        description={
+          order.status === "PARTIALLY_DISPATCHED" || order.status === "DISPATCHED"
+            ? `Sales order ${order.status.replaceAll("_", " ")}; dispatch, receivable, revenue, and COGS effects apply as its dispatches and invoices are posted.`
+            : order.status === "CLOSED"
+              ? `Sales order ${order.status}; dispatch, receivable, revenue, and COGS effects were posted through its dispatches and invoices.`
+              : `Sales order ${order.status.replaceAll("_", " ")}; no dispatch, receivable, revenue, or COGS effect yet.`
+        }
       />
       <div className="mb-4 flex flex-wrap gap-3">
         {canManage && order.status === "DRAFT" && (

@@ -350,6 +350,31 @@ export async function postValuationAccounting(
           ],
     });
   }
+  // Manual stock-adjustment entries (opening balance and ad hoc quantity
+  // corrections from Inventory > Stock Adjustments) previously had no branch
+  // here at all, so they silently posted no journal despite adjusting
+  // inventory value -- a real GL-vs-valuation reconciliation gap.
+  if (["OPENING_BALANCE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT"].includes(entry.entryType)) {
+    const increase = value.gt(0);
+    const isOpeningBalance = entry.entryType === "OPENING_BALANCE";
+    const contraMapping = isOpeningBalance ? "OPENING_BALANCE_EQUITY" : "INVENTORY_LOSS_EXPENSE";
+    return postAutomaticJournal(tx, {
+      ...common,
+      sourceType: isOpeningBalance ? "OPENING_INVENTORY" : "VALUATION_ADJUSTMENT",
+      description: isOpeningBalance
+        ? `Opening stock balance: ${entry.sourceNumber ?? entry.sourceKey}.`
+        : `Manual stock adjustment: ${entry.sourceNumber ?? entry.sourceKey}.`,
+      lines: increase
+        ? [
+            { mapping: inventory, debit: value.toFixed(), itemId: entry.itemId },
+            { mapping: contraMapping, credit: value.toFixed(), itemId: entry.itemId },
+          ]
+        : [
+            { mapping: contraMapping, debit: value.abs().toFixed(), itemId: entry.itemId },
+            { mapping: inventory, credit: value.abs().toFixed(), itemId: entry.itemId },
+          ],
+    });
+  }
   if (["PRODUCTION_CONSUMPTION", "PACKAGING_CONSUMPTION"].includes(entry.entryType))
     return postAutomaticJournal(tx, {
       ...common,
@@ -465,7 +490,12 @@ export async function postSalesInvoiceAccounting(
         : []),
     ],
   });
-  const valuation = await tx.inventoryValuationEntry.aggregate({
+  // Grouped by item (not aggregated across the whole invoice) so each line
+  // carries an itemId -- the sales-profitability report attributes COGS to
+  // items by joining on this field, and an aggregate-only line left every
+  // invoice's cost unattributed, always reporting COGS as 0.
+  const valuationByItem = await tx.inventoryValuationEntry.groupBy({
+    by: ["itemId"],
     where: {
       sourceType: "SALES_INVOICE",
       sourceId: invoice.id,
@@ -474,8 +504,13 @@ export async function postSalesInvoiceAccounting(
     },
     _sum: { valueDelta: true },
   });
-  const cost = new Decimal(valuation._sum.valueDelta?.toString() ?? "0").abs();
-  if (cost.gt(0))
+  const costByItem = valuationByItem
+    .map((row) => ({
+      itemId: row.itemId,
+      cost: new Decimal(row._sum.valueDelta?.toString() ?? "0").abs(),
+    }))
+    .filter((row) => row.cost.gt(0));
+  if (costByItem.length)
     await postAutomaticJournal(tx, {
       sourceType: "SALES_INVOICE_COGS",
       sourceId: invoice.id,
@@ -484,10 +519,19 @@ export async function postSalesInvoiceAccounting(
       description: `Sales invoice cost of goods sold: ${invoice.number}.`,
       actorUserId,
       allowHistoricalBackfill,
-      lines: [
-        { mapping: "COST_OF_GOODS_SOLD", debit: cost.toFixed(), customerId: invoice.customerId },
-        { mapping: "FINISHED_GOODS_INVENTORY", credit: cost.toFixed() },
-      ],
+      lines: costByItem.flatMap((row) => [
+        {
+          mapping: "COST_OF_GOODS_SOLD" as const,
+          debit: row.cost.toFixed(),
+          customerId: invoice.customerId,
+          itemId: row.itemId,
+        },
+        {
+          mapping: "FINISHED_GOODS_INVENTORY" as const,
+          credit: row.cost.toFixed(),
+          itemId: row.itemId,
+        },
+      ]),
     });
 }
 
@@ -1059,16 +1103,22 @@ export async function postPurchaseReturnAccounting(
     );
   const payableCredit = commercial.add(tax);
   const variance = commercial.sub(carryingValue);
-  const debitLines: AccountingLineInput[] = awaitingReplacement
-    ? [
-        {
-          mapping: "SUPPLIER_CLAIMS",
-          debit: carryingValue.toFixed(),
-          supplierId: purchaseReturn.supplierId,
-        },
-      ]
-    : allRejectedBeforePayable
-      ? [{ mapping: "GRNI", debit: carryingValue.toFixed(), supplierId: purchaseReturn.supplierId }]
+  // A return that is entirely QC-rejected before invoicing was never billed,
+  // so its accrual lives in GRNI, not accounts payable -- that must clear
+  // regardless of whether a replacement is expected. Posting the debit to
+  // SUPPLIER_CLAIMS instead (the pre-existing bug) left GRNI overstated
+  // forever for rejected-and-replaced quantities, since nothing ever debited
+  // it back down.
+  const debitLines: AccountingLineInput[] = allRejectedBeforePayable
+    ? [{ mapping: "GRNI", debit: carryingValue.toFixed(), supplierId: purchaseReturn.supplierId }]
+    : awaitingReplacement
+      ? [
+          {
+            mapping: "SUPPLIER_CLAIMS",
+            debit: carryingValue.toFixed(),
+            supplierId: purchaseReturn.supplierId,
+          },
+        ]
       : [
           {
             mapping: "ACCOUNTS_PAYABLE",

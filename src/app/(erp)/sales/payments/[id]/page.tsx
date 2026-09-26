@@ -33,6 +33,12 @@ export default async function CustomerPaymentDetailPage({
         title={payment.number}
         description={`Customer payment ${payment.status}; its receivable and treasury effects are server-posted and auditable.`}
       />
+      {payment.reversalPaymentNumber && (
+        <p className="mb-4 rounded border-2 border-red-700 bg-red-50 p-3 font-semibold text-red-700">
+          This receipt has been REVERSED by {payment.reversalPaymentNumber}. Its receivable and
+          treasury effects are no longer in force.
+        </p>
+      )}
       <p className="mb-4 flex gap-3">
         <Link className="rounded border px-4 py-2" href={`/sales/payments/${payment.id}/print`}>
           Print receipt

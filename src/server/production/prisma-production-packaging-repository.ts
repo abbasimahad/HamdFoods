@@ -532,8 +532,12 @@ async function nextNumber(transaction: Prisma.TransactionClient, type: Packaging
     create: { materialType: "PACKAGING_MATERIAL", transactionType: type, year, nextValue: 2 },
     update: { nextValue: { increment: 1 } },
   });
+  // "PI" and "PR" already denote Purchase Invoice and Purchase Return
+  // elsewhere in the system; reusing them here let a packaging issue or
+  // return share the same document number as an unrelated purchase document
+  // in the same year.
   const prefix =
-    type === "ISSUE" ? "PI" : type === "RETURN" ? "PR" : type === "CONSUMPTION" ? "PC" : "PD";
+    type === "ISSUE" ? "PKI" : type === "RETURN" ? "PKR" : type === "CONSUMPTION" ? "PC" : "PD";
   const value = sequence.nextValue - 1;
   if (value > 999999)
     throw new ProductionPackagingRepositoryError(

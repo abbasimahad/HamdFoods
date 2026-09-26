@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type {
   SalesInvoiceRecord,
   SalesInvoiceReferences,
@@ -78,7 +79,11 @@ export function SalesInvoiceForm({
             Invoice date
             <input
               className="ml-2 min-h-11 rounded-lg border border-[var(--border)] px-3"
-              defaultValue={(initial?.invoiceDate ?? new Date()).toISOString().slice(0, 10)}
+              defaultValue={
+                initial?.invoiceDate
+                  ? initial.invoiceDate.toISOString().slice(0, 10)
+                  : todayInFactoryTimeZone()
+              }
               name="invoiceDate"
               type="date"
               required

@@ -77,7 +77,14 @@ export class PrismaPurchaseInvoiceRepository implements PurchaseInvoiceRepositor
       itemName: line.item.name,
       canonicalUnitSymbol: line.canonicalUnit.symbol,
       orderedQuantity: line.normalizedQuantity.toString(),
-      poUnitRate: line.unitRate.toString(),
+      // The PO's own unitRate is quoted per order unit (e.g. per kg); the invoice's
+      // quantity and matching are always in the canonical unit (e.g. grams), so the
+      // default rate offered here must be converted to that same canonical basis --
+      // otherwise the invoice total and its price variance mix two different units.
+      poUnitRate: new Decimal(line.unitRate)
+        .mul(line.orderedQuantity)
+        .div(line.normalizedQuantity)
+        .toString(),
       poTaxPercent: line.taxPercent.toString(),
     }));
   }

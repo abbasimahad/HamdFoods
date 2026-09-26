@@ -12,9 +12,8 @@ import {
 import { PrismaAccessRepository } from "@/server/access/prisma-access-repository";
 import { PrismaAccountSecurityRepository } from "@/server/access/prisma-account-security-repository";
 import { requirePermission } from "@/server/auth/licensed-guards";
+import type { UserActionState } from "@/components/access/user-action-state";
 
-export type UserActionState = { status: "idle" | "success" | "error"; message: string };
-export const initialUserActionState: UserActionState = { status: "idle", message: "" };
 const repository = new PrismaAccessRepository();
 const accountSecurityRepository = new PrismaAccountSecurityRepository();
 

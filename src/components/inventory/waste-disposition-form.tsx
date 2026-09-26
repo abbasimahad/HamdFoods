@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SingleFlightForm } from "@/components/ui/single-flight-form";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import { initialInventoryActionState, type InventoryAction } from "./action-state";
 
 type Source = {
@@ -112,7 +113,7 @@ export function WasteDispositionForm({
           Disposition date
           <input
             className="mt-1 min-h-11 w-full rounded-lg border px-3"
-            defaultValue={initial?.dispositionDate ?? new Date().toISOString().slice(0, 10)}
+            defaultValue={initial?.dispositionDate ?? todayInFactoryTimeZone()}
             name="dispositionDate"
             required
             type="date"

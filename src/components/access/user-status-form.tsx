@@ -1,10 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  initialUserActionState,
-  setUserStatusAction,
-} from "@/app/(erp)/administration/users/actions";
+import { setUserStatusAction } from "@/app/(erp)/administration/users/actions";
+import { initialUserActionState } from "@/components/access/user-action-state";
 
 export function UserStatusForm({ userId, active }: { userId: string; active: boolean }) {
   const [state, action, pending] = useActionState(setUserStatusAction, initialUserActionState);

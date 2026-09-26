@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type {
   EligibleGoodsReceiptLineForMatch,
   EligiblePurchaseOrderLineForInvoice,
@@ -120,7 +121,7 @@ export function PurchaseInvoiceForm({
           Invoice date
           <input
             className="mt-1 min-h-11 w-full rounded-lg border px-3"
-            defaultValue={initial ? dateOnly(initial.invoiceDate) : dateOnly(new Date())}
+            defaultValue={initial ? dateOnly(initial.invoiceDate) : todayInFactoryTimeZone()}
             name="invoiceDate"
             required
             type="date"

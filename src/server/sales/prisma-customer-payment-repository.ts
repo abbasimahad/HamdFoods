@@ -454,6 +454,27 @@ async function savePayment(
   const allocatedAmount = sum(allocations.map((allocation) => allocation.allocatedAmount));
   if (allocatedAmount.gt(totalAmount))
     throw problem("allocation", "Allocated amount cannot exceed the payment amount.");
+  // A cheque/transfer reference reused for the same customer and method is
+  // almost always the same instrument entered twice, not a coincidence --
+  // nothing previously stopped that duplicate data entry.
+  const reference = input.referenceNumber?.trim();
+  if (reference && input.method !== "CASH") {
+    const duplicate = await transaction.customerPayment.findFirst({
+      where: {
+        customerId: input.customerId,
+        method: input.method,
+        referenceNumber: reference,
+        status: { in: ["DRAFT", "POSTED"] },
+        ...(input.id ? { id: { not: input.id } } : {}),
+      },
+      select: { number: true },
+    });
+    if (duplicate)
+      throw problem(
+        "invalid-reference",
+        `Reference ${reference} is already used on payment ${duplicate.number} for this customer.`,
+      );
+  }
   const header = {
     customerId: input.customerId,
     paymentDate,

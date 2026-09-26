@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { endOfFactoryLocalDay } from "@/server/shared/factory-local-time";
 import { AccountingBackfillForm } from "@/components/accounting/accounting-management-forms";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,7 +12,7 @@ export default async function Page() {
   const principal = await requirePermission("accounting.view");
   const [dashboard, finance] = await Promise.all([
     accountingDashboard(),
-    financeDashboard(new Date()),
+    financeDashboard(endOfFactoryLocalDay()),
   ]);
   return (
     <ResponsiveContainer>

@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 
@@ -21,7 +22,7 @@ const lineSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 const orderSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   supplierId: z.string().uuid(),
   orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   expectedDeliveryDate: z

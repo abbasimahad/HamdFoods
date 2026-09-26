@@ -6,9 +6,8 @@ import { z } from "zod";
 import { replaceRolePermissions } from "@/modules/access/application/manage-role-permissions";
 import { PrismaAccessRepository } from "@/server/access/prisma-access-repository";
 import { requirePermission } from "@/server/auth/licensed-guards";
+import type { RoleActionState } from "@/components/access/role-action-state";
 
-export type RoleActionState = { status: "idle" | "success" | "error"; message: string };
-export const initialRoleActionState: RoleActionState = { status: "idle", message: "" };
 const rolePermissionsSchema = z.object({
   roleCode: z.string().min(1),
   permissionCodes: z.array(z.string()).max(64),

@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import { requirePurchasingManager, type PurchasingMutationResult } from "./contracts";
@@ -18,7 +19,7 @@ const lineSchema = z.object({
   matches: z.array(matchSchema).max(50),
 });
 const invoiceSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   supplierId: z.string().uuid(),
   supplierInvoiceNumber: z.string().trim().min(1).max(120),
   invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

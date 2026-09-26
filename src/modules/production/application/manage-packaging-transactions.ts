@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -11,7 +12,7 @@ import {
 } from "./packaging-contracts";
 
 const schema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   productionBatchId: z.string().uuid(),
   transactionType: z.enum(PACKAGING_TRANSACTION_TYPES),
   transactionDate: z.string().datetime({ local: true }),
@@ -19,7 +20,7 @@ const schema = z.object({
   inventoryLotId: z.string().uuid(),
   quantity: z.string().trim().min(1).max(80),
   unitId: z.string().uuid(),
-  destinationWarehouseId: z.string().uuid().optional(),
+  destinationWarehouseId: optionalUuid(),
   damageReason: z.enum(PACKAGING_DAMAGE_REASONS).optional(),
   notes: z.string().trim().max(1000).optional(),
 });

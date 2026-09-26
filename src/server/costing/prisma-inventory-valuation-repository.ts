@@ -76,10 +76,12 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
       where: { itemId: { in: items.map((item) => item.id) } },
       _sum: { quantity: true },
     });
+    const canonicalSymbols = await canonicalUnitSymbolsByDimension();
     return items.map((item) =>
       summary(
         item,
         physical.find((row) => row.itemId === item.id)?._sum.quantity?.toString() ?? "0",
+        canonicalSymbols,
       ),
     );
   }
@@ -95,7 +97,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
       },
     });
     if (!item) return null;
-    const [physical, rows] = await Promise.all([
+    const [physical, rows, canonicalSymbols] = await Promise.all([
       prisma.inventoryMovement.aggregate({ where: { itemId }, _sum: { quantity: true } }),
       prisma.inventoryValuationEntry.findMany({
         where: { itemId },
@@ -103,9 +105,10 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         orderBy: [{ effectiveAt: "desc" }, { id: "desc" }],
         take: 1000,
       }),
+      canonicalUnitSymbolsByDimension(),
     ]);
     return {
-      summary: summary(item, physical._sum.quantity?.toString() ?? "0"),
+      summary: summary(item, physical._sum.quantity?.toString() ?? "0", canonicalSymbols),
       history: rows.map((row) => ({
         id: row.id,
         effectiveAt: row.effectiveAt,
@@ -1443,6 +1446,20 @@ function purchaseBaseValue(
     .div(ordered);
   return { unitCost: unit(unitCost), value: money(unitCost.mul(receiptQuantity)) };
 }
+/**
+ * Inventory movements (and therefore this report's physical quantity) are
+ * recorded against each item's fixed canonical unit for its dimension (grams
+ * for MASS, millilitres for VOLUME, pieces for COUNT) -- not the item's own
+ * stock unit (e.g. kg). Labeling the canonical quantity with the stock
+ * unit's symbol displayed a gram figure as if it were kilograms.
+ */
+async function canonicalUnitSymbolsByDimension(): Promise<Record<string, string>> {
+  const units = await prisma.unit.findMany({
+    where: { code: { in: ["G", "ML", "PCS"] } },
+    select: { code: true, dimension: true, symbol: true },
+  });
+  return Object.fromEntries(units.map((unit) => [unit.dimension, unit.symbol]));
+}
 function summary(
   item: {
     id: string;
@@ -1451,7 +1468,7 @@ function summary(
     itemType: ItemType;
     active: boolean;
     category: { name: string };
-    stockUnit: { symbol: string };
+    stockUnit: { symbol: string; dimension: string };
     finishedGoodProfile: { piecesPerCarton: number } | null;
     inventoryValuationBalance: {
       missingBasisCount: number;
@@ -1461,6 +1478,7 @@ function summary(
     } | null;
   },
   physical: string,
+  canonicalSymbols: Record<string, string>,
 ) {
   const balance = item.inventoryValuationBalance;
   return {
@@ -1470,7 +1488,7 @@ function summary(
     itemType: item.itemType,
     categoryName: item.category.name,
     active: item.active,
-    canonicalUnitSymbol: item.stockUnit.symbol,
+    canonicalUnitSymbol: canonicalSymbols[item.stockUnit.dimension] ?? item.stockUnit.symbol,
     canonicalQuantity: physical,
     averageUnitCost:
       balance?.missingBasisCount === 0 ? (balance.averageUnitCost?.toString() ?? null) : null,

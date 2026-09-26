@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { endOfFactoryLocalDay } from "@/server/shared/factory-local-time";
 import { SubledgerDetail } from "@/components/accounting/subledger-workbench";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageActions, primaryPageActionClass } from "@/components/ui/page-actions";
@@ -10,7 +11,10 @@ import { requirePermission } from "@/server/auth/server-guards";
 export default async function Page({ params }: { params: Promise<{ customerId: string }> }) {
   const principal = await requirePermission("accounting.view");
   const { customerId } = await params;
-  const detail = await new PrismaSubledgerWorkbench().getReceivable(customerId, new Date());
+  const detail = await new PrismaSubledgerWorkbench().getReceivable(
+    customerId,
+    endOfFactoryLocalDay(),
+  );
   if (!detail) notFound();
   const returnTo = `/accounting/receivables/${customerId}`;
   return (

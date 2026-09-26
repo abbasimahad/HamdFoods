@@ -156,7 +156,15 @@ export default async function CustomerPaymentsPage({
                   <td className="p-3">{payment.totalAmount}</td>
                   <td className="p-3">{payment.allocatedAmount}</td>
                   <td className="p-3">{payment.unallocatedAmount}</td>
-                  <td className="p-3">{payment.status}</td>
+                  <td className="p-3">
+                    {payment.reversalPaymentNumber ? (
+                      <span className="font-semibold text-red-700">
+                        REVERSED ({payment.reversalPaymentNumber})
+                      </span>
+                    ) : (
+                      payment.status
+                    )}
+                  </td>
                   <td className="p-3">{payment.postedByName ?? "-"}</td>
                 </tr>
               ))}

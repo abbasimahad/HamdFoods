@@ -27,16 +27,22 @@ export default async function PurchaseReturnDetailPage({
         title={record.number}
         description={`${record.status.replaceAll("_", " ")} physical supplier return`}
       />
-      {canManage && record.status === "DRAFT" && (
-        <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Link
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          href={`/purchasing/purchase-returns/${record.id}/print`}
+        >
+          Print
+        </Link>
+        {canManage && record.status === "DRAFT" && (
           <Link
             className="rounded-lg border px-4 py-2 text-sm font-semibold"
             href={`/purchasing/purchase-returns/${record.id}/edit`}
           >
             Edit draft
           </Link>
-        </div>
-      )}
+        )}
+      </div>
       <Card className="mb-5 grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
         <Info label="Supplier" value={`${record.supplierCode} - ${record.supplierName}`} />
         <Linked

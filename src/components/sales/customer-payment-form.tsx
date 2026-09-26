@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormActions } from "@/components/ui/form-actions";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import { QuickCreateDialog } from "@/components/quick-create/quick-create-dialog";
 import type { QuickCreateReferences } from "@/components/quick-create/quick-create-fields";
 import type { QuickCreateOption } from "@/modules/workflow-ux/application/quick-create-contracts";
@@ -121,7 +122,11 @@ export function CustomerPaymentForm({
             Payment date
             <input
               className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--border)] px-3"
-              defaultValue={(initial?.paymentDate ?? new Date()).toISOString().slice(0, 10)}
+              defaultValue={
+                initial?.paymentDate
+                  ? initial.paymentDate.toISOString().slice(0, 10)
+                  : todayInFactoryTimeZone()
+              }
               name="paymentDate"
               required
               type="date"

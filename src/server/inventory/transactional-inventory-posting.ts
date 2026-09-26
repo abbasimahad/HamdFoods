@@ -1110,7 +1110,7 @@ export async function postProductionMaterialInventory(
     !unit ||
     !lot ||
     lot.itemId !== command.itemId ||
-    item.stockUnitId !== command.canonicalUnitId ||
+    item.stockUnit.dimension !== unit.dimension ||
     !isSupportedQuantityUnitCode(unit.code) ||
     supportedQuantityUnitDimension(unit.code) !== unit.dimension
   ) {
@@ -1518,7 +1518,6 @@ async function validatePurchasedLotReference(
     !lot ||
     lot.itemId !== command.itemId ||
     lot.sourceGoodsReceiptId !== command.sourceGoodsReceiptId ||
-    item.stockUnitId !== command.canonicalUnitId ||
     !isSupportedQuantityUnitCode(unit.code) ||
     supportedQuantityUnitDimension(unit.code) !== unit.dimension ||
     unit.dimension !== item.stockUnit.dimension

@@ -1,7 +1,8 @@
+import type { InventoryMovementType } from "@/generated/prisma/client";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { ItemType, UnitDimension } from "@/modules/master-data/domain/master-data";
 
-import type { ImplementedMovementType, InventoryStatus } from "../domain/inventory";
+import type { InventoryStatus } from "../domain/inventory";
 
 export type WarehouseRecord = {
   id: string;
@@ -73,7 +74,11 @@ export type MovementHistoryQuery = {
   query: string;
   warehouseId?: string | undefined;
   status?: InventoryStatus | undefined;
-  movementType?: ImplementedMovementType | undefined;
+  // The history filter must cover every persisted movement type, not just the
+  // narrower set this module creates directly -- purchasing, sales,
+  // production, and costing all write their own movement types straight to
+  // the ledger, and the filter silently accepted no value for any of those.
+  movementType?: InventoryMovementType | undefined;
   dateFrom?: Date | undefined;
   dateTo?: Date | undefined;
 };

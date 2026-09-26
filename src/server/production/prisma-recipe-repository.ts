@@ -456,7 +456,7 @@ async function prepareRecipe(transaction: Prisma.TransactionClient, input: Recip
       units,
       `Ingredient line ${index + 1} quantity`,
     );
-    if (quantity.canonical.id !== item.stockUnitId)
+    if (quantity.canonical.dimension !== item.stockUnit.dimension)
       throw new RecipeRepositoryError(
         "invalid-reference",
         `Ingredient line ${index + 1} unit is incompatible with the raw material stock unit.`,
@@ -489,7 +489,7 @@ async function prepareRecipe(transaction: Prisma.TransactionClient, input: Recip
       units,
       `Packaging line ${index + 1} quantity`,
     );
-    if (quantity.canonical.id !== item.stockUnitId)
+    if (quantity.canonical.dimension !== item.stockUnit.dimension)
       throw new RecipeRepositoryError(
         "invalid-reference",
         `Packaging line ${index + 1} unit is incompatible with the packaging material stock unit.`,

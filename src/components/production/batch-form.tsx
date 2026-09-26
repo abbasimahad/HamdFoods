@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { ProductionActionState } from "./action-state";
 import type {
   BatchRecipeOption,
@@ -246,5 +247,5 @@ function dateOnly(value?: Date | null) {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayInFactoryTimeZone();
 }

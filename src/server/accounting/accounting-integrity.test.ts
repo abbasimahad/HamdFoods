@@ -28,7 +28,9 @@ describe("automatic accounting integrity", () => {
       grandTotal: "112100",
       lines: [],
     });
-    tx.inventoryValuationEntry.aggregate.mockResolvedValue({ _sum: { valueDelta: "-60000" } });
+    tx.inventoryValuationEntry.groupBy.mockResolvedValue([
+      { itemId: "item-1", _sum: { valueDelta: "-60000" } },
+    ]);
 
     await postSalesInvoiceAccounting(tx.client, "invoice-1", "actor-1");
     await postSalesInvoiceAccounting(tx.client, "invoice-1", "actor-1");
@@ -203,7 +205,7 @@ function accountingTx() {
   const client = {
     salesInvoice: { findUnique: vi.fn() },
     customerPayment: { findUnique: vi.fn() },
-    inventoryValuationEntry: { aggregate: vi.fn() },
+    inventoryValuationEntry: { aggregate: vi.fn(), groupBy: vi.fn() },
     accountingJournal,
     accountingJournalSequence: {
       upsert: vi.fn(async () => ({ nextValue: ++sequence })),

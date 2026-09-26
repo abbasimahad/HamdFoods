@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { INVENTORY_MOVEMENT_TYPES, INVENTORY_STATUSES } from "../domain/inventory";
+import { InventoryMovementType } from "@/generated/prisma/client";
+import { INVENTORY_STATUSES } from "../domain/inventory";
 import type { MovementHistoryQuery } from "./contracts";
 
 export function parseInventoryPage(value: unknown) {
@@ -16,7 +17,7 @@ export function parseMovementHistoryQuery(
     const parsed = new Date(`${value}T00:00:00.000Z`);
     return Number.isNaN(parsed.valueOf()) ? undefined : parsed;
   };
-  const movementType = z.enum(INVENTORY_MOVEMENT_TYPES).safeParse(scalar("movementType"));
+  const movementType = z.nativeEnum(InventoryMovementType).safeParse(scalar("movementType"));
   const status = z.enum(INVENTORY_STATUSES).safeParse(scalar("status"));
   const dateTo = date(scalar("dateTo"));
   if (dateTo) dateTo.setUTCDate(dateTo.getUTCDate() + 1);

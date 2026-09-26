@@ -175,13 +175,17 @@ export async function reconciliation() {
       new Decimal(customer._sum.signedAmount?.toString() ?? "0"),
     ),
     row(
+      // Accounts Payable is a liability: its normal balance is a credit, the
+      // opposite sign of the debit-net `balance()` helper used for the asset
+      // rows above. Negate it so it compares against the payable ledger's
+      // own convention of a positive amount owed.
       "Accounts Payable",
-      control.get("2000"),
+      control.get("2000")?.negated(),
       new Decimal(supplier._sum.signedAmount?.toString() ?? "0"),
     ),
     row("Raw material inventory", control.get("1200"), inventoryByType.get("RAW_MATERIAL")),
     row("Packaging inventory", control.get("1210"), inventoryByType.get("PACKAGING_MATERIAL")),
-    row("Finished goods inventory", control.get("1220"), inventoryByType.get("FINISHED_GOODS")),
+    row("Finished goods inventory", control.get("1220"), inventoryByType.get("FINISHED_GOOD")),
     row("Work in Process", control.get("1230"), undefined),
   ];
   return [

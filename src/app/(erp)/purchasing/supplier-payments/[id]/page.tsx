@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   CancelDocumentForm,
@@ -39,6 +40,14 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         title={payment.number}
         description={`${payment.supplier.name} — ${payment.status}`}
       />
+      <p className="mb-4">
+        <Link
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          href={`/purchasing/supplier-payments/${payment.id}/print`}
+        >
+          Print
+        </Link>
+      </p>
       <Card className="mb-4 p-4 text-sm">
         <p>
           Payment: {payment.totalAmount.toString()} via {payment.treasuryAccount.name}

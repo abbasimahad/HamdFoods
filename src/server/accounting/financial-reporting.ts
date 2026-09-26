@@ -7,6 +7,7 @@ import {
 } from "@/server/accounting/payment-effectiveness";
 import { customerInvoiceSettlement } from "@/server/sales/customer-invoice-settlement";
 import { prisma } from "@/server/db/prisma";
+import { endOfFactoryLocalDay } from "@/server/shared/factory-local-time";
 
 export type ReportRange = { from: Date; to: Date };
 type BalanceRow = {
@@ -27,14 +28,14 @@ const normal = (account: BalanceRow) =>
     : account.balance;
 
 export function reportRange(from?: string, to?: string): ReportRange {
-  const today = new Date();
-  const firstDay = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+  const todayEnd = endOfFactoryLocalDay();
+  const firstDay = new Date(Date.UTC(todayEnd.getUTCFullYear(), 0, 1));
   const start = parseDate(from) ?? firstDay;
-  const end = parseDate(to) ?? today;
+  const end = parseDate(to) ?? todayEnd;
   return start <= end ? { from: start, to: end } : { from: end, to: start };
 }
 export function reportAsOf(value?: string) {
-  return parseDate(value) ?? new Date();
+  return parseDate(value) ?? endOfFactoryLocalDay();
 }
 
 export async function profitAndLoss(range: ReportRange) {
@@ -304,21 +305,30 @@ export async function productionCosting(asOf: Date) {
 }
 
 export async function salesProfitability(range: ReportRange) {
+  const mappings = await mappingIds();
+  const costOfGoodsSoldAccountId = mappings.get("COST_OF_GOODS_SOLD");
   const [invoices, cogsLines] = await Promise.all([
     prisma.salesInvoice.findMany({
       where: { status: "POSTED", invoiceDate: { gte: range.from, lte: range.to } },
       include: { lines: { include: { item: true } } },
     }),
-    prisma.accountingJournalLine.findMany({
-      where: {
-        itemId: { not: null },
-        journal: {
-          status: "POSTED",
-          sourceType: "SALES_INVOICE_COGS",
-          accountingDate: { gte: range.from, lte: range.to },
-        },
-      },
-    }),
+    // Each COGS journal also carries a matching finished-goods-inventory
+    // credit line per item; both sides carry the same itemId, so scoping to
+    // the COST_OF_GOODS_SOLD account itself (not just "has an itemId") keeps
+    // the debit and credit from canceling each other out to zero.
+    costOfGoodsSoldAccountId
+      ? prisma.accountingJournalLine.findMany({
+          where: {
+            itemId: { not: null },
+            accountId: costOfGoodsSoldAccountId,
+            journal: {
+              status: "POSTED",
+              sourceType: "SALES_INVOICE_COGS",
+              accountingDate: { gte: range.from, lte: range.to },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
   const rows = new Map<
     string,

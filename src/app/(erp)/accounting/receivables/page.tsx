@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { endOfFactoryLocalDay } from "@/server/shared/factory-local-time";
 import { PageHeader } from "@/components/layout/page-header";
 import { SubledgerList } from "@/components/accounting/subledger-workbench";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -51,8 +52,8 @@ export default async function ReceivablesPage({
   );
 }
 function parseDate(value?: string) {
-  const parsed = value ? new Date(`${value}T23:59:59.999Z`) : new Date();
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const parsed = value ? new Date(`${value}T23:59:59.999Z`) : undefined;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : endOfFactoryLocalDay();
 }
 function Pagination({
   base,

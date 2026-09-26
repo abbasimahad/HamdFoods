@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
@@ -33,14 +34,14 @@ const packagingSchema = z.object({
   notes: optional(1000),
 });
 const recipeSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   code: z.string().trim().min(2).max(60),
   name: z.string().trim().min(2).max(160),
   finishedGoodId: z.string().uuid(),
   standardBatchQuantity: decimal,
   standardBatchUnitId: z.string().uuid(),
   expectedOutputQuantity: decimal.optional(),
-  expectedOutputUnitId: z.string().uuid().optional(),
+  expectedOutputUnitId: optionalUuid(),
   effectiveDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

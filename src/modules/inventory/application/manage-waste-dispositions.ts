@@ -1,3 +1,4 @@
+import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
 
@@ -21,8 +22,8 @@ const reasons = [
 ] as const;
 const lineSchema = z.object({
   itemId: z.string().uuid(),
-  inventoryLotId: z.string().uuid().optional(),
-  productionLotId: z.string().uuid().optional(),
+  inventoryLotId: optionalUuid(),
+  productionLotId: optionalUuid(),
   sourceStatus: z.enum(["DAMAGED", "QUARANTINE", "SCRAP"]),
   quantity: z.string().trim().min(1).max(80),
   unitId: z.string().uuid(),
@@ -31,7 +32,7 @@ const lineSchema = z.object({
   notes: z.string().trim().max(3000).optional(),
 });
 const draftSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: optionalUuid(),
   dispositionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   warehouseId: z.string().uuid(),
   notes: z.string().trim().max(3000).optional(),

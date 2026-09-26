@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { type AccountingMappingKey } from "@/generated/prisma/client";
+import { type AccountingAccountType, type AccountingMappingKey } from "@/generated/prisma/client";
 import { requirePermission } from "@/server/auth/licensed-guards";
 import { prisma } from "@/server/db/prisma";
 import { recordAuditEvent } from "@/server/audit/audit-event";
@@ -21,6 +21,37 @@ import {
 } from "@/server/accounting/transactional-accounting-posting";
 
 type Result = { ok: true } | { ok: false; message: string };
+// Each mapping key's expected account type, matching the seeded chart of
+// accounts. Without this, the mapping editor would let anyone attach, say, a
+// bank account to an inventory-clearing key -- nothing else in the posting
+// pipeline checks that a mapped account makes sense for what it's used for.
+const MAPPING_ACCOUNT_TYPES: Record<AccountingMappingKey, AccountingAccountType> = {
+  ACCOUNTS_RECEIVABLE: "ASSET",
+  ACCOUNTS_PAYABLE: "LIABILITY",
+  RAW_MATERIAL_INVENTORY: "ASSET",
+  PACKAGING_INVENTORY: "ASSET",
+  FINISHED_GOODS_INVENTORY: "ASSET",
+  WORK_IN_PROCESS: "ASSET",
+  SALES_REVENUE: "REVENUE",
+  SALES_DISCOUNTS: "EXPENSE",
+  SALES_RETURNS: "EXPENSE",
+  OUTPUT_TAX: "LIABILITY",
+  INPUT_TAX: "ASSET",
+  COST_OF_GOODS_SOLD: "EXPENSE",
+  GRNI: "LIABILITY",
+  SUPPLIER_CLAIMS: "ASSET",
+  LANDED_COST_CLEARING: "LIABILITY",
+  PRODUCTION_COST_CLEARING: "LIABILITY",
+  INVENTORY_VARIANCE: "EXPENSE",
+  PURCHASE_RETURN_VARIANCE: "EXPENSE",
+  PURCHASE_TAX_EXPENSE: "EXPENSE",
+  OPENING_BALANCE_EQUITY: "EQUITY",
+  DEFAULT_CASH: "ASSET",
+  DEFAULT_BANK: "ASSET",
+  SALES_RETURN_INVENTORY_CLEARING: "ASSET",
+  INVENTORY_LOSS_EXPENSE: "EXPENSE",
+  PURCHASE_PRICE_VARIANCE: "EXPENSE",
+};
 const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -66,7 +97,10 @@ export async function postManualJournalAction(
     const lines = z
       .array(
         z.object({
-          accountId: z.string().uuid(),
+          // Seeded chart-of-accounts rows use stable ids like "coa-1000", not
+          // generated UUIDs, so this must accept any non-empty id, not just
+          // UUID-shaped ones -- otherwise no seeded account can ever be posted to.
+          accountId: z.string().min(1),
           debit: z.string().optional(),
           credit: z.string().optional(),
           description: z.string().optional(),
@@ -223,7 +257,12 @@ export async function updateAccountMappingAction(
 ): Promise<Result> {
   const actor = await requirePermission("accounting.manage");
   const parsed = z
-    .object({ mappingKey: z.string().min(1), accountId: z.string().uuid() })
+    .object({
+      mappingKey: z.enum(
+        Object.keys(MAPPING_ACCOUNT_TYPES) as [AccountingMappingKey, ...AccountingMappingKey[]],
+      ),
+      accountId: z.string().min(1),
+    })
     .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, message: "Account mapping is invalid." };
   const account = await prisma.accountingAccount.findUnique({
@@ -231,6 +270,12 @@ export async function updateAccountMappingAction(
   });
   if (!account || !account.active || !account.postingAllowed)
     return { ok: false, message: "Mappings require an active posting account." };
+  const expectedType = MAPPING_ACCOUNT_TYPES[parsed.data.mappingKey];
+  if (account.accountType !== expectedType)
+    return {
+      ok: false,
+      message: `${parsed.data.mappingKey} requires a${expectedType === "ASSET" || expectedType === "EQUITY" ? "n" : ""} ${expectedType} account.`,
+    };
   const previous = await prisma.accountingAccountMapping.findUnique({
     where: {
       accountingSettingsId_mappingKey: {
@@ -240,14 +285,19 @@ export async function updateAccountMappingAction(
     },
     include: { account: true },
   });
-  const updated = await prisma.accountingAccountMapping.update({
+  const updated = await prisma.accountingAccountMapping.upsert({
     where: {
       accountingSettingsId_mappingKey: {
         accountingSettingsId: "default",
         mappingKey: parsed.data.mappingKey as AccountingMappingKey,
       },
     },
-    data: { accountId: account.id },
+    create: {
+      accountingSettingsId: "default",
+      mappingKey: parsed.data.mappingKey as AccountingMappingKey,
+      accountId: account.id,
+    },
+    update: { accountId: account.id },
   });
   await recordAuditEvent(prisma, {
     actorUserId: actor.id,
@@ -274,7 +324,7 @@ export async function setAccountingAccountActiveAction(
 ): Promise<Result> {
   await requirePermission("accounting.manage");
   const parsed = z
-    .object({ accountId: z.string().uuid(), active: z.enum(["true", "false"]) })
+    .object({ accountId: z.string().min(1), active: z.enum(["true", "false"]) })
     .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, message: "Account update is invalid." };
   const active = parsed.data.active === "true";

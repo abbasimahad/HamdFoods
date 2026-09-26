@@ -47,7 +47,8 @@ const allocations = z
 const expenseLines = z
   .array(
     z.object({
-      expenseAccountId: z.string().uuid(),
+      // Seeded chart-of-accounts rows (e.g. "coa-5000") are not UUID-shaped.
+      expenseAccountId: z.string().min(1),
       description: z.string().trim().min(1).max(500),
       amount: z.string().max(30),
     }),
@@ -65,7 +66,8 @@ export async function createTreasuryAccountAction(
       code: z.string().trim().min(1).max(30),
       name: z.string().trim().min(1).max(160),
       accountType: z.enum(["CASH", "BANK", "PETTY_CASH", "CLEARING"]),
-      glAccountId: z.string().uuid(),
+      // Seeded chart-of-accounts rows (e.g. "coa-1000") are not UUID-shaped.
+      glAccountId: z.string().min(1),
       bankName: optional(160),
       accountTitle: optional(160),
       accountNumberMasked: optional(120),

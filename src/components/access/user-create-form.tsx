@@ -1,6 +1,7 @@
 "use client";
 import { useActionState } from "react";
-import { createUserAction, initialUserActionState } from "@/app/(erp)/administration/users/actions";
+import { createUserAction } from "@/app/(erp)/administration/users/actions";
+import { initialUserActionState } from "@/components/access/user-action-state";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 export function UserCreateForm({ roles }: { roles: readonly { code: string; name: string }[] }) {

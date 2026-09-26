@@ -14,9 +14,15 @@ export default async function CustomerPaymentPrintPage({
     new PrismaCompanyProfileRepository().getCompanyProfile(),
   ]);
   if (!payment) notFound();
+  const reversed = Boolean(payment.reversalPaymentNumber);
   return (
     <main className="mx-auto max-w-4xl bg-white p-8 text-black print:p-0">
       <PrintCompanyHeader profile={companyProfile} />
+      {reversed && (
+        <p className="mb-4 border-2 border-red-700 p-3 text-center text-lg font-bold tracking-wide text-red-700">
+          REVERSED — NOT VALID FOR PAYMENT PROOF (see receipt {payment.reversalPaymentNumber})
+        </p>
+      )}
       <header className="mb-6 flex justify-between border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold">Customer Receipt</h1>
@@ -24,9 +30,14 @@ export default async function CustomerPaymentPrintPage({
         </div>
         <div className="text-right">
           <p>{payment.paymentDate.toLocaleDateString()}</p>
-          <p>{payment.status}</p>
+          <p>{reversed ? "POSTED (REVERSED)" : payment.status}</p>
         </div>
       </header>
+      {payment.reversalOfNumber && (
+        <p className="mb-4 text-sm text-[var(--muted)]">
+          This is a reversal of receipt {payment.reversalOfNumber}.
+        </p>
+      )}
       <section className="mb-6 grid grid-cols-2 gap-4 text-sm">
         <div>
           <strong>Customer</strong>

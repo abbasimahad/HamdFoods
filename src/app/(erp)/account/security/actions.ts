@@ -10,16 +10,7 @@ import {
 import { PrismaAccountSecurityRepository } from "@/server/access/prisma-account-security-repository";
 import { requireUser } from "@/server/auth/server-guards";
 import { serverEnv } from "@/server/server-env";
-
-export type AccountSecurityActionState = {
-  status: "idle" | "success" | "error";
-  message: string;
-  signedOut?: boolean;
-};
-export const initialAccountSecurityState: AccountSecurityActionState = {
-  status: "idle",
-  message: "",
-};
+import type { AccountSecurityActionState } from "@/components/auth/account-security-state";
 
 const repository = new PrismaAccountSecurityRepository();
 const displayNameSchema = z.string().trim().min(1).max(120);

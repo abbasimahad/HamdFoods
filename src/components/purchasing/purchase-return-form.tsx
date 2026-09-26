@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { PurchaseCatalogUnit } from "@/modules/purchasing/application/contracts";
 import {
   PURCHASE_RETURN_REASONS,
@@ -75,7 +76,7 @@ export function PurchaseReturnForm({
           Return date
           <input
             className="mt-1 min-h-11 w-full rounded-lg border px-3"
-            defaultValue={initial ? dateOnly(initial.returnDate) : dateOnly(new Date())}
+            defaultValue={initial ? dateOnly(initial.returnDate) : todayInFactoryTimeZone()}
             name="returnDate"
             required
             type="date"

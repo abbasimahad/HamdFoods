@@ -16,7 +16,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <ResponsiveContainer>
       <PageHeader
         title={x.number}
-        description={`Invoice ${x.status}; no COGS or General Ledger is created.`}
+        description={
+          x.status === "POSTED"
+            ? `Invoice ${x.status}; revenue, receivable, and COGS are posted to the General Ledger.`
+            : x.status === "CANCELLED"
+              ? `Invoice ${x.status}; no COGS or General Ledger effect.`
+              : `Invoice ${x.status}; posting will create revenue, receivable, and COGS in the General Ledger.`
+        }
       />
       <p className="mb-4 flex gap-3">
         <Link className="rounded border px-4 py-2" href={`/sales/invoices/${x.id}/print`}>

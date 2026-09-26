@@ -27,6 +27,12 @@ export default async function GoodsReceiptDetailPage({
         description={`${receipt.status.replaceAll("_", " ")} receipt for ${receipt.supplierName}`}
       />
       <div className="mb-4 flex flex-wrap gap-2">
+        <Link
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          href={`/purchasing/goods-receiving/${receipt.id}/print`}
+        >
+          Print
+        </Link>
         {canManage && receipt.status === "DRAFT" && (
           <Link
             className="rounded-lg border px-4 py-2 text-sm font-semibold"
