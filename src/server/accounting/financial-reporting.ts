@@ -337,6 +337,7 @@ export async function salesProfitability(range: ReportRange) {
       name: string;
       revenue: Decimal;
       discounts: Decimal;
+      returns: Decimal;
       quantity: Decimal;
       cogs: Decimal;
     }
@@ -348,6 +349,7 @@ export async function salesProfitability(range: ReportRange) {
         name: line.item.name,
         revenue: zero(),
         discounts: zero(),
+        returns: zero(),
         quantity: zero(),
         cogs: zero(),
       };
@@ -360,15 +362,59 @@ export async function salesProfitability(range: ReportRange) {
     const row = rows.get(line.itemId!);
     if (row) row.cogs = row.cogs.add(line.debit.toString()).sub(line.credit.toString());
   }
+  // Invoiced sales returns completed in the period reduce revenue (credit value excluding tax),
+  // quantity, and COGS (the cost restored to finished goods), per product.
+  const salesReturns = await prisma.salesReturn.findMany({
+    where: {
+      status: "COMPLETED",
+      type: "INVOICED_RETURN",
+      completedAt: { gte: range.from, lte: range.to },
+    },
+    include: { lines: { include: { item: true } } },
+  });
+  const restoredCost = salesReturns.length
+    ? await prisma.inventoryValuationEntry.groupBy({
+        by: ["itemId"],
+        where: {
+          entryType: "SALES_RETURN",
+          state: "FINAL",
+          sourceType: "SALES_RETURN",
+          sourceId: { in: salesReturns.map((salesReturn) => salesReturn.id) },
+        },
+        _sum: { valueDelta: true },
+      })
+    : [];
+  for (const salesReturn of salesReturns)
+    for (const line of salesReturn.lines) {
+      const row = rows.get(line.itemId) ?? {
+        code: line.item.code,
+        name: line.item.name,
+        revenue: zero(),
+        discounts: zero(),
+        returns: zero(),
+        quantity: zero(),
+        cogs: zero(),
+      };
+      row.returns = row.returns.add(
+        new Decimal(line.netAmount?.toString() ?? "0").sub(line.taxAmount?.toString() ?? "0"),
+      );
+      row.quantity = row.quantity.sub(line.totalPieces.toString());
+      rows.set(line.itemId, row);
+    }
+  for (const entry of restoredCost) {
+    const row = rows.get(entry.itemId);
+    if (row) row.cogs = row.cogs.sub(entry._sum.valueDelta?.toString() ?? "0");
+  }
   return [...rows.values()]
     .map((row) => ({
       code: row.code,
       name: row.name,
       revenue: format(row.revenue),
       discounts: format(row.discounts),
+      returns: format(row.returns),
       quantity: format(row.quantity),
       cogs: format(row.cogs),
-      grossProfit: format(row.revenue.sub(row.discounts).sub(row.cogs)),
+      grossProfit: format(row.revenue.sub(row.discounts).sub(row.returns).sub(row.cogs)),
     }))
     .sort((a, b) => a.code.localeCompare(b.code));
 }
@@ -527,4 +573,87 @@ function cashCategory(sourceType: string) {
         sourceType === "TREASURY_TRANSFER"
       ? "Operating"
       : "Other";
+}
+
+/**
+ * Sales-tax (output/input) summary and invoice register for a period. The summary comes from the
+ * posted GL (the OUTPUT_TAX and INPUT_TAX mapped accounts), so it always agrees with the trial
+ * balance; the register lists each posted invoice with the buyer's registration number.
+ */
+export async function salesTaxReport(range: ReportRange) {
+  const mappings = await mappingIds();
+  const outputTaxAccountId = mappings.get("OUTPUT_TAX");
+  const inputTaxAccountId = mappings.get("INPUT_TAX");
+  const [invoices, outputLines, inputLines] = await Promise.all([
+    prisma.salesInvoice.findMany({
+      where: { status: "POSTED", invoiceDate: { gte: range.from, lte: range.to } },
+      include: { customer: true },
+      orderBy: [{ invoiceDate: "asc" }, { number: "asc" }],
+    }),
+    outputTaxAccountId
+      ? prisma.accountingJournalLine.findMany({
+          where: {
+            accountId: outputTaxAccountId,
+            journal: { status: "POSTED", accountingDate: { gte: range.from, lte: range.to } },
+          },
+          include: { journal: { select: { sourceType: true } } },
+        })
+      : Promise.resolve([]),
+    inputTaxAccountId
+      ? prisma.accountingJournalLine.findMany({
+          where: {
+            accountId: inputTaxAccountId,
+            journal: { status: "POSTED", accountingDate: { gte: range.from, lte: range.to } },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+  let outputOnSales = zero();
+  let outputReversed = zero();
+  for (const line of outputLines) {
+    const credit = new Decimal(line.credit.toString());
+    const debit = new Decimal(line.debit.toString());
+    outputOnSales = outputOnSales.add(credit);
+    outputReversed = outputReversed.add(debit);
+  }
+  const netOutput = outputOnSales.sub(outputReversed);
+  const inputTax = inputLines.reduce(
+    (total, line) => total.add(line.debit.toString()).sub(line.credit.toString()),
+    zero(),
+  );
+  const register = invoices.map((invoice) => {
+    const valueExclTax = new Decimal(invoice.subtotal.toString()).sub(
+      invoice.discountTotal.toString(),
+    );
+    return {
+      id: invoice.id,
+      number: invoice.number,
+      invoiceDate: invoice.invoiceDate,
+      customerName: invoice.customer.name,
+      customerTaxRegistrationNo: invoice.customer.taxRegistrationNo,
+      valueExclTax: format(valueExclTax),
+      taxTotal: format(new Decimal(invoice.taxTotal.toString())),
+      grandTotal: format(new Decimal(invoice.grandTotal.toString())),
+    };
+  });
+  const registered = invoices.filter((invoice) => invoice.customer.taxRegistrationNo);
+  return {
+    register,
+    totals: {
+      invoiceCount: invoices.length,
+      registeredBuyerCount: new Set(registered.map((invoice) => invoice.customerId)).size,
+      valueExclTax: format(
+        invoices.reduce(
+          (total, invoice) =>
+            total.add(invoice.subtotal.toString()).sub(invoice.discountTotal.toString()),
+          zero(),
+        ),
+      ),
+      outputOnSales: format(outputOnSales),
+      outputReversed: format(outputReversed),
+      netOutput: format(netOutput),
+      inputTax: format(inputTax),
+      netPayable: format(netOutput.sub(inputTax)),
+    },
+  };
 }

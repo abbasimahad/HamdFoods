@@ -17,6 +17,16 @@ export default async function NewSalesReturnPage({
   const references = await repository.getSalesReturnReferences();
   const type = params.type === "DISPATCH_REFUSAL" ? "DISPATCH_REFUSAL" : "INVOICED_RETURN";
   const [invoiceId, selectedDispatchId] = params.source?.split("|") ?? [];
+  // references.dispatches lists only dispatches that can still be refused (un-invoiced stock);
+  // an invoiced return needs the dispatches behind the posted invoices instead.
+  const invoiceDispatches = [
+    ...new Map(
+      references.invoices
+        .filter((invoice) => !invoiceId || invoice.id === invoiceId)
+        .flatMap((invoice) => invoice.dispatches)
+        .map((dispatch) => [dispatch.id, dispatch]),
+    ).values(),
+  ];
   const source = params.source
     ? type === "INVOICED_RETURN"
       ? await repository.getInvoicedReturnSource(
@@ -62,7 +72,7 @@ export default async function NewSalesReturnPage({
               name="dispatch"
             >
               <option value="">Source dispatch (required when invoice spans dispatches)</option>
-              {references.dispatches.map((dispatch) => (
+              {invoiceDispatches.map((dispatch) => (
                 <option key={dispatch.id} value={dispatch.id}>
                   {dispatch.number}
                 </option>

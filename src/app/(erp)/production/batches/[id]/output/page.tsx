@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data";
@@ -200,6 +201,14 @@ export default async function ProductionOutputPage({
             }
           />
         </div>
+        {new Decimal(view.goodTotalPieces).lt(view.plannedTotalPieces) && (
+          <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            Good output is{" "}
+            {new Decimal(view.plannedTotalPieces).sub(view.goodTotalPieces).toFixed()} piece(s)
+            short of the planned {view.plannedTotalPieces}. Post the difference as REJECTED or
+            PROCESS LOSS output, or give a full explanation when completing the batch.
+          </p>
+        )}
         {!view.reconciliation.compatible && (
           <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
             Automatic yield is unavailable because consumed raw inputs do not form one compatible{" "}

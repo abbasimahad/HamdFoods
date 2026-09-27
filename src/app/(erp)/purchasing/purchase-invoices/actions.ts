@@ -9,7 +9,7 @@ import {
   reversePurchaseInvoice,
   savePurchaseInvoice,
 } from "@/modules/purchasing/application/manage-purchase-invoices";
-import { requirePermission } from "@/server/auth/licensed-guards";
+import { requireAnyPermission } from "@/server/auth/licensed-guards";
 import { PrismaPurchaseInvoiceRepository } from "@/server/purchasing/prisma-purchase-invoice-repository";
 
 const repository = new PrismaPurchaseInvoiceRepository();
@@ -18,7 +18,7 @@ export async function savePurchaseInvoiceAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "purchase_invoices.manage"]);
   const result = await savePurchaseInvoice(actor, Object.fromEntries(formData), repository);
   if (result.ok && result.id) {
     refresh(result.id);
@@ -31,7 +31,7 @@ export async function postPurchaseInvoiceAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "purchase_invoices.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await postPurchaseInvoice(actor, id, repository);
   if (result.ok) refresh(id);
@@ -47,7 +47,7 @@ export async function cancelPurchaseInvoiceAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "purchase_invoices.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await cancelPurchaseInvoice(
     actor,
@@ -66,7 +66,7 @@ export async function reversePurchaseInvoiceAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "purchase_invoices.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await reversePurchaseInvoice(
     actor,

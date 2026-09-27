@@ -20,7 +20,7 @@ import {
   reverseManualJournal,
 } from "@/server/accounting/transactional-accounting-posting";
 
-type Result = { ok: true } | { ok: false; message: string };
+type Result = { ok: true; message?: string } | { ok: false; message: string };
 // Each mapping key's expected account type, matching the seeded chart of
 // accounts. Without this, the mapping editor would let anyone attach, say, a
 // bank account to an inventory-clearing key -- nothing else in the posting
@@ -51,6 +51,36 @@ const MAPPING_ACCOUNT_TYPES: Record<AccountingMappingKey, AccountingAccountType>
   SALES_RETURN_INVENTORY_CLEARING: "ASSET",
   INVENTORY_LOSS_EXPENSE: "EXPENSE",
   PURCHASE_PRICE_VARIANCE: "EXPENSE",
+};
+// Account-type alone is too coarse (a Cash account is an ASSET, so it would be accepted as
+// Accounts Receivable). When an account carries a subtype, it must be one that fits the key.
+// Accounts created without a subtype are still accepted on the account-type check alone.
+const MAPPING_ACCOUNT_SUBTYPES: Partial<Record<AccountingMappingKey, readonly string[]>> = {
+  ACCOUNTS_RECEIVABLE: ["RECEIVABLE"],
+  ACCOUNTS_PAYABLE: ["PAYABLE"],
+  RAW_MATERIAL_INVENTORY: ["INVENTORY"],
+  PACKAGING_INVENTORY: ["INVENTORY"],
+  FINISHED_GOODS_INVENTORY: ["INVENTORY"],
+  WORK_IN_PROCESS: ["WIP", "INVENTORY"],
+  SALES_REVENUE: ["SALES"],
+  SALES_DISCOUNTS: ["CONTRA_REVENUE"],
+  SALES_RETURNS: ["CONTRA_REVENUE"],
+  OUTPUT_TAX: ["TAX"],
+  INPUT_TAX: ["TAX"],
+  COST_OF_GOODS_SOLD: ["COGS"],
+  GRNI: ["GRNI", "CLEARING"],
+  SUPPLIER_CLAIMS: ["CLAIMS", "RECEIVABLE"],
+  LANDED_COST_CLEARING: ["CLEARING"],
+  PRODUCTION_COST_CLEARING: ["CLEARING"],
+  INVENTORY_VARIANCE: ["VARIANCE", "LOSS"],
+  PURCHASE_RETURN_VARIANCE: ["VARIANCE", "LOSS"],
+  PURCHASE_PRICE_VARIANCE: ["VARIANCE", "LOSS"],
+  INVENTORY_LOSS_EXPENSE: ["LOSS", "VARIANCE"],
+  PURCHASE_TAX_EXPENSE: ["OPERATING", "TAX", "VARIANCE"],
+  OPENING_BALANCE_EQUITY: ["OPENING"],
+  DEFAULT_CASH: ["CASH"],
+  DEFAULT_BANK: ["BANK", "CASH"],
+  SALES_RETURN_INVENTORY_CLEARING: ["CLEARING", "INVENTORY"],
 };
 const date = z
   .string()
@@ -114,7 +144,7 @@ export async function postManualJournalAction(
         ...(line.credit === undefined ? {} : { credit: line.credit }),
         ...(line.description === undefined ? {} : { description: line.description }),
       }));
-    await prisma.$transaction(
+    const journalNumber = await prisma.$transaction(
       async (tx) => {
         const id = await createManualJournalDraft(tx, {
           accountingDate: parsed.data.date,
@@ -123,12 +153,17 @@ export async function postManualJournalAction(
           lines,
         });
         await postManualJournal(tx, id, actor.id);
+        const posted = await tx.accountingJournal.findUniqueOrThrow({
+          where: { id },
+          select: { journalNumber: true },
+        });
+        return posted.journalNumber;
       },
       { isolationLevel: "Serializable" },
     );
     revalidatePath("/accounting");
     revalidatePath("/accounting/journals");
-    return { ok: true };
+    return { ok: true, message: `Journal ${journalNumber} posted.` };
   } catch (error) {
     return {
       ok: false,
@@ -151,7 +186,7 @@ export async function reverseManualJournalAction(
     .safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, message: "Reversal details are invalid." };
   try {
-    await prisma.$transaction(
+    const reversalId = await prisma.$transaction(
       (tx) =>
         reverseManualJournal(
           tx,
@@ -162,8 +197,14 @@ export async function reverseManualJournalAction(
         ),
       { isolationLevel: "Serializable" },
     );
+    const reversal = await prisma.accountingJournal.findUnique({
+      where: { id: reversalId },
+      select: { journalNumber: true },
+    });
+    revalidatePath("/accounting");
     revalidatePath("/accounting/journals");
-    return { ok: true };
+    revalidatePath(`/accounting/journals/${parsed.data.journalId}`);
+    return { ok: true, message: `Reversed by ${reversal?.journalNumber ?? "a new journal"}.` };
   } catch (error) {
     return {
       ok: false,
@@ -215,7 +256,10 @@ export async function updateAccountingSettingsAction(
   });
   revalidatePath("/accounting");
   revalidatePath("/accounting/settings");
-  return { ok: true };
+  return {
+    ok: true,
+    message: `Purchase tax treatment saved as ${parsed.data.purchaseTaxTreatment.replace("_", " ").toLowerCase()}.`,
+  };
 }
 
 export async function setAccountingPeriodStatusAction(
@@ -276,6 +320,12 @@ export async function updateAccountMappingAction(
       ok: false,
       message: `${parsed.data.mappingKey} requires a${expectedType === "ASSET" || expectedType === "EQUITY" ? "n" : ""} ${expectedType} account.`,
     };
+  const allowedSubtypes = MAPPING_ACCOUNT_SUBTYPES[parsed.data.mappingKey];
+  if (account.subtype && allowedSubtypes && !allowedSubtypes.includes(account.subtype))
+    return {
+      ok: false,
+      message: `${account.code} ${account.name} is a ${account.subtype} account; ${parsed.data.mappingKey} needs a ${allowedSubtypes.join(" or ")} account.`,
+    };
   const previous = await prisma.accountingAccountMapping.findUnique({
     where: {
       accountingSettingsId_mappingKey: {
@@ -315,7 +365,10 @@ export async function updateAccountMappingAction(
     controlEvent: true,
   });
   revalidatePath("/accounting/settings");
-  return { ok: true };
+  return {
+    ok: true,
+    message: `Saved: ${parsed.data.mappingKey} → ${account.code} ${account.name}.`,
+  };
 }
 
 export async function setAccountingAccountActiveAction(
@@ -352,7 +405,8 @@ export async function createAccountingAccountAction(
       name: z.string().trim().min(1).max(160),
       accountType: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
       subtype: z.string().trim().max(80).optional(),
-      parentAccountId: z.preprocess((value) => value || undefined, z.string().uuid().optional()),
+      // Seeded chart-of-accounts rows (e.g. "coa-1010") are valid parents but not UUID-shaped.
+      parentAccountId: z.preprocess((value) => value || undefined, z.string().min(1).optional()),
       postingAllowed: z.enum(["true", "false"]),
       isControl: z.enum(["true", "false"]),
     })
@@ -379,7 +433,7 @@ export async function createAccountingAccountAction(
     });
     revalidatePath("/accounting/chart-of-accounts");
     revalidatePath("/accounting/settings");
-    return { ok: true };
+    return { ok: true, message: `Account ${parsed.data.code} created.` };
   } catch (error) {
     return {
       ok: false,

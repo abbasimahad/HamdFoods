@@ -5,6 +5,7 @@ import { UNIT_DIMENSION_LABELS } from "@/modules/master-data/domain/master-data"
 
 import type {
   InventoryItemOption,
+  InventoryLotOption,
   InventoryUnitOption,
   WarehouseRecord,
 } from "@/modules/inventory/application/contracts";
@@ -22,12 +23,14 @@ export function InventoryPostingForm({
   items,
   units,
   warehouses,
+  lots = [],
 }: {
   action: InventoryAction;
   mode: "OPENING_BALANCE" | "ADJUSTMENT_IN" | "ADJUSTMENT_OUT" | "TRANSFER";
   items: readonly InventoryItemOption[];
   units: readonly InventoryUnitOption[];
   warehouses: readonly WarehouseRecord[];
+  lots?: readonly InventoryLotOption[];
 }) {
   const [state, formAction] = useActionState(action, initialInventoryActionState);
   const transfer = mode === "TRANSFER";
@@ -35,6 +38,16 @@ export function InventoryPostingForm({
   const [warehouseId, setWarehouseId] = useState("");
   const [sourceWarehouseId, setSourceWarehouseId] = useState("");
   const [destinationWarehouseId, setDestinationWarehouseId] = useState("");
+  const [status, setStatus] = useState("");
+  const [lotRef, setLotRef] = useState("");
+  const lotWarehouseId = transfer ? sourceWarehouseId : warehouseId;
+  const lotOptions = lots.filter(
+    (lot) =>
+      lot.itemId === itemId &&
+      lot.warehouseId === lotWarehouseId &&
+      (!status || lot.status === status),
+  );
+  const outbound = transfer || mode === "ADJUSTMENT_OUT";
 
   function resetForm(form: HTMLFormElement | null) {
     form?.reset();
@@ -42,6 +55,8 @@ export function InventoryPostingForm({
     setWarehouseId("");
     setSourceWarehouseId("");
     setDestinationWarehouseId("");
+    setStatus("");
+    setLotRef("");
   }
 
   return (
@@ -84,14 +99,44 @@ export function InventoryPostingForm({
           value={warehouseId}
         />
       )}
-      <NativeSelect
-        label="Status"
-        name="status"
-        options={INVENTORY_STATUSES.map((status) => ({
-          value: status,
-          label: status.replaceAll("_", " "),
-        }))}
-      />
+      <label className="text-sm font-medium">
+        Status
+        <select
+          className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
+          name="status"
+          onChange={(event) => {
+            setStatus(event.target.value);
+            setLotRef("");
+          }}
+          required
+          value={status}
+        >
+          <option value="">Select…</option>
+          {INVENTORY_STATUSES.map((option) => (
+            <option key={option} value={option}>
+              {option.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+      </label>
+      {lotOptions.length ? (
+        <label className="text-sm font-medium">
+          Lot
+          <select
+            className="mt-1 min-h-11 w-full rounded-lg border border-[var(--control-border)] bg-white px-3"
+            name="lotRef"
+            onChange={(event) => setLotRef(event.target.value)}
+            value={lotRef}
+          >
+            <option value="">{outbound ? "Automatic (earliest expiry first)" : "No lot"}</option>
+            {lotOptions.map((lot) => (
+              <option key={`${lot.value}-${lot.status}`} value={lot.value}>
+                {lot.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <Field
         label="Quantity"
         name="quantity"

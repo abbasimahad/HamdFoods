@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasPermission } from "@/modules/access/domain/principal";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 
 export default async function WasteDamagePage({
@@ -14,7 +14,7 @@ export default async function WasteDamagePage({
 }: {
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const principal = await requirePermission("inventory.view");
+  const principal = await requireAnyPermission(["inventory.view", "production.view"]);
   const filters = await searchParams;
   const query = filters.q?.trim().toLocaleLowerCase() ?? "";
   const records = (await new PrismaWasteDispositionRepository().listDocuments()).filter(
@@ -31,7 +31,8 @@ export default async function WasteDamagePage({
         title="Waste & Damage"
         description="Move identified damaged, quarantined, or scrap inventory through controlled disposition without bypassing inventory value or lot history."
         actions={
-          hasPermission(principal, "inventory.manage") ? (
+          hasPermission(principal, "inventory.manage") ||
+          hasPermission(principal, "waste.manage") ? (
             <Link
               className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
               href="/production/waste-damage/new"

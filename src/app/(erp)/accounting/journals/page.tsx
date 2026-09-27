@@ -112,7 +112,11 @@ export default async function Page({
                 <td className="p-3">
                   {journal.totalDebit.toString()} / {journal.totalCredit.toString()}
                 </td>
-                <td className="p-3">{journal.status}</td>
+                <td className="p-3">
+                  {journal.reversalJournal
+                    ? `REVERSED by ${journal.reversalJournal.journalNumber}`
+                    : journal.status}
+                </td>
               </tr>
             ))}
           </tbody>

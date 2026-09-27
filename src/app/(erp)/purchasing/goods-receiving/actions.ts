@@ -8,14 +8,14 @@ import {
   postGoodsReceipt,
   saveGoodsReceipt,
 } from "@/modules/purchasing/application/manage-goods-receipts";
-import { requirePermission } from "@/server/auth/licensed-guards";
+import { requireAnyPermission } from "@/server/auth/licensed-guards";
 import { PrismaGoodsReceiptRepository } from "@/server/purchasing/prisma-goods-receipt-repository";
 const repository = new PrismaGoodsReceiptRepository();
 export async function saveGoodsReceiptAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
   const result = await saveGoodsReceipt(actor, Object.fromEntries(formData), repository);
   if (result.ok && result.id) {
     refresh(result.id);
@@ -27,7 +27,7 @@ export async function postGoodsReceiptAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await postGoodsReceipt(actor, id, repository);
   if (result.ok) refresh(id);
@@ -40,7 +40,7 @@ export async function cancelGoodsReceiptAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await cancelGoodsReceipt(
     actor,
@@ -55,7 +55,7 @@ export async function completeGoodsReceiptQcAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await completeGoodsReceiptQc(actor, id, Object.fromEntries(formData), repository);
   if (result.ok) {

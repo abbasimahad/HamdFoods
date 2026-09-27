@@ -24,6 +24,7 @@ export default async function PurchaseOrderDetailPage({
   ]);
   if (!order) notFound();
   const canManage = hasPermission(principal, "purchasing.manage");
+  const canReceive = canManage || hasPermission(principal, "receiving.manage");
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -45,7 +46,7 @@ export default async function PurchaseOrderDetailPage({
             Edit draft
           </Link>
         )}
-        {canManage && ["APPROVED", "PARTIALLY_RECEIVED"].includes(order.status) && (
+        {canReceive && ["APPROVED", "PARTIALLY_RECEIVED"].includes(order.status) && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
             href={`/purchasing/goods-receiving/new?po=${order.id}`}

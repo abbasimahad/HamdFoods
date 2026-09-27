@@ -396,6 +396,30 @@ export class PrismaGoodsReceiptRepository implements GoodsReceiptRepository {
           "invalid-state",
           "QC is only available once for a posted goods receipt.",
         );
+      // BUG-23: a taxed receipt accepted while purchase tax is not configured used to complete
+      // QC and put stock in, but silently recognise no payable. Stop at QC with a clear reason.
+      // Only the PO lines this receipt actually carries matter: an untaxed line received on its
+      // own must not be blocked just because another line of the same PO is taxed.
+      const receivedOrderLineIds = new Set(receipt.lines.map((line) => line.purchaseOrderLineId));
+      if (
+        receipt.purchaseOrder?.lines.some(
+          (line) =>
+            receivedOrderLineIds.has(line.id) && new Decimal(line.taxAmount.toString()).gt(0),
+        )
+      ) {
+        const settings = await transaction.accountingSettings.findUnique({
+          where: { id: "default" },
+          select: { purchaseTaxTreatment: true },
+        });
+        const treatment = settings?.purchaseTaxTreatment ?? "NOT_CONFIGURED";
+        if (treatment === "NOT_CONFIGURED" || treatment === "CAPITALIZE")
+          throw new PurchasingRepositoryError(
+            "invalid-state",
+            treatment === "NOT_CONFIGURED"
+              ? "This receipt carries purchase tax, but purchase tax treatment is not configured. Set it under Accounting › Settings (usually Recoverable) before completing QC."
+              : "Capitalized purchase tax is not supported for automatic posting. Choose Recoverable or Expense under Accounting › Settings before completing QC.",
+          );
+      }
       if (
         decisions.length !== receipt.lines.length ||
         new Set(decisions.map((decision) => decision.goodsReceiptLineId)).size !==

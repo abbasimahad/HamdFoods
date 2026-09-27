@@ -3,7 +3,7 @@ import { GoodsReceiptForm } from "@/components/purchasing/goods-receipt-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaGoodsReceiptRepository } from "@/server/purchasing/prisma-goods-receipt-repository";
 import { saveGoodsReceiptAction } from "../../actions";
 export default async function EditGoodsReceiptPage({
@@ -11,7 +11,7 @@ export default async function EditGoodsReceiptPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("purchasing.manage");
+  await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
   const repository = new PrismaGoodsReceiptRepository();
   const receipt = await repository.getGoodsReceipt((await params).id);
   if (!receipt) notFound();

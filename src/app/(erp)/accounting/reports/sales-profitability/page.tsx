@@ -17,7 +17,7 @@ export default async function Page({
     <ResponsiveContainer>
       <PageHeader
         title="Sales & Product Profitability"
-        description="Posted invoice lines are paired with item-linked posted COGS journals."
+        description="Posted invoice lines less completed invoiced returns, paired with item-linked COGS."
       />
       <FinancialReportControls
         from={range.from.toISOString().slice(0, 10)}
@@ -31,6 +31,7 @@ export default async function Page({
               <th className="p-3 text-right">Quantity</th>
               <th className="p-3 text-right">Revenue</th>
               <th className="p-3 text-right">Discounts</th>
+              <th className="p-3 text-right">Returns</th>
               <th className="p-3 text-right">COGS</th>
               <th className="p-3 text-right">Gross profit</th>
             </tr>
@@ -44,6 +45,7 @@ export default async function Page({
                 <td className="p-3 text-right">{row.quantity}</td>
                 <td className="p-3 text-right">{row.revenue}</td>
                 <td className="p-3 text-right">{row.discounts}</td>
+                <td className="p-3 text-right">{row.returns}</td>
                 <td className="p-3 text-right">{row.cogs}</td>
                 <td className="p-3 text-right">{row.grossProfit}</td>
               </tr>

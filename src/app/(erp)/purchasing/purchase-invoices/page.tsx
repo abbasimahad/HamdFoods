@@ -50,7 +50,8 @@ export default async function PurchaseInvoicesPage({
         title="Purchase Invoices"
         description="Match supplier invoices to received goods and post only price/tax variance against already-recognized payables."
       />
-      {hasPermission(principal, "purchasing.manage") && (
+      {(hasPermission(principal, "purchasing.manage") ||
+        hasPermission(principal, "purchase_invoices.manage")) && (
         <div className="mb-4 flex flex-wrap justify-end gap-2">
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"

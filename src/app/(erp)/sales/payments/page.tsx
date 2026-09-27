@@ -57,7 +57,7 @@ export default async function CustomerPaymentsPage({
         description="Posted payments reduce receivables; allocated amounts settle invoices and any excess remains customer credit."
       />
       <div className="mb-4 flex justify-end">
-        {hasPermission(principal, "sales.manage") && (
+        {hasPermission(principal, "customer_payments.manage") && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
             href="/sales/payments/new"
@@ -141,7 +141,10 @@ export default async function CustomerPaymentsPage({
             </thead>
             <tbody className="divide-y">
               {result.records.map((payment) => (
-                <tr key={payment.id}>
+                <tr
+                  className={payment.reversalOfNumber ? "bg-[var(--danger-surface)]" : undefined}
+                  key={payment.id}
+                >
                   <td className="p-3">
                     <Link
                       className="font-mono font-semibold text-[var(--accent)]"
@@ -152,14 +155,23 @@ export default async function CustomerPaymentsPage({
                   </td>
                   <td className="p-3">{payment.paymentDate.toLocaleDateString()}</td>
                   <td className="p-3">{payment.customerName}</td>
-                  <td className="p-3">{payment.method}</td>
-                  <td className="p-3">{payment.totalAmount}</td>
+                  <td className="p-3">
+                    {payment.method}
+                    {payment.reversalOfNumber ? " (reversal)" : ""}
+                  </td>
+                  <td className="p-3">
+                    {payment.reversalOfNumber ? `-${payment.totalAmount}` : payment.totalAmount}
+                  </td>
                   <td className="p-3">{payment.allocatedAmount}</td>
                   <td className="p-3">{payment.unallocatedAmount}</td>
                   <td className="p-3">
                     {payment.reversalPaymentNumber ? (
                       <span className="font-semibold text-red-700">
                         REVERSED ({payment.reversalPaymentNumber})
+                      </span>
+                    ) : payment.reversalOfNumber ? (
+                      <span className="font-semibold text-red-700">
+                        REVERSAL of {payment.reversalOfNumber}
                       </span>
                     ) : (
                       payment.status

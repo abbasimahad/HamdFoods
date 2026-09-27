@@ -1,6 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import {
+  emptyJournalLine,
+  JournalLinesEditor,
+  journalLinesPayload,
+  type JournalLine,
+} from "@/components/accounting/account-lines-editor";
 import {
   backfillAccountingAction,
   createAccountingAccountAction,
@@ -12,6 +19,15 @@ import {
   updateAccountMappingAction,
   updateAccountingSettingsAction,
 } from "@/app/(erp)/accounting/actions";
+
+// UX-6: a <form action={fn}> is reset by React after the action settles, which snaps a
+// controlled <select> back to the option it was first rendered with. Submitting through
+// onSubmit dispatches the same action without the automatic reset, so the chosen value stays.
+function submitWithoutReset(event: FormEvent<HTMLFormElement>, action: (form: FormData) => void) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  startTransition(() => action(form));
+}
 
 export function AccountingPeriodForm() {
   const [state, action, pending] = useActionState(createAccountingPeriodAction, undefined);
@@ -32,6 +48,7 @@ export function AccountingPeriodForm() {
 
 export function ManualJournalForm({
   accounts,
+  defaultDate,
 }: {
   accounts: readonly {
     id: string;
@@ -41,59 +58,67 @@ export function ManualJournalForm({
     postingAllowed: boolean;
     active: boolean;
   }[];
+  defaultDate: string;
 }) {
-  const [state, action, pending] = useActionState(postManualJournalAction, undefined);
+  const [lines, setLines] = useState<JournalLine[]>(() => [emptyJournalLine(), emptyJournalLine()]);
+  const [formKey, setFormKey] = useState(0);
+  const [state, action, pending] = useActionState(
+    async (
+      previous: Awaited<ReturnType<typeof postManualJournalAction>> | undefined,
+      form: FormData,
+    ) => {
+      const result = await postManualJournalAction(previous, form);
+      if (result.ok) {
+        // Clear the entry so the same journal is not posted twice by re-submitting.
+        setLines([emptyJournalLine(), emptyJournalLine()]);
+        setFormKey((key) => key + 1);
+      }
+      return result;
+    },
+    undefined,
+  );
   const usable = accounts.filter(
     (account) => account.active && account.postingAllowed && !account.isControl,
   );
-  const example = JSON.stringify(
-    [
-      { accountId: usable[0]?.id ?? "", debit: "100.000000", description: "Debit line" },
-      { accountId: usable[1]?.id ?? "", credit: "100.000000", description: "Credit line" },
-    ],
-    null,
-    2,
-  );
   return (
-    <form action={action} className="space-y-3">
-      <div className="grid gap-2 md:grid-cols-2">
-        <label className="text-sm font-medium">
-          Journal date
-          <input
-            className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
-            name="date"
-            type="date"
-            required
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Journal memo
-          <input
-            className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
-            name="description"
-            required
-          />
-        </label>
-      </div>
-      <textarea
-        className="min-h-52 w-full rounded border p-3 font-mono text-xs"
-        defaultValue={example}
-        name="lines"
-        aria-label="Journal lines JSON"
-        required
-      />
-      <p className="text-xs text-[var(--muted)]">
-        Use exact account UUIDs from the permitted account list. Each line needs one positive debit
-        or credit; control accounts are rejected.
-      </p>
-      <button
-        className="min-h-11 rounded bg-[var(--accent)] px-3 py-2 text-white"
-        disabled={pending}
-      >
-        Post manual journal
-      </button>
-      {state && !state.ok ? <p className="text-sm text-red-700">{state.message}</p> : null}
-    </form>
+    <div className="space-y-3">
+      <form action={action} className="space-y-3" key={formKey}>
+        <div className="grid gap-2 md:grid-cols-2">
+          <label className="text-sm font-medium">
+            Journal date
+            <input
+              className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+              defaultValue={defaultDate}
+              name="date"
+              type="date"
+              required
+            />
+          </label>
+          <label className="text-sm font-medium">
+            Journal memo
+            <input
+              className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+              name="description"
+              required
+            />
+          </label>
+        </div>
+        <input name="lines" type="hidden" value={journalLinesPayload(lines)} />
+        <JournalLinesEditor accounts={usable} lines={lines} onChange={setLines} />
+        <p className="text-xs text-[var(--muted)]">
+          Each line needs one positive debit or credit, and total debits must equal total credits.
+          Control accounts (receivables, payables, inventory) are posted only by their source
+          documents.
+        </p>
+        <button
+          className="min-h-11 rounded bg-[var(--accent)] px-3 py-2 text-white"
+          disabled={pending}
+        >
+          {pending ? "Posting…" : "Post manual journal"}
+        </button>
+      </form>
+      {state ? <ActionFeedback message={state.message} ok={state.ok} /> : null}
+    </div>
   );
 }
 
@@ -102,17 +127,22 @@ export function AccountingSettingsForm({
 }: {
   purchaseTaxTreatment: "RECOVERABLE" | "CAPITALIZE" | "EXPENSE" | "NOT_CONFIGURED";
 }) {
+  const [value, setValue] = useState(purchaseTaxTreatment);
   const [state, action, pending] = useActionState(updateAccountingSettingsAction, undefined);
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(event) => submitWithoutReset(event, action)}
+    >
       <label className="text-sm" htmlFor="purchaseTaxTreatment">
         Purchase tax treatment
       </label>
       <select
         className="rounded border px-3 py-2"
-        defaultValue={purchaseTaxTreatment}
         id="purchaseTaxTreatment"
         name="purchaseTaxTreatment"
+        onChange={(event) => setValue(event.target.value as typeof value)}
+        value={value}
       >
         <option value="NOT_CONFIGURED">Not configured</option>
         <option value="RECOVERABLE">Recoverable</option>
@@ -120,9 +150,9 @@ export function AccountingSettingsForm({
         <option value="EXPENSE">Expense</option>
       </select>
       <button className="rounded bg-[var(--accent)] px-3 py-2 text-white" disabled={pending}>
-        Save settings
+        {pending ? "Saving…" : "Save settings"}
       </button>
-      {state && !state.ok ? <p className="text-sm text-red-700">{state.message}</p> : null}
+      {state ? <ActionFeedback className="w-full" message={state.message} ok={state.ok} /> : null}
     </form>
   );
 }
@@ -173,15 +203,31 @@ export function AccountingMappingForm({
     postingAllowed: boolean;
   }[];
 }) {
-  const [state, action, pending] = useActionState(updateAccountMappingAction, undefined);
+  const [value, setValue] = useState(accountId);
+  const [state, action, pending] = useActionState(
+    async (
+      previous: Awaited<ReturnType<typeof updateAccountMappingAction>> | undefined,
+      form: FormData,
+    ) => {
+      const result = await updateAccountMappingAction(previous, form);
+      // A rejected mapping leaves the saved account in place, so show that again.
+      if (!result.ok) setValue(accountId);
+      return result;
+    },
+    undefined,
+  );
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(event) => submitWithoutReset(event, action)}
+    >
       <input name="mappingKey" type="hidden" value={mappingKey} />
       <span className="w-52 text-xs">{mappingKey}</span>
       <select
         className="min-w-64 rounded border px-2 py-1 text-sm"
-        defaultValue={accountId}
         name="accountId"
+        onChange={(event) => setValue(event.target.value)}
+        value={value}
       >
         {accounts
           .filter((account) => account.active && account.postingAllowed)
@@ -192,9 +238,13 @@ export function AccountingMappingForm({
           ))}
       </select>
       <button className="text-sm text-[var(--accent)]" disabled={pending}>
-        Save
+        {pending ? "Saving…" : "Save"}
       </button>
-      {state && !state.ok ? <span className="text-xs text-red-700">{state.message}</span> : null}
+      {state ? (
+        <span className={`text-xs ${state.ok ? "text-green-700" : "text-red-700"}`} role="status">
+          {state.message}
+        </span>
+      ) : null}
     </form>
   );
 }
@@ -239,8 +289,8 @@ export function ManualJournalReversalForm({ journalId }: { journalId: string }) 
       <button className="min-h-11 rounded bg-red-700 px-3 py-2 text-white" disabled={pending}>
         Reverse journal
       </button>
-      {state && !state.ok ? (
-        <p className="text-sm text-red-700 md:col-span-3">{state.message}</p>
+      {state ? (
+        <ActionFeedback className="md:col-span-3" message={state.message} ok={state.ok} />
       ) : null}
     </form>
   );
@@ -308,8 +358,8 @@ export function AccountingAccountForm({
       <button className="rounded bg-[var(--accent)] px-3 py-2 text-white" disabled={pending}>
         Create account
       </button>
-      {state && !state.ok ? (
-        <p className="text-sm text-red-700 md:col-span-3">{state.message}</p>
+      {state ? (
+        <ActionFeedback className="md:col-span-3" message={state.message} ok={state.ok} />
       ) : null}
     </form>
   );

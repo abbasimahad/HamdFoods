@@ -4,7 +4,7 @@ import { WasteDispositionForm } from "@/components/inventory/waste-disposition-f
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 import { saveWasteDispositionAction } from "../../actions";
 
@@ -13,7 +13,7 @@ export default async function EditWasteDispositionPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("inventory.manage");
+  await requireAnyPermission(["inventory.manage", "waste.manage"]);
   const repository = new PrismaWasteDispositionRepository();
   const id = (await params).id;
   const [document, sources] = await Promise.all([

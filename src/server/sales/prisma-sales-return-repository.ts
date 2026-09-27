@@ -55,7 +55,7 @@ type ReturnRow = Prisma.SalesReturnGetPayload<{ include: typeof returnInclude }>
 
 export class PrismaSalesReturnRepository implements SalesReturnRepository {
   async getSalesReturnReferences(): Promise<SalesReturnReferences> {
-    const [invoices, dispatches, warehouses, customers] = await Promise.all([
+    const [invoices, dispatches, warehouses, customers, refusedByAllocation] = await Promise.all([
       prisma.salesInvoice.findMany({
         where: { status: "POSTED" },
         include: {
@@ -67,7 +67,23 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
       }),
       prisma.salesDispatch.findMany({
         where: { status: { in: ["POSTED", "DELIVERED"] } },
-        include: { customer: true },
+        include: {
+          customer: true,
+          lines: {
+            select: {
+              allocations: {
+                select: {
+                  id: true,
+                  quantity: true,
+                  invoiceAllocations: {
+                    where: { salesInvoiceLine: { salesInvoice: { status: "POSTED" } } },
+                    select: { quantity: true },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: [{ dispatchAt: "desc" }, { number: "desc" }],
         take: 1000,
       }),
@@ -83,6 +99,14 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
         orderBy: [{ name: "asc" }, { code: "asc" }],
         take: 1000,
       }),
+      prisma.salesReturnLine.groupBy({
+        by: ["salesDispatchAllocationId"],
+        where: {
+          salesInvoiceLineId: null,
+          salesReturn: { status: { in: [...liveReturnStatuses] } },
+        },
+        _sum: { totalPieces: true },
+      }),
     ]);
     return {
       invoices: invoices.map((row) => ({
@@ -93,11 +117,26 @@ export class PrismaSalesReturnRepository implements SalesReturnRepository {
           ...new Map(row.lines.map((line) => [line.salesDispatch.id, line.salesDispatch])).values(),
         ],
       })),
-      dispatches: dispatches.map((row) => ({
-        id: row.id,
-        number: row.number,
-        customerName: row.customer.name,
-      })),
+      // Only dispatches that still have un-invoiced, un-refused quantity can be refused.
+      dispatches: dispatches
+        .filter((row) =>
+          row.lines.some((line) =>
+            line.allocations.some((allocation) => {
+              const invoiced = sum(allocation.invoiceAllocations.map((entry) => entry.quantity));
+              const refused = new Decimal(
+                refusedByAllocation
+                  .find((entry) => entry.salesDispatchAllocationId === allocation.id)
+                  ?._sum.totalPieces?.toString() ?? "0",
+              );
+              return new Decimal(allocation.quantity.toString()).sub(invoiced).sub(refused).gt(0);
+            }),
+          ),
+        )
+        .map((row) => ({
+          id: row.id,
+          number: row.number,
+          customerName: row.customer.name,
+        })),
       warehouses,
       customers,
     };

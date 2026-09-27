@@ -87,6 +87,8 @@ export type SalesInvoiceRecord = {
   customerId: string;
   customerName: string;
   customerCode: string;
+  customerTaxRegistrationNo: string | null;
+  customerPhone: string | null;
   invoiceDate: Date;
   dueDate: Date;
   paymentTermsDays: number | null;

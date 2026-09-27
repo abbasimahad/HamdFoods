@@ -11,7 +11,7 @@ export default async function NewCustomerPaymentPage({
 }: {
   searchParams: Promise<{ customer?: string; returnTo?: string }>;
 }) {
-  await requirePermission("sales.manage");
+  await requirePermission("customer_payments.manage");
   const repository = new PrismaCustomerPaymentRepository();
   const salesReferences = await new PrismaSalesRepository().getReferenceData(true);
   const query = await searchParams;

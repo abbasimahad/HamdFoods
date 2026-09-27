@@ -135,8 +135,11 @@ begin
   Result := '';
   if FileExists(ExpandConstant('{commonappdata}\{#DataFolder}\config\.env.production')) then begin
     InstalledSetup := ExpandConstant('{app}\windows\Setup-HamdFoodsERP.ps1');
+    { Data kept under ProgramData but the program was uninstalled: uninstall already removed the
+      scheduled tasks and stopped the runtime, so there is nothing to stop. Continue; the
+      post-install step then repairs onto the preserved configuration and database. }
     if not FileExists(InstalledSetup) then
-      Result := 'The protected repair runtime controller is missing.'
+      Log('Preserved data found without an installed program; reinstalling over preserved data.')
     else if not Exec(
       ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe'),
       StopRuntimeParameters(),

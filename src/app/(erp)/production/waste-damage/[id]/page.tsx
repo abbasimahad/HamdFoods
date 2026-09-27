@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasPermission } from "@/modules/access/domain/principal";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 import {
   cancelWasteDispositionAction,
@@ -24,10 +24,11 @@ export default async function WasteDispositionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const principal = await requirePermission("inventory.view");
+  const principal = await requireAnyPermission(["inventory.view", "production.view"]);
   const document = await new PrismaWasteDispositionRepository().getDocument((await params).id);
   if (!document) notFound();
-  const canManage = hasPermission(principal, "inventory.manage");
+  const canManage =
+    hasPermission(principal, "inventory.manage") || hasPermission(principal, "waste.manage");
   const first = document.lines[0];
   const destination = first
     ? first.action === "MOVE_TO_SCRAP"

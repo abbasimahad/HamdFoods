@@ -1,4 +1,5 @@
 import "server-only";
+import { factoryBusinessDate } from "@/server/shared/factory-local-time";
 
 import { randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
@@ -13,6 +14,8 @@ type Client = Prisma.TransactionClient;
 
 export type AccountingLineInput = {
   mapping: AccountingMappingKey;
+  /** Posts to this specific account instead of the mapping's account (e.g. a chosen bank). */
+  accountId?: string;
   debit?: string;
   credit?: string;
   description?: string;
@@ -63,6 +66,7 @@ export async function postDirectAccountJournal(
     lines: readonly DirectAccountJournalLineInput[];
   },
 ) {
+  input = { ...input, accountingDate: factoryBusinessDate(input.accountingDate) };
   const existing = await tx.accountingJournal.findUnique({
     where: { sourceType_sourceId: { sourceType: input.sourceType, sourceId: input.sourceId } },
     select: { id: true },
@@ -143,6 +147,8 @@ export async function postAutomaticJournal(
   tx: Client,
   input: AutomaticJournalInput,
 ): Promise<{ journalId: string | null; blocked: boolean }> {
+  // TZ-1: source timestamps are UTC instants; journals are dated by the factory's local day.
+  input = { ...input, accountingDate: factoryBusinessDate(input.accountingDate) };
   const existing = await tx.accountingJournal.findUnique({
     where: { sourceType_sourceId: { sourceType: input.sourceType, sourceId: input.sourceId } },
     select: { id: true },
@@ -181,8 +187,17 @@ export async function postAutomaticJournal(
     );
 
   const mappings = new Map(settings.mappings.map((entry) => [entry.mappingKey, entry.account]));
+  const overrideIds = input.lines.flatMap((line) => line.accountId ?? []);
+  const overrides = new Map(
+    (overrideIds.length
+      ? await tx.accountingAccount.findMany({ where: { id: { in: overrideIds } } })
+      : []
+    ).map((account) => [account.id, account]),
+  );
+  const accountFor = (line: AccountingLineInput) =>
+    line.accountId ? overrides.get(line.accountId) : mappings.get(line.mapping);
   const unavailableMapping = input.lines.find((line) => {
-    const account = mappings.get(line.mapping);
+    const account = accountFor(line);
     return !account || !account.active || !account.postingAllowed;
   })?.mapping;
   if (unavailableMapping)
@@ -194,7 +209,7 @@ export async function postAutomaticJournal(
       `Accounting mapping ${unavailableMapping} is missing or unusable.`,
     );
   const lines = input.lines.map((line, index) => {
-    const account = mappings.get(line.mapping)!;
+    const account = accountFor(line)!;
     return {
       ...line,
       accountId: account.id,
@@ -294,7 +309,11 @@ export async function postValuationAccounting(
         { mapping: "GRNI", credit: value.toFixed(), itemId: entry.itemId },
       ],
     });
-  if (entry.entryType === "SUPPLIER_REPLACEMENT")
+  if (entry.entryType === "SUPPLIER_REPLACEMENT") {
+    // Replacing QC-rejected goods (never payable): the replacement is an ordinary accrual and
+    // becomes payable at QC acceptance. Replacing goods already payable: it settles the
+    // supplier claim raised by the return.
+    const payable = entry.sourceId ? await replacementReceiptIsPayable(tx, entry.sourceId) : false;
     return postAutomaticJournal(tx, {
       ...common,
       sourceType: "GOODS_RECEIPT",
@@ -302,9 +321,14 @@ export async function postValuationAccounting(
       description: `Replacement inventory receipt from ${entry.sourceNumber ?? "goods receipt"}.`,
       lines: [
         { mapping: inventory, debit: value.abs().toFixed(), itemId: entry.itemId },
-        { mapping: "SUPPLIER_CLAIMS", credit: value.abs().toFixed(), itemId: entry.itemId },
+        {
+          mapping: payable ? "GRNI" : "SUPPLIER_CLAIMS",
+          credit: value.abs().toFixed(),
+          itemId: entry.itemId,
+        },
       ],
     });
+  }
   if (entry.entryType === "LANDED_COST")
     return postAutomaticJournal(tx, {
       ...common,
@@ -541,9 +565,15 @@ export async function postCustomerPaymentAccounting(
   actorUserId: string,
   allowHistoricalBackfill = false,
 ) {
-  const payment = await tx.customerPayment.findUnique({ where: { id: paymentId } });
+  const payment = await tx.customerPayment.findUnique({
+    where: { id: paymentId },
+    include: { treasuryAccount: true },
+  });
   if (!payment || payment.status !== "POSTED") return;
   const cashMapping = payment.method === "CASH" ? "DEFAULT_CASH" : "DEFAULT_BANK";
+  const cashAccount = payment.treasuryAccount
+    ? { accountId: payment.treasuryAccount.glAccountId }
+    : {};
   return postAutomaticJournal(tx, {
     sourceType: "CUSTOMER_PAYMENT",
     sourceId: payment.id,
@@ -555,6 +585,7 @@ export async function postCustomerPaymentAccounting(
     lines: [
       {
         mapping: cashMapping,
+        ...cashAccount,
         debit: payment.totalAmount.toString(),
         customerId: payment.customerId,
       },
@@ -572,9 +603,15 @@ export async function reverseCustomerPaymentAccounting(
   reversalPaymentId: string,
   actorUserId: string,
 ) {
-  const payment = await tx.customerPayment.findUnique({ where: { id: reversalPaymentId } });
+  const payment = await tx.customerPayment.findUnique({
+    where: { id: reversalPaymentId },
+    include: { treasuryAccount: true },
+  });
   if (!payment || payment.status !== "POSTED" || !payment.reversalOfId) return;
   const cashMapping = payment.method === "CASH" ? "DEFAULT_CASH" : "DEFAULT_BANK";
+  const cashAccount = payment.treasuryAccount
+    ? { accountId: payment.treasuryAccount.glAccountId }
+    : {};
   return postAutomaticJournal(tx, {
     sourceType: "CUSTOMER_PAYMENT_REVERSAL",
     sourceId: payment.id,
@@ -590,6 +627,7 @@ export async function reverseCustomerPaymentAccounting(
       },
       {
         mapping: cashMapping,
+        ...cashAccount,
         credit: payment.totalAmount.toString(),
         customerId: payment.customerId,
       },
@@ -607,12 +645,20 @@ export async function postGoodsReceiptAcceptanceAccounting(
     where: { id: receiptId },
     include: { lines: { include: { qcDecision: true, purchaseOrderLine: true } } },
   });
-  if (!receipt || receipt.status !== "QC_COMPLETED" || receipt.purpose !== "PURCHASE") return;
+  if (!receipt || receipt.status !== "QC_COMPLETED") return;
+  if (
+    receipt.purpose !== "PURCHASE" &&
+    !(
+      receipt.purpose === "SUPPLIER_REPLACEMENT" &&
+      (await replacementReceiptIsPayable(tx, receipt.id))
+    )
+  )
+    return;
   const valuations = await tx.inventoryValuationEntry.findMany({
     where: {
       sourceType: "GOODS_RECEIPT",
       sourceId: receipt.id,
-      entryType: "PURCHASE_RECEIPT",
+      entryType: { in: ["PURCHASE_RECEIPT", "SUPPLIER_REPLACEMENT"] },
       state: "FINAL",
     },
     select: { sourceKey: true, valueDelta: true },
@@ -1306,10 +1352,13 @@ export async function postManualJournal(tx: Client, journalId: string, actorUser
     throw new AccountingPostingError(
       "Manual journals cannot post to inactive, non-posting, or control accounts.",
     );
+  const journalNumber = await nextJournalNumber(tx, journal.accountingDate.getUTCFullYear());
   await tx.accountingJournal.update({
     where: { id: journal.id },
     data: {
-      journalNumber: await nextJournalNumber(tx, journal.accountingDate.getUTCFullYear()),
+      journalNumber,
+      // Shown as the journal's source reference; the draft placeholder id means nothing to users.
+      sourceNumber: journalNumber,
       status: "POSTED",
       postedByUserId: actorUserId,
       postedAt: new Date(),
@@ -1320,7 +1369,7 @@ export async function postManualJournal(tx: Client, journalId: string, actorUser
     action: "POST",
     entityType: "JOURNAL",
     entityId: journal.id,
-    entityReference: journal.journalNumber,
+    entityReference: journalNumber,
     module: "accounting",
     description: "Posted a manual journal.",
     controlEvent: true,
@@ -1376,7 +1425,8 @@ export async function reverseManualJournal(
       },
     },
   });
-  await tx.accountingJournal.update({ where: { id: original.id }, data: { status: "REVERSED" } });
+  // The original stays POSTED: ledgers and reports sum POSTED journals, so the original and its
+  // POSTED reversal net to zero. The link (reversalOfId) is what marks the original as reversed.
   await recordAuditEvent(tx, {
     actorUserId,
     action: "REVERSE",
@@ -1413,7 +1463,7 @@ export async function backfillAccounting(tx: Client, actorUserId: string) {
       select: { id: true },
     }),
     tx.goodsReceipt.findMany({
-      where: { status: "QC_COMPLETED", purpose: "PURCHASE" },
+      where: { status: "QC_COMPLETED", purpose: { in: ["PURCHASE", "SUPPLIER_REPLACEMENT"] } },
       select: { id: true },
     }),
     tx.salesReturn.findMany({
@@ -1621,4 +1671,24 @@ async function block(
     controlEvent: true,
   });
   return { journalId: null, blocked: true };
+}
+
+/**
+ * A replacement receipt is paid for like a normal purchase when every line of the return it
+ * replaces was rejected at receiving QC, i.e. those goods were never accepted or payable.
+ */
+export async function replacementReceiptIsPayable(tx: Client, goodsReceiptId: string) {
+  const receipt = await tx.goodsReceipt.findUnique({
+    where: { id: goodsReceiptId },
+    select: {
+      purpose: true,
+      purchaseReturn: { select: { lines: { select: { source: true } } } },
+    },
+  });
+  const lines = receipt?.purchaseReturn?.lines ?? [];
+  return (
+    receipt?.purpose === "SUPPLIER_REPLACEMENT" &&
+    lines.length > 0 &&
+    lines.every((line) => line.source === "QC_REJECTED")
+  );
 }

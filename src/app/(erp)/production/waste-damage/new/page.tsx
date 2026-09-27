@@ -3,12 +3,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 import { saveWasteDispositionAction } from "../actions";
 
 export default async function NewWasteDispositionPage() {
-  await requirePermission("inventory.manage");
+  await requireAnyPermission(["inventory.manage", "waste.manage"]);
   const sources = await new PrismaWasteDispositionRepository().listSourceOptions();
   return (
     <ResponsiveContainer>

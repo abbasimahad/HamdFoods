@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+import { formatMoney, formatQuantity } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -26,7 +28,9 @@ export default async function PurchaseInvoiceDetailPage({
   const principal = await requirePermission("purchasing.view");
   const record = await new PrismaPurchaseInvoiceRepository().getPurchaseInvoice((await params).id);
   if (!record) notFound();
-  const canManage = hasPermission(principal, "purchasing.manage");
+  const canManage =
+    hasPermission(principal, "purchasing.manage") ||
+    hasPermission(principal, "purchase_invoices.manage");
   const netVariance = Number(record.priceVarianceTotal) + Number(record.taxVarianceTotal);
   return (
     <ResponsiveContainer>
@@ -57,12 +61,12 @@ export default async function PurchaseInvoiceDetailPage({
             record.dueDate ? `${record.dueDate.toLocaleDateString()} (informational only)` : "-"
           }
         />
-        <Info label="Subtotal" value={record.subtotal} />
-        <Info label="Tax total" value={record.taxTotal} />
-        <Info label="Grand total" value={record.grandTotal} />
+        <Info label="Subtotal" value={formatMoney(record.subtotal)} />
+        <Info label="Tax total" value={formatMoney(record.taxTotal)} />
+        <Info label="Grand total" value={formatMoney(record.grandTotal)} />
         <Info
           label="Posted price/tax variance"
-          value={record.status === "DRAFT" ? "Not yet posted" : netVariance.toFixed(6)}
+          value={record.status === "DRAFT" ? "Not yet posted" : formatMoney(netVariance)}
         />
         <Info label="Created by" value={record.createdByName} />
         <Info
@@ -98,13 +102,16 @@ export default async function PurchaseInvoiceDetailPage({
                   </td>
                   <td className="p-3">{line.purchaseOrderNumber}</td>
                   <td className="p-3">
-                    {line.invoicedQuantity} {line.canonicalUnitSymbol}
+                    {line.displayQuantity} {line.orderUnitSymbol}
                   </td>
-                  <td className="p-3">{line.invoicedUnitRate}</td>
-                  <td className="p-3">{line.taxPercent}</td>
-                  <td className="p-3">{line.netAmount}</td>
                   <td className="p-3">
-                    {line.matchedQuantityTotal} / {line.invoicedQuantity}
+                    {line.displayUnitRate} / {line.orderUnitSymbol}
+                  </td>
+                  <td className="p-3">{formatQuantity(line.taxPercent)}%</td>
+                  <td className="p-3">{formatMoney(line.netAmount, "")}</td>
+                  <td className="p-3">
+                    {inOrderUnit(line, line.matchedQuantityTotal)} /{" "}
+                    {inOrderUnit(line, line.invoicedQuantity)} {line.orderUnitSymbol}
                     {line.matchedQuantityTotal !== line.invoicedQuantity && (
                       <span className="ml-1 text-xs text-amber-700">incomplete</span>
                     )}
@@ -116,12 +123,14 @@ export default async function PurchaseInvoiceDetailPage({
                       <ul className="space-y-1 text-xs">
                         {line.matches.map((match) => (
                           <li key={match.id}>
-                            {match.goodsReceiptNumber}: {match.matchedQuantity}
+                            {match.goodsReceiptNumber}: {inOrderUnit(line, match.matchedQuantity)}{" "}
+                            {line.orderUnitSymbol}
                             {record.status !== "DRAFT" && (
                               <>
                                 {" "}
                                 (cost {match.grnDerivedUnitCost}, price var{" "}
-                                {match.priceVarianceAmount}, tax var {match.taxVarianceAmount})
+                                {formatMoney(match.priceVarianceAmount, "")}, tax var{" "}
+                                {formatMoney(match.taxVarianceAmount, "")})
                               </>
                             )}
                           </li>
@@ -171,4 +180,14 @@ function Info({ label, value }: { label: string; value: string }) {
       <dd className="mt-1 text-sm">{value}</dd>
     </div>
   );
+}
+
+/** Restates a canonical quantity (e.g. grams) in the line's order unit (e.g. kg). */
+function inOrderUnit(
+  line: { invoicedQuantity: string; displayQuantity: string },
+  canonical: string,
+) {
+  const display = new Decimal(line.displayQuantity);
+  if (display.isZero()) return formatQuantity(canonical);
+  return formatQuantity(new Decimal(canonical).mul(display).div(line.invoicedQuantity));
 }

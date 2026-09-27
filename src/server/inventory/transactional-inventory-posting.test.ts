@@ -67,10 +67,16 @@ describe("inventory reservation and dispatch", () => {
       },
     ]);
     const movements = tx.created();
+    // The lot tag moves within AVAILABLE (reservations are item-level), then stock leaves
+    // RESERVED untagged and arrives IN_TRANSIT on the lot.
     expect(movements).toMatchObject([
+      { status: "AVAILABLE", quantity: "-80", productionLotId: expect.any(String) },
+      { status: "AVAILABLE", quantity: "80" },
       { status: "RESERVED", quantity: "-80" },
-      { status: "IN_TRANSIT", quantity: "80" },
+      { status: "IN_TRANSIT", quantity: "80", productionLotId: expect.any(String) },
     ]);
+    expect(movements[1]).not.toHaveProperty("productionLotId");
+    expect(movements[2]).not.toHaveProperty("productionLotId");
     expect(total(movements)).toBe("0");
   });
 

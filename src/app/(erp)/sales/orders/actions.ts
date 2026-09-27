@@ -37,7 +37,7 @@ export async function approveSalesOrderAction(
   _: SalesOrderActionState,
   formData: FormData,
 ): Promise<SalesOrderActionState> {
-  const actor = await requirePermission("sales.manage");
+  const actor = await requirePermission("sales.approve");
   const id = String(formData.get("id") ?? "");
   const result = await approveSalesOrder(actor, id, repository);
   if (result.ok) refresh(id);

@@ -12,6 +12,7 @@ const reports = [
   ["Inventory Valuation & Reconciliation", "inventory-valuation"],
   ["WIP & Production Costing", "production-costing"],
   ["Sales & Product Profitability", "sales-profitability"],
+  ["Sales Tax (Output / Input)", "sales-tax"],
   ["Expense & Treasury Analysis", "expenses-treasury"],
 ] as const;
 export default async function Page() {

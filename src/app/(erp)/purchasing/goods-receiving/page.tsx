@@ -50,7 +50,8 @@ export default async function GoodsReceivingPage({
         description="Receive approved purchase orders into quality hold and classify them through purchase QC."
       />
       <div className="mb-4 flex justify-end">
-        {hasPermission(principal, "purchasing.manage") && (
+        {(hasPermission(principal, "purchasing.manage") ||
+          hasPermission(principal, "receiving.manage")) && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
             href="/purchasing/goods-receiving/new"

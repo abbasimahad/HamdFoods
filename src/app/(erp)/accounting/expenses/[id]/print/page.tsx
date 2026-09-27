@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -19,6 +20,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!expense) notFound();
   return (
     <main className="mx-auto max-w-3xl p-8 print:max-w-none print:p-0">
+      <div className="mb-4 flex justify-end print:hidden">
+        <PrintButton label="Print expense voucher" />
+      </div>
       <PrintCompanyHeader profile={companyProfile} />
       <h1 className="text-2xl font-semibold">Expense Voucher {expense.number}</h1>
       <p className="mt-2">Date: {expense.expenseDate.toISOString().slice(0, 10)}</p>

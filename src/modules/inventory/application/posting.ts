@@ -25,6 +25,13 @@ const common = {
   reason: z.string().trim().min(3).max(1000),
   referenceId: z.string().trim().max(120).optional().transform(emptyToUndefined),
   sourceKey: z.string().trim().max(160).optional().transform(emptyToUndefined),
+  lotRef: z
+    .string()
+    .trim()
+    .max(80)
+    .regex(/^((inv|prod):[0-9a-f-]{36})?$/)
+    .optional()
+    .transform(emptyToUndefined),
 };
 export const singlePostingSchema = z.object({
   ...common,

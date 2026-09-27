@@ -1663,9 +1663,11 @@ model CustomerPayment {
   cancellationReason String?
   reversalOfId       String?                     @unique
   reversalReason     String?
+  treasuryAccountId  String?
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
   customer           Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  treasuryAccount    TreasuryAccount?            @relation(fields: [treasuryAccountId], references: [id], onDelete: Restrict)
   createdBy          User                        @relation("CustomerPaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   postedBy           User?                       @relation("CustomerPaymentPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
   cancelledBy        User?                       @relation("CustomerPaymentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
@@ -1676,6 +1678,7 @@ model CustomerPayment {
 
   @@index([customerId, paymentDate])
   @@index([status, paymentDate])
+  @@index([treasuryAccountId])
   @@map("customer_payment")
 }
 
@@ -3103,6 +3106,7 @@ model TreasuryAccount {
   updatedAt           DateTime            @updatedAt
   glAccount           AccountingAccount   @relation(fields: [glAccountId], references: [id], onDelete: Restrict)
   supplierPayments    SupplierPayment[]
+  customerPayments    CustomerPayment[]
   expenseVouchers     ExpenseVoucher[]
   outgoingTransfers   TreasuryTransfer[]  @relation("TreasuryTransferSource")
   incomingTransfers   TreasuryTransfer[]  @relation("TreasuryTransferDestination")

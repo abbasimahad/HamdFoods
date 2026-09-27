@@ -138,6 +138,14 @@ export default async function StockMovementsPage({
                     <td className="p-4 text-xs">
                       {movement.referenceType}
                       {movement.referenceId ? ` · ${movement.referenceId}` : ""}
+                      {movement.movementType === "TRANSFER_OUT" && movement.groupId ? (
+                        <a
+                          className="ml-2 font-semibold text-[var(--accent)]"
+                          href={`/inventory/transfers/${movement.groupId}/print`}
+                        >
+                          Gate pass
+                        </a>
+                      ) : null}
                       {movement.supplierLotNumber ? (
                         <span className="block">Lot: {movement.supplierLotNumber}</span>
                       ) : null}

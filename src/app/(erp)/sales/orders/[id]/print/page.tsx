@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { formatSalesMoney } from "@/modules/sales/domain/sales-orders";
@@ -13,6 +14,9 @@ export default async function PrintSalesOrderPage({ params }: { params: Promise<
   if (!order) notFound();
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-black print:max-w-none print:p-0">
+      <div className="mb-4 flex justify-end print:hidden">
+        <PrintButton label="Print sales order" />
+      </div>
       <PrintCompanyHeader profile={companyProfile} />
       <header className="mb-8 flex justify-between border-b pb-5">
         <div>

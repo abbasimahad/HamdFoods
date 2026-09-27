@@ -23,7 +23,7 @@ export default async function Page({ params }: { params: Promise<{ customerId: s
         title={`${detail.code} · ${detail.name}`}
         description="Customer receivable balance and allocation history."
         actions={
-          hasPermission(principal, "sales.manage") ? (
+          hasPermission(principal, "customer_payments.manage") ? (
             <PageActions>
               <Link
                 className={primaryPageActionClass}

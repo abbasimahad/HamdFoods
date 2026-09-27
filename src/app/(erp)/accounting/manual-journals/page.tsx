@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 export default async function Page() {
   await requirePermission("accounting.manage");
   const accounts = await prisma.accountingAccount.findMany({ orderBy: { code: "asc" } });
@@ -11,10 +12,10 @@ export default async function Page() {
     <ResponsiveContainer>
       <PageHeader
         title="Manual Journal"
-        description="Draft-to-posted journal entry. Control accounts are deliberately excluded."
+        description="Post a balanced journal entry. Control accounts are deliberately excluded."
       />
       <Card className="p-5">
-        <ManualJournalForm accounts={accounts} />
+        <ManualJournalForm accounts={accounts} defaultDate={todayInFactoryTimeZone()} />
       </Card>
     </ResponsiveContainer>
   );

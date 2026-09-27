@@ -15,7 +15,7 @@ export default async function Page() {
   const [settings, periods, accounts] = await Promise.all([
     prisma.accountingSettings.findUnique({
       where: { id: "default" },
-      include: { mappings: { include: { account: true } } },
+      include: { mappings: { include: { account: true }, orderBy: { mappingKey: "asc" } } },
     }),
     prisma.accountingPeriod.findMany({
       include: { events: { include: { actor: true }, orderBy: { createdAt: "desc" } } },

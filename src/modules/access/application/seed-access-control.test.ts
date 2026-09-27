@@ -26,8 +26,13 @@ describe("seedAccessControl", () => {
     await seedAccessControl(store);
     await seedAccessControl(store);
     expect(store.permissions.size).toBe(PERMISSIONS.length);
-    expect(store.roles.size).toBe(7);
-    expect(store.mappings.get("SALES")).toEqual(["dashboard.view", "sales.view", "sales.manage"]);
+    expect(store.roles.size).toBe(9);
+    expect(store.mappings.get("SALES")).toEqual([
+      "dashboard.view",
+      "sales.view",
+      "sales.manage",
+      "inventory.view",
+    ]);
     expect(store.mappings.get("SUPER_ADMIN")?.length).toBe(PERMISSIONS.length);
   });
 });

@@ -11,7 +11,7 @@ export default async function EditCustomerPaymentPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("sales.manage");
+  await requirePermission("customer_payments.manage");
   const repository = new PrismaCustomerPaymentRepository();
   const payment = await repository.getCustomerPayment((await params).id);
   if (!payment || payment.status !== "DRAFT") notFound();

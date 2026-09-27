@@ -26,6 +26,7 @@ const payment = z.object({
   chequeNumber: optional(120),
   chequeDate: optional(20),
   notes: optional(1000),
+  treasuryAccountId: z.preprocess((value) => value || undefined, z.string().uuid().optional()),
   allocations: z.array(allocation).max(200),
 });
 export async function saveCustomerPayment(

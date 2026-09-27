@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -16,6 +17,9 @@ export default async function PrintSalesDispatchPage({
   if (!dispatch) notFound();
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-black print:max-w-none print:p-0">
+      <div className="mb-4 flex justify-end print:hidden">
+        <PrintButton label="Print delivery note" />
+      </div>
       <PrintCompanyHeader profile={companyProfile} />
       <header className="mb-8 flex justify-between border-b pb-5">
         <div>

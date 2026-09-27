@@ -67,7 +67,11 @@ export async function journalPage(query: {
           ],
         }
       : {}),
-    ...(query.status ? { status: query.status as "DRAFT" | "POSTED" | "REVERSED" } : {}),
+    ...(query.status === "REVERSED"
+      ? { AND: [{ OR: [{ status: "REVERSED" as const }, { reversalJournal: { isNot: null } }] }] }
+      : query.status
+        ? { status: query.status as "DRAFT" | "POSTED" }
+        : {}),
     ...(query.sourceType ? { sourceType: query.sourceType as never } : {}),
     ...(accountingDate ? { accountingDate } : {}),
     ...(query.accountId ? { lines: { some: { accountId: query.accountId } } } : {}),
@@ -76,7 +80,7 @@ export async function journalPage(query: {
     prisma.accountingJournal.count({ where }),
     prisma.accountingJournal.findMany({
       where,
-      include: { postedBy: true },
+      include: { postedBy: true, reversalJournal: { select: { journalNumber: true } } },
       orderBy: [{ accountingDate: "desc" }, { journalNumber: "desc" }],
       take: pageSize,
       skip: (page - 1) * pageSize,

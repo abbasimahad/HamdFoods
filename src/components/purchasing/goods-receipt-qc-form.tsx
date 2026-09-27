@@ -1,4 +1,5 @@
 "use client";
+import Decimal from "decimal.js";
 import { useActionState, useState } from "react";
 import type {
   GoodsReceiptRecord,
@@ -21,10 +22,23 @@ export function GoodsReceiptQcForm({
   receipt: GoodsReceiptRecord;
 }) {
   const [state, formAction, pending] = useActionState(action, initialPurchasingActionState);
+  // Quantities are shown and entered in the unit the goods were received in (e.g. kg); the server
+  // reconciles in the canonical unit (e.g. g), so decisions are converted back on submit.
+  const factors = receipt.lines.map((line) => {
+    const entered = new Decimal(line.enteredQuantity || "0");
+    return entered.isZero() ? new Decimal(1) : new Decimal(line.normalizedQuantity).div(entered);
+  });
+  const toCanonical = (value: string, index: number) => {
+    try {
+      return new Decimal(value || "0").mul(factors[index]!).toDecimalPlaces(6).toString();
+    } catch {
+      return value;
+    }
+  };
   const [decisions, setDecisions] = useState<Decision[]>(
     receipt.lines.map((line) => ({
       goodsReceiptLineId: line.id,
-      acceptedQuantity: line.normalizedQuantity,
+      acceptedQuantity: new Decimal(line.enteredQuantity || line.normalizedQuantity).toString(),
       rejectedQuantity: "0",
       rejectionReason: "",
       rejectionNotes: "",
@@ -43,8 +57,10 @@ export function GoodsReceiptQcForm({
         name="decisionsJson"
         type="hidden"
         value={JSON.stringify(
-          decisions.map((decision) => ({
+          decisions.map((decision, index) => ({
             ...decision,
+            acceptedQuantity: toCanonical(decision.acceptedQuantity, index),
+            rejectedQuantity: toCanonical(decision.rejectedQuantity, index),
             rejectionReason: decision.rejectionReason || undefined,
           })),
         )}
@@ -71,7 +87,8 @@ export function GoodsReceiptQcForm({
                   </span>
                 </td>
                 <td className="p-3">
-                  {line.normalizedQuantity} {line.canonicalUnitSymbol}
+                  {new Decimal(line.enteredQuantity || line.normalizedQuantity).toString()}{" "}
+                  {line.enteredUnitSymbol || line.canonicalUnitSymbol}
                 </td>
                 <QcInput
                   value={decisions[index]!.acceptedQuantity}
@@ -120,8 +137,8 @@ export function GoodsReceiptQcForm({
         </p>
       )}
       <p className="text-xs text-[var(--muted)]">
-        Every line must reconcile exactly. Accepted stock moves to AVAILABLE; rejected stock moves
-        to QUARANTINE.
+        Quantities are in the unit each line was received in. Accepted plus rejected must equal the
+        received quantity. Accepted stock moves to AVAILABLE; rejected stock moves to QUARANTINE.
       </p>
     </form>
   );

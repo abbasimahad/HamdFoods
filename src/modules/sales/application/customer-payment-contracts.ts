@@ -12,6 +12,7 @@ export type CustomerPaymentInput = {
   chequeNumber?: string | undefined;
   chequeDate?: string | undefined;
   notes?: string | undefined;
+  treasuryAccountId?: string | undefined;
   allocations: readonly CustomerPaymentAllocationInput[];
   actorUserId: string;
 };
@@ -25,7 +26,16 @@ export type OpenInvoice = {
   alreadyPaid: string;
   outstandingAmount: string;
 };
-export type CustomerPaymentReferences = { customers: readonly PaymentCustomerOption[] };
+export type PaymentTreasuryOption = {
+  id: string;
+  code: string;
+  name: string;
+  accountType: "CASH" | "BANK" | "PETTY_CASH" | "CLEARING";
+};
+export type CustomerPaymentReferences = {
+  customers: readonly PaymentCustomerOption[];
+  treasuries?: readonly PaymentTreasuryOption[];
+};
 export type CustomerPaymentAllocationRecord = OpenInvoice & { allocatedAmount: string };
 export type CustomerPaymentRecord = {
   id: string;
@@ -38,6 +48,8 @@ export type CustomerPaymentRecord = {
   totalAmount: string;
   allocatedAmount: string;
   unallocatedAmount: string;
+  treasuryAccountId: string | null;
+  treasuryAccountName: string | null;
   referenceNumber: string | null;
   bankName: string | null;
   chequeNumber: string | null;
@@ -135,7 +147,7 @@ export class CustomerPaymentRepositoryError extends Error {
   }
 }
 export function requireCustomerPaymentManager(actor: ApplicationPrincipal) {
-  return actor.active && actor.permissions.includes("sales.manage")
+  return actor.active && actor.permissions.includes("customer_payments.manage")
     ? null
-    : ({ ok: false, message: "Sales management permission is required." } as const);
+    : ({ ok: false, message: "Customer payment permission is required." } as const);
 }

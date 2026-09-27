@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -16,6 +17,9 @@ export default async function PrintSalesReturnPage({
   if (!salesReturn) notFound();
   return (
     <main className="mx-auto max-w-4xl p-8 text-sm print:p-0">
+      <div className="mb-4 flex justify-end print:hidden">
+        <PrintButton label="Print sales return" />
+      </div>
       <PrintCompanyHeader profile={companyProfile} />
       <h1 className="text-2xl font-bold">Sales Return Note — {salesReturn.number}</h1>
       <p className="mt-2">

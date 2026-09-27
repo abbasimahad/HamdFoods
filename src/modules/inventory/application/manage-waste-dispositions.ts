@@ -122,10 +122,13 @@ async function lifecycle(
 }
 
 function authorized(actor: ApplicationPrincipal) {
-  return actor.active && actor.permissions.includes("inventory.manage");
+  return (
+    actor.active &&
+    (actor.permissions.includes("inventory.manage") || actor.permissions.includes("waste.manage"))
+  );
 }
 function denied() {
-  return { ok: false as const, message: "Inventory management permission is required." };
+  return { ok: false as const, message: "Waste and damage permission is required." };
 }
 function failure(error: unknown, fallback: string) {
   return { ok: false as const, message: error instanceof Error ? error.message : fallback };

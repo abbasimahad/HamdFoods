@@ -16,8 +16,8 @@ describe("sales pricing", () => {
     });
 
     expect(line.grossAmount).toBe("19740");
-    expect(line.discountAmount).toBe("2889.936");
-    expect(line.netAmount).toBe("16850.064");
+    expect(line.discountAmount).toBe("2889.94");
+    expect(line.netAmount).toBe("16850.06");
     expect(new Decimal(line.netAmount).eq(new Decimal("19740").mul("0.85"))).toBe(false);
   });
 

@@ -57,7 +57,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         >
           Returns
         </Link>
-        {canManage && (
+        {hasPermission(principal, "customer_payments.manage") && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm text-white"
             href={`/sales/payments/new?customer=${customer.id}`}

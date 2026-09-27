@@ -14,6 +14,7 @@ import {
   treasuryAccounts,
 } from "@/server/accounting/prisma-phase23-repository";
 import { prisma } from "@/server/db/prisma";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 export default async function Page({
   searchParams,
 }: {
@@ -40,6 +41,7 @@ export default async function Page({
           <ExpenseVoucherForm
             treasuries={treasuries.filter((account) => account.active)}
             accounts={accounts}
+            defaultDate={todayInFactoryTimeZone()}
           />
         </Card>
       ) : null}

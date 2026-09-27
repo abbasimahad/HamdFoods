@@ -590,7 +590,11 @@ async function requireInventoryAuthority(tx: Prisma.TransactionClient, actorUser
       active: true,
       roles: {
         some: {
-          role: { permissions: { some: { permission: { code: "inventory.manage" } } } },
+          role: {
+            permissions: {
+              some: { permission: { code: { in: ["inventory.manage", "waste.manage"] } } },
+            },
+          },
         },
       },
     },

@@ -22,7 +22,7 @@ export default async function CustomerPaymentDetailPage({
   const repository = new PrismaCustomerPaymentRepository();
   const payment = await repository.getCustomerPayment((await params).id);
   if (!payment) notFound();
-  const canManage = hasPermission(principal, "sales.manage");
+  const canManage = hasPermission(principal, "customer_payments.manage");
   const openInvoices =
     canManage && payment.status === "POSTED" && Number(payment.unallocatedAmount) > 0
       ? await repository.getOpenInvoices(payment.customerId)
@@ -31,7 +31,11 @@ export default async function CustomerPaymentDetailPage({
     <ResponsiveContainer>
       <PageHeader
         title={payment.number}
-        description={`Customer payment ${payment.status}; its receivable and treasury effects are server-posted and auditable.`}
+        description={
+          payment.reversalOfNumber
+            ? `Reversal of receipt ${payment.reversalOfNumber} — cancels that receipt's receivable and cash effect.`
+            : `Customer receipt ${payment.status}; its receivable and treasury effects are server-posted and auditable.`
+        }
       />
       {payment.reversalPaymentNumber && (
         <p className="mb-4 rounded border-2 border-red-700 bg-red-50 p-3 font-semibold text-red-700">
@@ -55,6 +59,11 @@ export default async function CustomerPaymentDetailPage({
         </p>
         <p>Date: {payment.paymentDate.toLocaleDateString()}</p>
         <p>Method: {payment.method}</p>
+        <p>
+          Received into:{" "}
+          {payment.treasuryAccountName ??
+            `Default ${payment.method === "CASH" ? "cash" : "bank"} account`}
+        </p>
         <p>Amount: {payment.totalAmount}</p>
         <p>Reference: {payment.referenceNumber ?? "-"}</p>
         <p>

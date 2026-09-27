@@ -11,10 +11,11 @@ import { postSingleInventoryAction, transferInventoryAction } from "./actions";
 export default async function StockAdjustmentsPage() {
   const principal = await requirePermission("inventory.view");
   const repository = new PrismaInventoryRepository();
-  const [items, units, warehouses] = await Promise.all([
+  const [items, units, warehouses, lots] = await Promise.all([
     repository.listPostingItems(),
     repository.listPostingUnits(),
     repository.listActiveWarehouses(),
+    repository.listLotBalances(),
   ]);
   const canManage = hasPermission(principal, "inventory.manage");
   return (
@@ -35,6 +36,7 @@ export default async function StockAdjustmentsPage() {
               items={items}
               units={units}
               warehouses={warehouses}
+              lots={lots}
             />
           </PostingCard>
           <PostingCard
@@ -47,6 +49,7 @@ export default async function StockAdjustmentsPage() {
               items={items}
               units={units}
               warehouses={warehouses}
+              lots={lots}
             />
           </PostingCard>
           <PostingCard
@@ -59,6 +62,7 @@ export default async function StockAdjustmentsPage() {
               items={items}
               units={units}
               warehouses={warehouses}
+              lots={lots}
             />
           </PostingCard>
           <PostingCard
@@ -71,6 +75,7 @@ export default async function StockAdjustmentsPage() {
               items={items}
               units={units}
               warehouses={warehouses}
+              lots={lots}
             />
           </PostingCard>
         </div>

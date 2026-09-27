@@ -134,6 +134,14 @@ export function SalesReturnForm({
             </tr>
           </thead>
           <tbody className="divide-y">
+            {lines.length === 0 ? (
+              <tr>
+                <td className="p-6 text-center text-[var(--muted)]" colSpan={6}>
+                  Nothing left to return on this document — every dispatched quantity is already
+                  invoiced, returned or refused.
+                </td>
+              </tr>
+            ) : null}
             {lines.map((line) => (
               <tr key={line.salesDispatchAllocationId}>
                 <td className="p-3">

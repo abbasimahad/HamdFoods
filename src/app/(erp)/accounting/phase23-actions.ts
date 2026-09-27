@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
   cancelExpenseVoucher,
@@ -24,9 +25,13 @@ import {
 } from "@/modules/accounting/application/manage-treasury";
 import { PrismaExpenseRepository } from "@/server/accounting/prisma-expense-repository";
 import { requirePermission } from "@/server/auth/licensed-guards";
+import { safeActionErrorMessage } from "@/server/shared/action-error";
+import { AccountingPostingError } from "@/server/accounting/transactional-accounting-posting";
+import { AccountingPermissionError } from "@/modules/accounting/application/accounting-permissions";
 import { Phase23AccountingError } from "@/server/accounting/prisma-phase23-repository";
 import { PrismaSupplierPaymentRepository } from "@/server/accounting/prisma-supplier-payment-repository";
 import { PrismaTreasuryRepository } from "@/server/accounting/prisma-treasury-repository";
+import { prisma } from "@/server/db/prisma";
 
 type Result = { ok: true; message: string } | { ok: false; message: string };
 const supplierPaymentRepository = new PrismaSupplierPaymentRepository();
@@ -106,17 +111,19 @@ export async function saveSupplierPaymentAction(
     })
     .safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, message: "Supplier payment details are invalid." };
+  let paymentId: string;
   try {
-    await saveSupplierPayment(
+    paymentId = await saveSupplierPayment(
       actor,
       { ...parsed.data, allocations: decode(parsed.data.allocationsJson, allocations) },
       supplierPaymentRepository,
     );
     revalidatePath("/purchasing/supplier-payments");
-    return { ok: true, message: "Supplier payment draft saved." };
   } catch (error) {
     return failure(error);
   }
+  // Open the saved draft so it can be posted and allocated (redirect must be outside try/catch).
+  redirect(`/purchasing/supplier-payments/${paymentId}`);
 }
 
 export async function postSupplierPaymentAction(
@@ -225,13 +232,20 @@ export async function saveExpenseVoucherAction(
     .safeParse(Object.fromEntries(form));
   if (!parsed.success) return { ok: false, message: "Expense voucher details are invalid." };
   try {
-    await saveExpenseVoucher(
+    const id = await saveExpenseVoucher(
       actor,
       { ...parsed.data, lines: decode(parsed.data.linesJson, expenseLines) },
       expenseRepository,
     );
+    const saved = await prisma.expenseVoucher.findUnique({
+      where: { id },
+      select: { number: true },
+    });
     revalidatePath("/accounting/expenses");
-    return { ok: true, message: "Expense voucher draft saved." };
+    return {
+      ok: true,
+      message: `Expense voucher ${saved?.number ?? ""} saved as a draft. Post it from the list below.`,
+    };
   } catch (error) {
     return failure(error);
   }
@@ -392,12 +406,19 @@ function decode<T>(value: string, schema: z.ZodType<T>): T {
   try {
     return schema.parse(JSON.parse(value));
   } catch {
-    throw new Phase23AccountingError("Allocation or line JSON is invalid.");
+    throw new Phase23AccountingError("Some lines are incomplete or have invalid amounts.");
   }
 }
 function failure(error: unknown): Result {
+  // Only deliberate domain messages reach the browser; database errors are logged server-side.
   return {
     ok: false,
-    message: error instanceof Error ? error.message : "Accounting action could not complete.",
+    message: safeActionErrorMessage(
+      error,
+      "Accounting action could not complete.",
+      Phase23AccountingError,
+      AccountingPostingError,
+      AccountingPermissionError,
+    ),
   };
 }

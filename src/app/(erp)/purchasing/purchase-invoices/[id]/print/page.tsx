@@ -1,3 +1,4 @@
+import { formatMoney, formatQuantity } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -18,7 +19,7 @@ export default async function PrintPurchaseInvoicePage({
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-slate-950 print:max-w-none print:p-0">
       <div className="mb-6 flex justify-end">
-        <PrintButton />
+        <PrintButton label="Print purchase invoice" />
       </div>
       <header className="mb-8 flex justify-between border-b-2 border-slate-900 pb-5">
         <div>
@@ -78,22 +79,24 @@ export default async function PrintPurchaseInvoicePage({
               </td>
               <td className="border p-2">{line.purchaseOrderNumber}</td>
               <td className="border p-2">
-                {line.invoicedQuantity} {line.canonicalUnitSymbol}
+                {line.displayQuantity} {line.orderUnitSymbol}
               </td>
-              <td className="border p-2">{line.invoicedUnitRate}</td>
-              <td className="border p-2">{line.taxPercent}</td>
-              <td className="border p-2">{line.netAmount}</td>
+              <td className="border p-2">
+                {line.displayUnitRate} / {line.orderUnitSymbol}
+              </td>
+              <td className="border p-2">{formatQuantity(line.taxPercent)}%</td>
+              <td className="border p-2 text-right">{formatMoney(line.netAmount, "")}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <dl className="ml-auto mt-5 grid max-w-sm grid-cols-2 gap-2 text-sm">
         <dt>Subtotal</dt>
-        <dd className="text-right">{record.subtotal}</dd>
+        <dd className="text-right">{formatMoney(record.subtotal)}</dd>
         <dt>Tax</dt>
-        <dd className="text-right">{record.taxTotal}</dd>
+        <dd className="text-right">{formatMoney(record.taxTotal)}</dd>
         <dt className="font-bold">Grand total</dt>
-        <dd className="text-right font-bold">{record.grandTotal}</dd>
+        <dd className="text-right font-bold">{formatMoney(record.grandTotal)}</dd>
       </dl>
       <section className="mt-8 border-t pt-4 text-sm">
         <strong>Notes</strong>

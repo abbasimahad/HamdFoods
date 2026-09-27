@@ -200,7 +200,9 @@ function SelectField({
       {label}
       <select
         className="mt-1 min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3"
-        defaultValue={defaultValue}
+        // Without an explicit "" the browser pre-selects the first real option (e.g. BOTTLE),
+        // so an untouched field silently saved a value the user never chose.
+        defaultValue={defaultValue ?? ""}
         name={name}
         required
       >

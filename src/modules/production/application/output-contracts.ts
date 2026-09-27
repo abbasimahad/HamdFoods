@@ -104,6 +104,7 @@ export type ProductionOutputView = {
   expectedYieldPercent: string | null;
   plannedBatch: string;
   plannedFinishedOutput: string;
+  plannedTotalPieces: string;
   plannedExpectedOutput: string | null;
   goodCartons: string;
   goodLoosePieces: string;

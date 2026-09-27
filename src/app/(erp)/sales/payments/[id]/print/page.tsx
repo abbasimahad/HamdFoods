@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -17,6 +18,9 @@ export default async function CustomerPaymentPrintPage({
   const reversed = Boolean(payment.reversalPaymentNumber);
   return (
     <main className="mx-auto max-w-4xl bg-white p-8 text-black print:p-0">
+      <div className="mb-4 flex justify-end print:hidden">
+        <PrintButton label="Print receipt" />
+      </div>
       <PrintCompanyHeader profile={companyProfile} />
       {reversed && (
         <p className="mb-4 border-2 border-red-700 p-3 text-center text-lg font-bold tracking-wide text-red-700">
@@ -25,7 +29,9 @@ export default async function CustomerPaymentPrintPage({
       )}
       <header className="mb-6 flex justify-between border-b pb-4">
         <div>
-          <h1 className="text-2xl font-bold">Customer Receipt</h1>
+          <h1 className="text-2xl font-bold">
+            {payment.reversalOfNumber ? "Customer Receipt Reversal" : "Customer Receipt"}
+          </h1>
           <p>{payment.number}</p>
         </div>
         <div className="text-right">
@@ -48,7 +54,10 @@ export default async function CustomerPaymentPrintPage({
         <div>
           <strong>Payment</strong>
           <p>
-            {payment.method} · {payment.totalAmount}
+            {payment.method} ·{" "}
+            {payment.reversalOfNumber
+              ? `-${payment.totalAmount} (refund / reversal)`
+              : payment.totalAmount}
           </p>
           <p>Reference: {payment.referenceNumber ?? "-"}</p>
         </div>

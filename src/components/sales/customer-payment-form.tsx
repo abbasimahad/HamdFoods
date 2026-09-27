@@ -35,6 +35,9 @@ export function CustomerPaymentForm({
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, { ok: false, message: "" });
   const [total, setTotal] = useState(initial?.totalAmount ?? "");
+  const [method, setMethod] = useState<string>(initial?.method ?? "CASH");
+  const [treasuryAccountId, setTreasuryAccountId] = useState(initial?.treasuryAccountId ?? "");
+  const treasuries = references.treasuries ?? [];
   const [selectedCustomerId, setSelectedCustomerId] = useState(
     initial?.customerId ?? customerId ?? "",
   );
@@ -136,14 +139,42 @@ export function CustomerPaymentForm({
             Method
             <select
               className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3"
-              defaultValue={initial?.method ?? "CASH"}
               name="method"
+              onChange={(event) => {
+                setMethod(event.target.value);
+                setTreasuryAccountId("");
+              }}
+              value={method}
             >
-              {["CASH", "BANK_TRANSFER", "CHEQUE", "CARD", "OTHER"].map((method) => (
-                <option key={method}>{method}</option>
+              {["CASH", "BANK_TRANSFER", "CHEQUE", "CARD", "OTHER"].map((option) => (
+                <option key={option}>{option}</option>
               ))}
             </select>
           </label>
+          {treasuries.length ? (
+            <label className="text-sm font-medium">
+              Received into
+              <select
+                className="mt-1 block min-h-11 w-full rounded-lg border border-[var(--border)] bg-white px-3"
+                name="treasuryAccountId"
+                onChange={(event) => setTreasuryAccountId(event.target.value)}
+                value={treasuryAccountId}
+              >
+                <option value="">Default {method === "CASH" ? "cash" : "bank"} account</option>
+                {treasuries
+                  .filter((account) =>
+                    method === "CASH"
+                      ? account.accountType === "CASH" || account.accountType === "PETTY_CASH"
+                      : account.accountType === "BANK" || account.accountType === "CLEARING",
+                  )
+                  .map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.code} — {account.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : null}
           <label className="text-sm font-medium">
             Amount
             <input

@@ -953,7 +953,15 @@ export async function oldestFirstAllocationProposal(paymentId: string) {
     if (remaining.lte(0)) return [];
     const amount = Decimal.min(remaining, new Decimal(item.outstanding));
     remaining = remaining.sub(amount);
-    return [{ payableLedgerEntryId: item.id, allocatedAmount: amount.toFixed(6) }];
+    return [
+      {
+        payableLedgerEntryId: item.id,
+        allocatedAmount: amount.toFixed(6),
+        sourceNumber: item.sourceNumber ?? item.sourceId,
+        entryDate: item.entryDate.toISOString().slice(0, 10),
+        outstanding: item.outstanding,
+      },
+    ];
   });
 }
 

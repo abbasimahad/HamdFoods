@@ -149,7 +149,10 @@ export default async function PurchaseReturnsPage({
                   <td className="p-4">{record.status.replaceAll("_", " ")}</td>
                   <td className="p-4">{record.lines.length} line(s)</td>
                   <td className="p-4">
-                    {record.lines.map((line) => line.replacementRemainingQuantity).join(" + ")}
+                    {/* A cancelled or draft return has no replacement outstanding. */}
+                    {record.status === "AWAITING_REPLACEMENT"
+                      ? record.lines.map((line) => line.replacementRemainingQuantity).join(" + ")
+                      : "—"}
                   </td>
                   <td className="p-4">{record.createdByName}</td>
                 </tr>

@@ -41,3 +41,13 @@ export function factoryLocalDateTimeValue(date: Date): string {
   const local = new Date(date.getTime() + FACTORY_UTC_OFFSET_HOURS * 60 * 60 * 1000);
   return local.toISOString().slice(0, 16);
 }
+
+/**
+ * The factory-local business date of an instant, as a UTC-midnight Date (the shape stored in
+ * `@db.Date` columns). A date-only value (already UTC midnight) maps to itself; a timestamp such
+ * as a batch posted at 03:23 PKT (22:23 UTC the previous day) maps to the local calendar day.
+ */
+export function factoryBusinessDate(instant: Date): Date {
+  const local = new Date(instant.getTime() + FACTORY_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  return new Date(`${local.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}

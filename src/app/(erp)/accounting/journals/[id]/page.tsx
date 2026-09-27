@@ -20,7 +20,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <ResponsiveContainer>
       <PageHeader
         title={journal.journalNumber}
-        description={`${journal.sourceType} ${journal.sourceNumber ?? journal.sourceId} — ${journal.status}`}
+        description={`${journal.sourceType} ${journal.sourceNumber ?? journal.sourceId} — ${journal.reversalJournal ? `REVERSED by ${journal.reversalJournal.journalNumber}` : journal.status}`}
       />
       <Card className="mb-4 p-4 text-sm">
         <p>{journal.description}</p>

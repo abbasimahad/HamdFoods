@@ -303,11 +303,16 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
         );
       if (snapshot.blockers.length)
         throw new ProductionOutputRepositoryError("reconciliation", snapshot.blockers.join(" "));
-      if (snapshot.batchType === "NORMAL" && snapshot.needsExplanation && !explanation)
-        throw new ProductionOutputRepositoryError(
-          "reconciliation",
-          "Explain the incompatible or nonzero physical reconciliation before completion.",
-        );
+      if (snapshot.batchType === "NORMAL" && snapshot.needsExplanation) {
+        // CTRL-1: a shortfall must be explained properly ("ok" is not an explanation).
+        if (!explanation || explanation.trim().length < MIN_COMPLETION_EXPLANATION_LENGTH)
+          throw new ProductionOutputRepositoryError(
+            "reconciliation",
+            snapshot.pieceShortfall !== "0"
+              ? `Output is ${snapshot.pieceShortfall} piece(s) short of the planned ${snapshot.plannedPieces}. Record the loss as REJECTED or PROCESS_LOSS output, or explain the shortfall (at least ${MIN_COMPLETION_EXPLANATION_LENGTH} characters).`
+              : `Explain the physical reconciliation difference before completion (at least ${MIN_COMPLETION_EXPLANATION_LENGTH} characters).`,
+          );
+      }
       await transaction.productionBatch.update({
         where: { id: batchId },
         data: {
@@ -615,7 +620,16 @@ async function buildView(
       : []),
     ...(custody.length ? ["Resolve all raw-material and packaging IN_PRODUCTION custody."] : []),
   ];
+  // Mirrors completionSnapshot: fewer good pieces than planned with no posted loss, reject or
+  // reprocess output is an unexplained shortfall (CTRL-1).
+  const postedGoodPieces = posted
+    .filter((row) => row.outputType === "GOOD")
+    .reduce((total, row) => total.add(row.totalPieces?.toString() ?? "0"), new Decimal(0));
+  const unexplainedShortfall =
+    postedGoodPieces.lt(batch.plannedTotalPieces.toString()) &&
+    !posted.some((row) => row.outputType !== "GOOD");
   const needsExplanation =
+    unexplainedShortfall ||
     !reconciliation.compatible ||
     (reconciliation.unreconciledDifference !== null &&
       !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
@@ -637,6 +651,7 @@ async function buildView(
     expectedYieldPercent: batch.expectedYieldPercent?.toString() ?? null,
     plannedBatch: `${batch.plannedBatchEnteredQuantity} ${batch.plannedBatchUnit.symbol}`,
     plannedFinishedOutput: `${batch.plannedCartons} cartons + ${batch.plannedLoosePieces} loose / ${batch.plannedTotalPieces} pieces`,
+    plannedTotalPieces: batch.plannedTotalPieces.toString(),
     plannedExpectedOutput: batch.plannedExpectedOutputNormalizedQuantity
       ? `${batch.plannedExpectedOutputNormalizedQuantity} ${batch.expectedOutputCanonicalUnit?.symbol ?? ""}`
       : null,
@@ -672,6 +687,8 @@ async function buildView(
     completedAt: batch.completedAt,
   };
 }
+
+const MIN_COMPLETION_EXPLANATION_LENGTH = 15;
 
 async function completionSnapshot(client: Prisma.TransactionClient, batchId: string) {
   const batch = await client.productionBatch.findUnique({
@@ -770,10 +787,19 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
       reprocessYieldError = error instanceof Error ? error.message : "Reprocess yield is invalid.";
     }
   }
+  // Piece-based check that works even when the recipe mixes kg and L (content reconciliation is
+  // then "not calculable"): fewer good pieces than planned, with no posted loss, reject or
+  // reprocess output to account for them, is an unexplained shortfall.
+  const plannedPieces = new Decimal(batch.plannedTotalPieces.toString());
+  const pieceShortfall = Decimal.max(0, plannedPieces.sub(goodPieces));
+  const lossRecorded = posted.some((row) => row.outputType !== "GOOD");
+  const unexplainedShortfall = pieceShortfall.gt(0) && !lossRecorded;
   return {
     batchNumber: batch.batchNumber,
     batchType: batch.batchType,
     goodPieces,
+    plannedPieces: plannedPieces.toFixed(),
+    pieceShortfall: pieceShortfall.toFixed(),
     goodContent,
     scrapContent,
     processLoss,
@@ -799,7 +825,8 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
     ],
     needsExplanation:
       batch.batchType === "NORMAL" &&
-      (!reconciliation.compatible ||
+      (unexplainedShortfall ||
+        !reconciliation.compatible ||
         (reconciliation.unreconciledDifference !== null &&
           !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
         packagingMismatch),

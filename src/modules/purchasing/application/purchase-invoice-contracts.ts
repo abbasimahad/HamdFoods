@@ -14,6 +14,9 @@ export type EligiblePurchaseOrderLineForInvoice = {
   itemCode: string;
   itemName: string;
   canonicalUnitSymbol: string;
+  /** The unit the PO was placed in (e.g. kg) and how many canonical units (e.g. g) it holds. */
+  orderUnitSymbol: string;
+  orderUnitFactor: string;
   orderedQuantity: string;
   poUnitRate: string;
   poTaxPercent: string;
@@ -75,6 +78,10 @@ export type PurchaseInvoiceLineRecord = {
   canonicalUnitSymbol: string;
   invoicedQuantity: string;
   invoicedUnitRate: string;
+  /** Quantity and rate restated in the PO's order unit (e.g. kg), as the supplier invoiced it. */
+  orderUnitSymbol: string;
+  displayQuantity: string;
+  displayUnitRate: string;
   taxPercent: string;
   grossAmount: string;
   taxAmount: string;

@@ -66,8 +66,8 @@ export async function approveSalesOrder(
   id: string,
   repository: SalesOrderRepository,
 ): Promise<SalesOrderMutationResult> {
-  const denied = requireSalesOrderManager(actor);
-  if (denied) return denied;
+  if (!actor.active || !actor.permissions.includes("sales.approve"))
+    return { ok: false, message: "Sales order approval permission is required." };
   if (!z.string().uuid().safeParse(id).success)
     return { ok: false, message: "Sales order is invalid." };
   try {

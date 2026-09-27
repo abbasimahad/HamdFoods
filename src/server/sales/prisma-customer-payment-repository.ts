@@ -42,6 +42,7 @@ const paymentInclude = {
   postedBy: true,
   cancelledBy: true,
   reversalOf: { select: { number: true } },
+  treasuryAccount: { select: { name: true } },
   reversalPayment: { select: { number: true } },
   allocations: {
     include: {
@@ -55,13 +56,20 @@ type PaymentRow = Prisma.CustomerPaymentGetPayload<{ include: typeof paymentIncl
 
 export class PrismaCustomerPaymentRepository implements CustomerPaymentRepository {
   async getCustomerPaymentReferences(): Promise<CustomerPaymentReferences> {
-    const customers = await prisma.customer.findMany({
-      where: { active: true },
-      select: { id: true, code: true, name: true },
-      orderBy: [{ name: "asc" }, { code: "asc" }],
-      take: 1000,
-    });
-    return { customers };
+    const [customers, treasuries] = await Promise.all([
+      prisma.customer.findMany({
+        where: { active: true },
+        select: { id: true, code: true, name: true },
+        orderBy: [{ name: "asc" }, { code: "asc" }],
+        take: 1000,
+      }),
+      prisma.treasuryAccount.findMany({
+        where: { active: true },
+        select: { id: true, code: true, name: true, accountType: true },
+        orderBy: { code: "asc" },
+      }),
+    ]);
+    return { customers, treasuries };
   }
 
   async getOpenInvoices(customerId: string): Promise<readonly OpenInvoice[]> {
@@ -255,6 +263,7 @@ export class PrismaCustomerPaymentRepository implements CustomerPaymentRepositor
           bankName: original.bankName,
           chequeNumber: original.chequeNumber,
           chequeDate: original.chequeDate,
+          treasuryAccountId: original.treasuryAccountId,
           notes: `Reversal of ${original.number}.`,
           status: "POSTED",
           reversalOfId: original.id,
@@ -485,6 +494,7 @@ async function savePayment(
     chequeNumber: input.chequeNumber ?? null,
     chequeDate,
     notes: input.notes ?? null,
+    treasuryAccountId: input.treasuryAccountId ?? null,
   };
   if (input.id) {
     await transaction.customerPaymentAllocation.deleteMany({
@@ -617,6 +627,8 @@ function mapPayment(payment: PaymentRow): CustomerPaymentRecord {
     paymentDate: payment.paymentDate,
     method: payment.method,
     totalAmount: payment.totalAmount.toString(),
+    treasuryAccountId: payment.treasuryAccountId,
+    treasuryAccountName: payment.treasuryAccount?.name ?? null,
     allocatedAmount: allocatedAmount.toFixed(),
     unallocatedAmount: isEffective
       ? nonNegative(new Decimal(payment.totalAmount.toString()).sub(allocatedAmount)).toFixed()

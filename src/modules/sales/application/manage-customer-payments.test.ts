@@ -19,7 +19,7 @@ const manager: ApplicationPrincipal = {
   email: "manager@example.com",
   active: true,
   roleCodes: ["SALES_MANAGER"],
-  permissions: ["sales.manage"],
+  permissions: ["customer_payments.manage"],
 };
 
 describe("customer-payment reversal", () => {

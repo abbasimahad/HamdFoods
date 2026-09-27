@@ -10,7 +10,7 @@ import {
   reverseWasteDisposition,
   saveWasteDispositionDraft,
 } from "@/modules/inventory/application/manage-waste-dispositions";
-import { requirePermission } from "@/server/auth/licensed-guards";
+import { requireAnyPermission } from "@/server/auth/licensed-guards";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 
 const repository = new PrismaWasteDispositionRepository();
@@ -19,7 +19,7 @@ export async function saveWasteDispositionAction(
   _state: InventoryActionState,
   formData: FormData,
 ): Promise<InventoryActionState> {
-  const actor = await requirePermission("inventory.manage");
+  const actor = await requireAnyPermission(["inventory.manage", "waste.manage"]);
   let lines: unknown = [];
   try {
     lines = JSON.parse(String(formData.get("lines") ?? "[]"));
@@ -39,7 +39,7 @@ export async function saveWasteDispositionAction(
 }
 
 export async function postWasteDispositionAction(_state: InventoryActionState, formData: FormData) {
-  const actor = await requirePermission("inventory.manage");
+  const actor = await requireAnyPermission(["inventory.manage", "waste.manage"]);
   return lifecycle(await postWasteDisposition(actor, String(formData.get("id") ?? ""), repository));
 }
 
@@ -47,7 +47,7 @@ export async function cancelWasteDispositionAction(
   _state: InventoryActionState,
   formData: FormData,
 ) {
-  const actor = await requirePermission("inventory.manage");
+  const actor = await requireAnyPermission(["inventory.manage", "waste.manage"]);
   return lifecycle(
     await cancelWasteDisposition(
       actor,
@@ -62,7 +62,7 @@ export async function reverseWasteDispositionAction(
   _state: InventoryActionState,
   formData: FormData,
 ) {
-  const actor = await requirePermission("inventory.manage");
+  const actor = await requireAnyPermission(["inventory.manage", "waste.manage"]);
   return lifecycle(
     await reverseWasteDisposition(
       actor,

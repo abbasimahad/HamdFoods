@@ -181,7 +181,9 @@ export interface GoodsReceiptRepository {
 export function requireReceivingManager(
   actor: ApplicationPrincipal,
 ): PurchasingMutationResult | null {
-  return actor.active && actor.permissions.includes("purchasing.manage")
+  return actor.active &&
+    (actor.permissions.includes("purchasing.manage") ||
+      actor.permissions.includes("receiving.manage"))
     ? null
-    : { ok: false, message: "Purchasing management permission is required." };
+    : { ok: false, message: "Goods receiving permission is required." };
 }

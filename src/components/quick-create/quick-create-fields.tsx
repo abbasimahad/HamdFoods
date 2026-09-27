@@ -1,3 +1,4 @@
+import { PACKAGING_KINDS } from "@/modules/master-data/domain/master-data";
 import type { QuickCreateKind } from "@/modules/workflow-ux/application/quick-create-contracts";
 
 export type QuickCreateReferences = {
@@ -84,11 +85,12 @@ function ItemFields({
         <ReferenceSelect
           label="Packaging kind"
           name="packagingKind"
-          options={[
-            { id: "PRIMARY", code: "PRIMARY", name: "Primary" },
-            { id: "SECONDARY", code: "SECONDARY", name: "Secondary" },
-            { id: "TERTIARY", code: "TERTIARY", name: "Tertiary" },
-          ]}
+          // Must be real PackagingKind values; the old PRIMARY/SECONDARY/TERTIARY list failed validation.
+          options={PACKAGING_KINDS.map((packagingKind) => ({
+            id: packagingKind,
+            code: packagingKind,
+            name: packagingKind.replaceAll("_", " "),
+          }))}
           required
         />
       ) : null}

@@ -7,6 +7,7 @@ import Decimal from "decimal.js";
 import { Prisma } from "@/generated/prisma/client";
 import type {
   InventoryItemOption,
+  InventoryLotOption,
   InventoryRepository,
   InventoryUnitOption,
   MovementHistoryQuery,
@@ -133,6 +134,66 @@ export class PrismaInventoryRepository implements InventoryRepository {
       }));
   }
 
+  async listLotBalances(): Promise<readonly InventoryLotOption[]> {
+    const groups = await prisma.inventoryMovement.groupBy({
+      by: [
+        "itemId",
+        "warehouseId",
+        "status",
+        "inventoryLotId",
+        "productionLotId",
+        "canonicalUnitId",
+      ],
+      where: { OR: [{ inventoryLotId: { not: null } }, { productionLotId: { not: null } }] },
+      _sum: { quantity: true },
+    });
+    const positive = groups.filter((group) =>
+      new Decimal(group._sum.quantity?.toString() ?? "0").gt(0),
+    );
+    const [inventoryLots, productionLots, units] = await Promise.all([
+      prisma.inventoryLot.findMany({
+        where: { id: { in: positive.flatMap((group) => group.inventoryLotId ?? []) } },
+        include: { sourceGoodsReceipt: { select: { number: true } } },
+      }),
+      prisma.productionLot.findMany({
+        where: { id: { in: positive.flatMap((group) => group.productionLotId ?? []) } },
+      }),
+      prisma.unit.findMany({
+        where: { id: { in: positive.map((group) => group.canonicalUnitId) } },
+      }),
+    ]);
+    return positive.flatMap((group) => {
+      const unit = units.find((candidate) => candidate.id === group.canonicalUnitId)?.symbol ?? "";
+      const quantity = new Decimal(group._sum.quantity?.toString() ?? "0").toFixed();
+      if (group.inventoryLotId) {
+        const lot = inventoryLots.find((candidate) => candidate.id === group.inventoryLotId);
+        if (!lot) return [];
+        return [
+          {
+            value: `inv:${lot.id}`,
+            label: `${lot.supplierLotNumber ?? lot.sourceGoodsReceipt.number} (${quantity} ${unit})`,
+            itemId: group.itemId,
+            warehouseId: group.warehouseId,
+            status: group.status,
+            quantity,
+          },
+        ];
+      }
+      const lot = productionLots.find((candidate) => candidate.id === group.productionLotId);
+      if (!lot) return [];
+      return [
+        {
+          value: `prod:${lot.id}`,
+          label: `${lot.lotNumber} (${quantity} ${unit})`,
+          itemId: group.itemId,
+          warehouseId: group.warehouseId,
+          status: group.status,
+          quantity,
+        },
+      ];
+    });
+  }
+
   async listPostingUnits(): Promise<readonly InventoryUnitOption[]> {
     const rows = await prisma.unit.findMany({ where: { active: true }, orderBy: { name: "asc" } });
     return rows.filter(
@@ -156,20 +217,37 @@ export class PrismaInventoryRepository implements InventoryRepository {
           normalized.amount,
         );
       }
-      const movement = await transaction.inventoryMovement.create({
-        data: movementData({
-          command,
-          warehouseId: command.warehouseId,
-          quantity: signed(normalized.amount, sign),
-          canonicalUnitId: normalized.unitId,
-        }),
+      const allocations = await allocateLots(transaction, {
+        itemId: command.itemId,
+        warehouseId: command.warehouseId,
+        status: command.status,
+        lotRef: command.lotRef,
+        outbound: sign < 0,
+        amount: normalized.amount,
       });
-      await valueManualInventoryMovement(
-        transaction,
-        movement.id,
-        command.unitCost,
-        command.actorUserId,
-      );
+      let movement: { id: string } | undefined;
+      for (const [index, allocation] of allocations.entries()) {
+        const created = await transaction.inventoryMovement.create({
+          data: {
+            ...movementData({
+              command: { ...command, ...splitSourceKey(command.sourceKey, index) },
+              warehouseId: command.warehouseId,
+              quantity: signed(allocation.amount, sign),
+              canonicalUnitId: normalized.unitId,
+            }),
+            ...allocation.columns,
+          },
+        });
+        movement ??= created;
+        await valueManualInventoryMovement(
+          transaction,
+          created.id,
+          command.unitCost,
+          command.actorUserId,
+        );
+      }
+      if (!movement)
+        throw new InventoryRepositoryError("reference", "Nothing to post for this adjustment.");
       await recordAuditEvent(transaction, {
         actorUserId: command.actorUserId,
         action: "ADJUST",
@@ -211,32 +289,48 @@ export class PrismaInventoryRepository implements InventoryRepository {
         command.status,
         normalized.amount,
       );
+      const allocations = await allocateLots(transaction, {
+        itemId: command.itemId,
+        warehouseId: command.sourceWarehouseId,
+        status: command.status,
+        lotRef: command.lotRef,
+        outbound: true,
+        amount: normalized.amount,
+      });
       const groupId = randomUUID();
       await transaction.inventoryMovement.createMany({
-        data: [
-          movementData({
-            command: {
-              ...command,
-              movementType: "TRANSFER_OUT",
-              referenceType: "WAREHOUSE_TRANSFER",
-            },
-            warehouseId: command.sourceWarehouseId,
-            quantity: signed(normalized.amount, -1),
-            canonicalUnitId: normalized.unitId,
-            groupId,
-          }),
-          movementData({
-            command: {
-              ...command,
-              movementType: "TRANSFER_IN",
-              referenceType: "WAREHOUSE_TRANSFER",
-            },
-            warehouseId: command.destinationWarehouseId,
-            quantity: signed(normalized.amount, 1),
-            canonicalUnitId: normalized.unitId,
-            groupId,
-          }),
-        ],
+        data: allocations.flatMap((allocation, index) => [
+          {
+            ...movementData({
+              command: {
+                ...command,
+                ...splitSourceKey(command.sourceKey, index),
+                movementType: "TRANSFER_OUT",
+                referenceType: "WAREHOUSE_TRANSFER",
+              },
+              warehouseId: command.sourceWarehouseId,
+              quantity: signed(allocation.amount, -1),
+              canonicalUnitId: normalized.unitId,
+              groupId,
+            }),
+            ...allocation.columns,
+          },
+          {
+            ...movementData({
+              command: {
+                ...command,
+                ...splitSourceKey(command.sourceKey, index),
+                movementType: "TRANSFER_IN",
+                referenceType: "WAREHOUSE_TRANSFER",
+              },
+              warehouseId: command.destinationWarehouseId,
+              quantity: signed(allocation.amount, 1),
+              canonicalUnitId: normalized.unitId,
+              groupId,
+            }),
+            ...allocation.columns,
+          },
+        ]),
       });
       await recordAuditEvent(transaction, {
         actorUserId: command.actorUserId,
@@ -385,6 +479,7 @@ export class PrismaInventoryRepository implements InventoryRepository {
         canonicalUnitDimension: row.canonicalUnit.dimension,
         referenceType: row.referenceType,
         referenceId: row.referenceId,
+        groupId: row.groupId,
         userName: row.createdBy.name,
         reason: row.reason,
         supplierLotNumber: row.inventoryLot?.supplierLotNumber ?? null,
@@ -645,4 +740,116 @@ function mapError(error: unknown, entity: string) {
     return new InventoryRepositoryError("conflict", `This ${entity} reference was already posted.`);
   }
   return new InventoryRepositoryError("conflict", `${entity} could not be saved.`);
+}
+
+type LotColumns = { inventoryLotId?: string; productionLotId?: string };
+type LotAllocation = { columns: LotColumns; amount: string };
+
+/** Split movements after the first get a suffixed import key (sourceKey is unique per type). */
+function splitSourceKey(sourceKey: string | undefined, index: number) {
+  return sourceKey && index > 0 ? { sourceKey: `${sourceKey}#${index + 1}` } : {};
+}
+
+/**
+ * Manual adjustments and transfers must keep lot balances in step with item balances.
+ * - A chosen lot is validated (belongs to the item, and holds enough stock when going out).
+ * - Stock going out with no lot chosen is drawn from the lots in that bucket
+ *   first-expiry-first-out (then oldest), and only then from stock that was never lot-tagged;
+ *   one movement is written per lot so every lot balance stays correct.
+ * - Stock coming in with no lot chosen stays untagged.
+ */
+async function allocateLots(
+  transaction: Prisma.TransactionClient,
+  input: {
+    itemId: string;
+    warehouseId: string;
+    status: InventoryStatus;
+    lotRef: string | undefined;
+    outbound: boolean;
+    amount: string;
+  },
+): Promise<LotAllocation[]> {
+  if (input.lotRef) {
+    const [kind, id] = input.lotRef.split(":") as ["inv" | "prod", string];
+    const lot =
+      kind === "inv"
+        ? await transaction.inventoryLot.findUnique({ where: { id }, select: { itemId: true } })
+        : await transaction.productionLot.findUnique({
+            where: { id },
+            select: { finishedGoodId: true },
+          });
+    const lotItemId = lot ? ("itemId" in lot ? lot.itemId : lot.finishedGoodId) : null;
+    if (lotItemId !== input.itemId)
+      throw new InventoryRepositoryError(
+        "reference",
+        "The selected lot does not belong to this item.",
+      );
+    const columns: LotColumns = kind === "inv" ? { inventoryLotId: id } : { productionLotId: id };
+    if (input.outbound) {
+      const balance = await transaction.inventoryMovement.aggregate({
+        where: {
+          itemId: input.itemId,
+          warehouseId: input.warehouseId,
+          status: input.status,
+          ...columns,
+        },
+        _sum: { quantity: true },
+      });
+      if (new Decimal(balance._sum.quantity?.toString() ?? "0").lt(input.amount))
+        throw new InventoryRepositoryError(
+          "stock",
+          "The selected lot does not hold enough stock in this warehouse and status.",
+        );
+    }
+    return [{ columns, amount: input.amount }];
+  }
+  if (!input.outbound) return [{ columns: {}, amount: input.amount }];
+  const groups = await transaction.inventoryMovement.groupBy({
+    by: ["inventoryLotId", "productionLotId"],
+    where: { itemId: input.itemId, warehouseId: input.warehouseId, status: input.status },
+    _sum: { quantity: true },
+  });
+  const tagged = groups.filter(
+    (group) =>
+      (group.inventoryLotId || group.productionLotId) &&
+      new Decimal(group._sum.quantity?.toString() ?? "0").gt(0),
+  );
+  if (!tagged.length) return [{ columns: {}, amount: input.amount }];
+  const [inventoryLots, productionLots] = await Promise.all([
+    transaction.inventoryLot.findMany({
+      where: { id: { in: tagged.flatMap((group) => group.inventoryLotId ?? []) } },
+      select: { id: true, expiryDate: true, createdAt: true },
+    }),
+    transaction.productionLot.findMany({
+      where: { id: { in: tagged.flatMap((group) => group.productionLotId ?? []) } },
+      select: { id: true, expiryDate: true, createdAt: true },
+    }),
+  ]);
+  const ordered = tagged
+    .map((group) => {
+      const lot = group.inventoryLotId
+        ? inventoryLots.find((candidate) => candidate.id === group.inventoryLotId)
+        : productionLots.find((candidate) => candidate.id === group.productionLotId);
+      const columns: LotColumns = group.inventoryLotId
+        ? { inventoryLotId: group.inventoryLotId }
+        : { productionLotId: group.productionLotId! };
+      return {
+        columns,
+        available: new Decimal(group._sum.quantity?.toString() ?? "0"),
+        expiry: lot?.expiryDate?.getTime() ?? Number.MAX_SAFE_INTEGER,
+        created: lot?.createdAt.getTime() ?? 0,
+      };
+    })
+    .sort((a, b) => a.expiry - b.expiry || a.created - b.created);
+  let remaining = new Decimal(input.amount);
+  const allocations: LotAllocation[] = [];
+  for (const lot of ordered) {
+    if (remaining.lte(0)) break;
+    const take = Decimal.min(remaining, lot.available);
+    allocations.push({ columns: lot.columns, amount: take.toFixed() });
+    remaining = remaining.sub(take);
+  }
+  // Any remainder comes from stock that was never lot-tagged (sufficiency was checked already).
+  if (remaining.gt(0)) allocations.push({ columns: {}, amount: remaining.toFixed() });
+  return allocations;
 }

@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -16,6 +17,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!transfer) notFound();
   return (
     <main className="mx-auto max-w-2xl p-8 print:max-w-none print:p-0">
+      <div className="mb-4 flex justify-end print:hidden">
+        <PrintButton label="Print transfer voucher" />
+      </div>
       <PrintCompanyHeader profile={companyProfile} />
       <h1 className="text-2xl font-semibold">Treasury Transfer {transfer.number}</h1>
       <dl className="mt-5 grid grid-cols-2 gap-3">

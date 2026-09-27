@@ -667,7 +667,7 @@ export async function valueGoodsReceipt(
       inventoryLotId: line.inventoryLot.id,
       notes:
         receipt.purpose === "SUPPLIER_REPLACEMENT"
-          ? "Original acquisition basis restored; no second supplier charge."
+          ? "Replacement valued at the original purchase basis."
           : "Net purchase value before tax.",
       actorUserId,
       quantity: line.normalizedQuantity.toString(),
@@ -1045,6 +1045,8 @@ export async function valueManualInventoryMovement(
     effectiveAt: movement.postedAt,
     sourceType: movement.referenceType,
     sourceId: movement.referenceId ?? movement.id,
+    inventoryLotId: movement.inventoryLotId ?? undefined,
+    productionLotId: movement.productionLotId ?? undefined,
     notes: movement.reason,
     actorUserId,
   };
@@ -1072,6 +1074,13 @@ export async function valueManualInventoryMovement(
         description: `${type.replaceAll("_", " ")} has no reliable historical unit cost.`,
       });
   }
+  // BUG-5: the valuation entry changes inventory value, so it must also post its GL journal
+  // (inventory vs. inventory loss/gain, or opening balance equity) in the same transaction.
+  const valuation = await tx.inventoryValuationEntry.findUnique({
+    where: { sourceKey: common.sourceKey },
+    select: { id: true },
+  });
+  if (valuation) await postValuationAccounting(tx, valuation.id, actorUserId, historical);
 }
 
 async function postOutbound(

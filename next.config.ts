@@ -50,6 +50,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  // Lets a verification build run while the local production task holds .next/standalone open.
+  ...(process.env.NEXT_VERIFY_DIST_DIR ? { distDir: process.env.NEXT_VERIFY_DIST_DIR } : {}),
   output: "standalone",
   reactStrictMode: true,
   images: { unoptimized: true },

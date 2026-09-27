@@ -173,7 +173,7 @@ export const appNavigation: readonly NavigationItem[] = [
     label: "Production",
     href: routes.production,
     icon: "production",
-    anyPermissions: ["production.view", "quality.manage", "inventory.view"],
+    anyPermissions: ["production.view", "quality.manage", "waste.manage", "inventory.manage"],
     children: [
       active("Recipes / BOM", routes.future.production.recipes, "production.view"),
       active("Production Batches", routes.future.production.batches, "production.view"),
@@ -187,7 +187,11 @@ export const appNavigation: readonly NavigationItem[] = [
         "production.view",
         "quality.manage",
       ]),
-      activeAny("Waste & Damage", routes.future.production.wasteDamage, ["inventory.view"]),
+      activeAny("Waste & Damage", routes.future.production.wasteDamage, [
+        "waste.manage",
+        "inventory.manage",
+        "production.view",
+      ]),
     ],
   },
   {
@@ -200,7 +204,10 @@ export const appNavigation: readonly NavigationItem[] = [
       active("Sales Orders", routes.future.sales.orders, "sales.view"),
       active("Dispatches", routes.future.sales.dispatches, "sales.view"),
       active("Sales Invoices", routes.future.sales.invoices, "sales.view"),
-      active("Customer Payments", routes.future.sales.payments, "sales.view"),
+      activeAny("Customer Payments", routes.future.sales.payments, [
+        "sales.view",
+        "customer_payments.manage",
+      ]),
       active("Sales Returns", routes.future.sales.returns, "sales.view"),
       active("Customers", routes.future.sales.customers, "sales.view"),
       active("Customer Groups", routes.future.sales.customerGroups, "sales.view"),

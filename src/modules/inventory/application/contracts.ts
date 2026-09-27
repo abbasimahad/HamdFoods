@@ -48,6 +48,8 @@ export type SinglePostingCommand = PostingQuantityInput & {
   reason: string;
   actorUserId: string;
   unitCost?: string | undefined;
+  /** "inv:<inventoryLotId>" or "prod:<productionLotId>" -- the lot being adjusted. */
+  lotRef?: string | undefined;
 };
 export type WarehouseTransferCommand = PostingQuantityInput & {
   itemId: string;
@@ -58,6 +60,7 @@ export type WarehouseTransferCommand = PostingQuantityInput & {
   sourceKey?: string;
   reason: string;
   actorUserId: string;
+  lotRef?: string | undefined;
 };
 export type StatusTransferCommand = PostingQuantityInput & {
   itemId: string;
@@ -97,6 +100,7 @@ export type MovementHistoryRecord = {
   canonicalUnitDimension: UnitDimension;
   referenceType: string;
   referenceId: string | null;
+  groupId: string | null;
   userName: string;
   reason: string;
   supplierLotNumber: string | null;
@@ -132,6 +136,7 @@ export interface InventoryRepository {
   listPostingItems(): Promise<readonly InventoryItemOption[]>;
   listPostingUnits(): Promise<readonly InventoryUnitOption[]>;
   postSingle(command: SinglePostingCommand): Promise<string>;
+  listLotBalances(): Promise<readonly InventoryLotOption[]>;
   transferWarehouse(command: WarehouseTransferCommand): Promise<string>;
   moveStatus(command: StatusTransferCommand): Promise<string>;
   listMovementHistory(query: MovementHistoryQuery): Promise<PageResult<MovementHistoryRecord>>;
@@ -155,6 +160,15 @@ export function inventoryManageForbidden(
     ? null
     : { ok: false, reason: "forbidden", message: "You cannot post inventory movements." };
 }
+
+export type InventoryLotOption = {
+  value: string;
+  label: string;
+  itemId: string;
+  warehouseId: string;
+  status: InventoryStatus;
+  quantity: string;
+};
 
 export class InventoryRepositoryError extends Error {
   constructor(

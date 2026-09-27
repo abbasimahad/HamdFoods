@@ -1,5 +1,6 @@
 "use client";
 
+import Decimal from "decimal.js";
 import { useActionState, useMemo, useState } from "react";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type {
@@ -27,6 +28,28 @@ const emptyLine = (): DraftLine => ({
   matches: [],
 });
 
+// Clerks enter the supplier's invoice as printed -- quantity in the PO's order unit (e.g. 95 kg)
+// and rate per that unit (e.g. 210 per kg). The server contract is canonical (grams, rate per
+// gram), so the form converts on the way in and out using each PO line's unit factor.
+function toDecimal(value: string) {
+  try {
+    return value.trim() ? new Decimal(value) : null;
+  } catch {
+    return null;
+  }
+}
+function scaled(
+  value: string,
+  factor: Decimal,
+  direction: "toCanonical" | "toDisplay",
+  kind: "quantity" | "rate",
+) {
+  const parsed = toDecimal(value);
+  if (!parsed) return value;
+  const multiply = (kind === "quantity") === (direction === "toCanonical");
+  return (multiply ? parsed.mul(factor) : parsed.div(factor)).toDecimalPlaces(6).toString();
+}
+
 export function PurchaseInvoiceForm({
   action,
   poLines,
@@ -40,19 +63,38 @@ export function PurchaseInvoiceForm({
 }) {
   const [state, formAction, pending] = useActionState(action, initialPurchasingActionState);
   const [supplierId, setSupplierId] = useState(initial?.supplierId ?? "");
+  const factorFor = (purchaseOrderLineId: string) => {
+    const line = poLines.find((candidate) => candidate.purchaseOrderLineId === purchaseOrderLineId);
+    return toDecimal(line?.orderUnitFactor ?? "") ?? new Decimal(1);
+  };
   const [lines, setLines] = useState<DraftLine[]>(
-    initial?.lines.map((line) => ({
-      purchaseOrderLineId: line.purchaseOrderLineId,
-      invoicedQuantity: line.invoicedQuantity,
-      invoicedUnitRate: line.invoicedUnitRate,
-      taxPercent: line.taxPercent,
-      notes: line.notes ?? "",
-      matches: line.matches.map((match) => ({
-        goodsReceiptLineId: match.goodsReceiptLineId,
-        matchedQuantity: match.matchedQuantity,
-      })),
-    })) ?? [emptyLine()],
+    initial?.lines.map((line) => {
+      const factor = factorFor(line.purchaseOrderLineId);
+      return {
+        purchaseOrderLineId: line.purchaseOrderLineId,
+        invoicedQuantity: scaled(line.invoicedQuantity, factor, "toDisplay", "quantity"),
+        invoicedUnitRate: scaled(line.invoicedUnitRate, factor, "toDisplay", "rate"),
+        taxPercent: line.taxPercent,
+        notes: line.notes ?? "",
+        matches: line.matches.map((match) => ({
+          goodsReceiptLineId: match.goodsReceiptLineId,
+          matchedQuantity: scaled(match.matchedQuantity, factor, "toDisplay", "quantity"),
+        })),
+      };
+    }) ?? [emptyLine()],
   );
+  const canonicalLines = lines.map((line) => {
+    const factor = factorFor(line.purchaseOrderLineId);
+    return {
+      ...line,
+      invoicedQuantity: scaled(line.invoicedQuantity, factor, "toCanonical", "quantity"),
+      invoicedUnitRate: scaled(line.invoicedUnitRate, factor, "toCanonical", "rate"),
+      matches: line.matches.map((match) => ({
+        ...match,
+        matchedQuantity: scaled(match.matchedQuantity, factor, "toCanonical", "quantity"),
+      })),
+    };
+  });
   const suppliers = useMemo(() => {
     const seen = new Map<string, { id: string; code: string; name: string }>();
     for (const line of poLines)
@@ -88,7 +130,7 @@ export function PurchaseInvoiceForm({
   return (
     <form action={formAction} className="space-y-5">
       {initial && <input name="id" type="hidden" value={initial.id} />}
-      <input name="linesJson" type="hidden" value={JSON.stringify(lines)} />
+      <input name="linesJson" type="hidden" value={JSON.stringify(canonicalLines)} />
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
         <label className="text-sm font-medium">
           Supplier
@@ -153,12 +195,14 @@ export function PurchaseInvoiceForm({
           const eligibleMatches = grnLines.filter(
             (candidate) => candidate.purchaseOrderLineId === line.purchaseOrderLineId,
           );
+          const factor = factorFor(line.purchaseOrderLineId);
+          const unitSymbol = poLine?.orderUnitSymbol ?? "";
           const matchedTotal = line.matches.reduce(
-            (total, match) => total + (Number(match.matchedQuantity) || 0),
-            0,
+            (total, match) => total.plus(toDecimal(match.matchedQuantity) ?? 0),
+            new Decimal(0),
           );
-          const invoicedQuantity = Number(line.invoicedQuantity) || 0;
-          const complete = line.matches.length > 0 && matchedTotal === invoicedQuantity;
+          const invoicedQuantity = toDecimal(line.invoicedQuantity) ?? new Decimal(0);
+          const complete = line.matches.length > 0 && matchedTotal.equals(invoicedQuantity);
           return (
             <div className="rounded-xl border p-4" key={index}>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -172,7 +216,14 @@ export function PurchaseInvoiceForm({
                       );
                       update(index, {
                         purchaseOrderLineId: event.target.value,
-                        invoicedUnitRate: selected?.poUnitRate ?? line.invoicedUnitRate,
+                        invoicedUnitRate: selected
+                          ? scaled(
+                              selected.poUnitRate,
+                              toDecimal(selected.orderUnitFactor) ?? new Decimal(1),
+                              "toDisplay",
+                              "rate",
+                            )
+                          : line.invoicedUnitRate,
                         taxPercent: selected?.poTaxPercent ?? line.taxPercent,
                         matches: [],
                       });
@@ -187,14 +238,20 @@ export function PurchaseInvoiceForm({
                         value={candidate.purchaseOrderLineId}
                       >
                         {candidate.purchaseOrderNumber} / {candidate.itemCode} -{" "}
-                        {candidate.itemName} ({candidate.orderedQuantity}{" "}
-                        {candidate.canonicalUnitSymbol})
+                        {candidate.itemName} (
+                        {scaled(
+                          candidate.orderedQuantity,
+                          toDecimal(candidate.orderUnitFactor) ?? new Decimal(1),
+                          "toDisplay",
+                          "quantity",
+                        )}{" "}
+                        {candidate.orderUnitSymbol})
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="text-sm font-medium">
-                  Invoiced quantity
+                  Invoiced quantity{unitSymbol ? ` (${unitSymbol})` : ""}
                   <input
                     className="mt-1 min-h-10 w-full rounded-lg border px-2"
                     min="0"
@@ -204,12 +261,9 @@ export function PurchaseInvoiceForm({
                     type="number"
                     value={line.invoicedQuantity}
                   />
-                  {poLine && (
-                    <span className="mt-1 block text-xs">{poLine.canonicalUnitSymbol}</span>
-                  )}
                 </label>
                 <label className="text-sm font-medium">
-                  Invoiced rate
+                  Invoiced rate{unitSymbol ? ` per ${unitSymbol}` : ""}
                   <input
                     className="mt-1 min-h-10 w-full rounded-lg border px-2"
                     min="0"
@@ -241,7 +295,8 @@ export function PurchaseInvoiceForm({
                   <span
                     className={`text-xs font-semibold ${complete ? "text-green-700" : "text-amber-700"}`}
                   >
-                    Matched {matchedTotal} of {invoicedQuantity || "?"}{" "}
+                    Matched {matchedTotal.toString()} of{" "}
+                    {invoicedQuantity.isZero() ? "?" : invoicedQuantity.toString()} {unitSymbol}{" "}
                     {complete ? "(complete)" : "(incomplete)"}
                   </span>
                 </div>
@@ -256,10 +311,14 @@ export function PurchaseInvoiceForm({
                     const grnLine = grnLines.find(
                       (candidate) => candidate.goodsReceiptLineId === match.goodsReceiptLineId,
                     );
-                    const rate = Number(line.invoicedUnitRate) || 0;
-                    const cost = grnLine ? Number(grnLine.grnDerivedUnitCost) : 0;
-                    const qty = Number(match.matchedQuantity) || 0;
-                    const variance = (rate - cost) * qty;
+                    // grnDerivedUnitCost is per canonical unit, so compare on that basis.
+                    const rate = (toDecimal(line.invoicedUnitRate) ?? new Decimal(0)).div(factor);
+                    const cost = grnLine
+                      ? (toDecimal(grnLine.grnDerivedUnitCost) ?? new Decimal(0))
+                      : new Decimal(0);
+                    const displayQty = toDecimal(match.matchedQuantity) ?? new Decimal(0);
+                    const qty = displayQty.toNumber();
+                    const variance = rate.minus(cost).mul(displayQty.mul(factor)).toNumber();
                     return (
                       <div className="flex flex-wrap items-center gap-2" key={matchIndex}>
                         <select
@@ -279,11 +338,18 @@ export function PurchaseInvoiceForm({
                               value={candidate.goodsReceiptLineId}
                             >
                               {candidate.goodsReceiptNumber} - remaining{" "}
-                              {candidate.remainingToInvoice}
+                              {scaled(
+                                candidate.remainingToInvoice,
+                                factor,
+                                "toDisplay",
+                                "quantity",
+                              )}{" "}
+                              {unitSymbol}
                             </option>
                           ))}
                         </select>
                         <input
+                          aria-label={`Matched quantity${unitSymbol ? ` (${unitSymbol})` : ""}`}
                           className="min-h-10 w-28 rounded-lg border px-2"
                           min="0"
                           onChange={(event) =>

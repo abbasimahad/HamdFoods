@@ -100,14 +100,14 @@ describe("savePurchaseInvoice", () => {
     );
   });
 
-  it("requires purchasing.manage", async () => {
+  it("requires purchasing.manage or purchase_invoices.manage", async () => {
     const repo = repository();
     const result = await savePurchaseInvoice(
       { ...actor, permissions: ["purchasing.view"] },
       form,
       repo,
     );
-    expect(result).toEqual({ ok: false, message: "Purchasing management permission is required." });
+    expect(result).toEqual({ ok: false, message: "Purchase invoice permission is required." });
     expect(repo.createPurchaseInvoice).not.toHaveBeenCalled();
   });
 

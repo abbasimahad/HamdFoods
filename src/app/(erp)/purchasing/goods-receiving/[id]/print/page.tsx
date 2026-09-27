@@ -18,7 +18,7 @@ export default async function PrintGoodsReceiptPage({
   return (
     <main className="mx-auto max-w-5xl bg-white p-8 text-slate-950 print:max-w-none print:p-0">
       <div className="mb-6 flex justify-end">
-        <PrintButton />
+        <PrintButton label="Print goods receipt" />
       </div>
       <header className="mb-8 flex justify-between border-b-2 border-slate-900 pb-5">
         <div>

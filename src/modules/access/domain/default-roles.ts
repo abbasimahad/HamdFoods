@@ -4,7 +4,9 @@ export const DEFAULT_ROLE_CODES = [
   "SUPER_ADMIN",
   "ADMIN",
   "STORE_KEEPER",
+  "PURCHASER",
   "PRODUCTION_MANAGER",
+  "QUALITY_CONTROL",
   "SALES",
   "ACCOUNTS",
   "VIEWER",
@@ -15,7 +17,9 @@ export const DEFAULT_ROLE_NAMES: Readonly<Record<DefaultRoleCode, string>> = {
   SUPER_ADMIN: "Super Administrator",
   ADMIN: "Administrator",
   STORE_KEEPER: "Store Keeper",
+  PURCHASER: "Purchaser",
   PRODUCTION_MANAGER: "Production Manager",
+  QUALITY_CONTROL: "Quality Control",
   SALES: "Sales",
   ACCOUNTS: "Accounts",
   VIEWER: "Viewer",
@@ -26,10 +30,47 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
 > = {
   SUPER_ADMIN: PERMISSIONS,
   ADMIN: PERMISSIONS,
-  STORE_KEEPER: ["dashboard.view", "inventory.view", "inventory.manage"],
-  PRODUCTION_MANAGER: ["dashboard.view", "inventory.view", "production.view", "production.manage"],
-  SALES: ["dashboard.view", "sales.view", "sales.manage"],
-  ACCOUNTS: ["dashboard.view", "accounting.view", "accounting.manage", "reports.view"],
+  // Receives goods against approved POs and runs receiving QC; keeps stock and records damage.
+  STORE_KEEPER: [
+    "dashboard.view",
+    "inventory.view",
+    "inventory.manage",
+    "purchasing.view",
+    "receiving.manage",
+    "waste.manage",
+  ],
+  // Raises and approves purchase orders and manages suppliers and returns.
+  PURCHASER: ["dashboard.view", "purchasing.view", "purchasing.manage", "inventory.view"],
+  PRODUCTION_MANAGER: [
+    "dashboard.view",
+    "inventory.view",
+    "production.view",
+    "production.manage",
+    "waste.manage",
+  ],
+  // The independent second person who releases reprocessed goods.
+  QUALITY_CONTROL: [
+    "dashboard.view",
+    "inventory.view",
+    "production.view",
+    "purchasing.view",
+    "quality.manage",
+  ],
+  // Books orders and dispatches. Cash handling and order approval sit with Accounts
+  // (maker/checker), so Sales cannot approve its own orders or take receipts.
+  SALES: ["dashboard.view", "sales.view", "sales.manage", "inventory.view"],
+  ACCOUNTS: [
+    "dashboard.view",
+    "accounting.view",
+    "accounting.manage",
+    "reports.view",
+    "sales.view",
+    "sales.approve",
+    "customer_payments.manage",
+    "purchasing.view",
+    "purchase_invoices.manage",
+    "inventory.view",
+  ],
   VIEWER: [
     "dashboard.view",
     "inventory.view",

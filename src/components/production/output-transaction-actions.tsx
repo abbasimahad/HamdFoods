@@ -98,7 +98,11 @@ export function CompleteBatchForm({
         <textarea
           className="mt-1 min-h-24 w-full rounded-lg border px-3 py-2"
           maxLength={2000}
+          minLength={requiresExplanation ? 15 : undefined}
           name="explanation"
+          placeholder={
+            requiresExplanation ? "What caused the difference? (at least 15 characters)" : undefined
+          }
           required={requiresExplanation}
         />
       </label>

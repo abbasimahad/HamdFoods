@@ -861,8 +861,46 @@ export async function postSalesDispatchInventory(
       );
   }
   const groupId = randomUUID();
+  // Sales-order reservations are item-level (untagged AVAILABLE -> RESERVED), while the lot is
+  // only chosen here. So the RESERVED side leaves untagged, mirroring how it was reserved, and
+  // the lot tag moves within AVAILABLE (lot -q, untagged +q). Item totals are unchanged and each
+  // lot's AVAILABLE balance drops by what was dispatched, keeping lot and item balances equal.
+  const lotTagTransfer = (command: SalesDispatchInventoryCommand) => {
+    const lotRow = {
+      itemId: command.itemId,
+      warehouseId,
+      status: "AVAILABLE" as const,
+      canonicalUnitId: command.canonicalUnitId,
+      movementType: "SALES_DISPATCH" as const,
+      referenceType: "SALES_DISPATCH",
+      referenceId: command.salesDispatchId,
+      groupId,
+      createdByUserId: command.actorUserId,
+      salesOrderId: command.salesOrderId,
+      salesOrderLineId: command.salesOrderLineId,
+      salesDispatchId: command.salesDispatchId,
+      salesDispatchLineId: command.salesDispatchLineId,
+      salesDispatchAllocationId: command.salesDispatchAllocationId,
+    };
+    return [
+      {
+        ...lotRow,
+        quantity: new Decimal(command.quantity).negated().toFixed(),
+        sourceKey: `DN:${command.salesDispatchAllocationId}:LOT_OUT`,
+        reason: `Dispatch ${command.salesDispatchNumber} assigned reserved stock to this lot.`,
+        productionLotId: command.productionLotId,
+      },
+      {
+        ...lotRow,
+        quantity: new Decimal(command.quantity).toFixed(),
+        sourceKey: `DN:${command.salesDispatchAllocationId}:LOT_IN`,
+        reason: `Dispatch ${command.salesDispatchNumber} lot assignment (offsets item-level reservation).`,
+      },
+    ];
+  };
   await transaction.inventoryMovement.createMany({
     data: commands.flatMap((command) => [
+      ...lotTagTransfer(command),
       {
         itemId: command.itemId,
         warehouseId,
@@ -876,7 +914,6 @@ export async function postSalesDispatchInventory(
         groupId,
         reason: `Dispatch ${command.salesDispatchNumber} left warehouse custody.`,
         createdByUserId: command.actorUserId,
-        productionLotId: command.productionLotId,
         salesOrderId: command.salesOrderId,
         salesOrderLineId: command.salesOrderLineId,
         salesDispatchId: command.salesDispatchId,

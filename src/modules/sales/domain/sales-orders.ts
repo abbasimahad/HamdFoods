@@ -46,18 +46,20 @@ export function calculateSalesOrderLine(input: {
   const pieceRate = new Decimal(
     pieceRateFromCartonRate(cartonRate.toFixed(), input.piecesPerCarton),
   );
-  const gross = money(
+  // Document amounts are rounded to whole paisa (2 dp) per line so the printed invoice, the
+  // receivable and the journal all carry the exact amount a customer can actually pay.
+  const gross = paisa(
     new Decimal(breakdown.cartons)
       .mul(cartonRate)
       .add(new Decimal(breakdown.loosePieces).mul(pieceRate)),
   );
-  const discount1 = money(gross.mul(percent(input.discount1Percent, "First discount")).div(100));
+  const discount1 = paisa(gross.mul(percent(input.discount1Percent, "First discount")).div(100));
   const afterDiscount1 = gross.sub(discount1);
-  const discount2 = money(
+  const discount2 = paisa(
     afterDiscount1.mul(percent(input.discount2Percent, "Second discount")).div(100),
   );
   const netBeforeTax = gross.sub(discount1).sub(discount2);
-  const tax = money(netBeforeTax.mul(percent(input.taxPercent, "Tax")).div(100));
+  const tax = paisa(netBeforeTax.mul(percent(input.taxPercent, "Tax")).div(100));
   return {
     cartons: breakdown.cartons,
     loosePieces: breakdown.loosePieces,
@@ -104,6 +106,9 @@ function boundedMoney(value: string, label: string) {
   if (result.decimalPlaces() > 6 || result.gt("999999999999999999.999999"))
     throw new SalesOrderDomainError(`${label} is outside the supported monetary range.`);
   return result;
+}
+function paisa(value: Decimal) {
+  return money(value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP));
 }
 function money(value: Decimal) {
   const result = value.toDecimalPlaces(6, Decimal.ROUND_HALF_UP);

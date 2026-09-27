@@ -64,6 +64,12 @@ export default async function ProductionBatchDetailPage({
         >
           Exact recipe version
         </Link>
+        <Link
+          className="rounded-lg border px-4 py-2 text-sm font-semibold"
+          href={`/production/batches/${batch.id}/print`}
+        >
+          Print batch sheet
+        </Link>
         {["RELEASED", "IN_PROGRESS"].includes(batch.status) && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"

@@ -47,7 +47,7 @@ const invoiceInclude = {
   lines: {
     include: {
       item: true,
-      purchaseOrderLine: { include: { purchaseOrder: true, canonicalUnit: true } },
+      purchaseOrderLine: { include: { purchaseOrder: true, canonicalUnit: true, orderUnit: true } },
       matches: { include: { goodsReceiptLine: { include: { goodsReceipt: true } } } },
     },
     orderBy: { position: "asc" as const },
@@ -62,7 +62,12 @@ export class PrismaPurchaseInvoiceRepository implements PurchaseInvoiceRepositor
       where: {
         purchaseOrder: { status: { in: ["APPROVED", "PARTIALLY_RECEIVED", "RECEIVED", "CLOSED"] } },
       },
-      include: { purchaseOrder: { include: { supplier: true } }, item: true, canonicalUnit: true },
+      include: {
+        purchaseOrder: { include: { supplier: true } },
+        item: true,
+        canonicalUnit: true,
+        orderUnit: true,
+      },
       orderBy: [{ purchaseOrder: { orderDate: "desc" } }, { position: "asc" }],
     });
     return lines.map((line) => ({
@@ -76,6 +81,8 @@ export class PrismaPurchaseInvoiceRepository implements PurchaseInvoiceRepositor
       itemCode: line.item.code,
       itemName: line.item.name,
       canonicalUnitSymbol: line.canonicalUnit.symbol,
+      orderUnitSymbol: line.orderUnit.symbol,
+      orderUnitFactor: new Decimal(line.normalizedQuantity).div(line.orderedQuantity).toString(),
       orderedQuantity: line.normalizedQuantity.toString(),
       // The PO's own unitRate is quoted per order unit (e.g. per kg); the invoice's
       // quantity and matching are always in the canonical unit (e.g. grams), so the
@@ -284,7 +291,7 @@ export class PrismaPurchaseInvoiceRepository implements PurchaseInvoiceRepositor
         ? await transaction.inventoryValuationEntry.findMany({
             where: {
               sourceKey: { in: grnLineIds.map((lineId) => `GRN-COST:${lineId}`) },
-              entryType: "PURCHASE_RECEIPT",
+              entryType: { in: ["PURCHASE_RECEIPT", "SUPPLIER_REPLACEMENT"] },
               state: "FINAL",
             },
             select: { sourceKey: true, unitCost: true },
@@ -521,7 +528,17 @@ async function eligibleGoodsReceiptLines(
 ): Promise<readonly EligibleGoodsReceiptLineForMatch[]> {
   const lines = await client.goodsReceiptLine.findMany({
     where: {
-      goodsReceipt: { status: "QC_COMPLETED", purpose: "PURCHASE" },
+      goodsReceipt: {
+        status: "QC_COMPLETED",
+        OR: [
+          { purpose: "PURCHASE" },
+          // Replacements for QC-rejected goods are billed like the original delivery.
+          {
+            purpose: "SUPPLIER_REPLACEMENT",
+            purchaseReturn: { lines: { every: { source: "QC_REJECTED" } } },
+          },
+        ],
+      },
       qcDecision: { acceptedQuantity: { gt: 0 } },
     },
     include: { goodsReceipt: true, qcDecision: true },
@@ -540,7 +557,7 @@ async function eligibleGoodsReceiptLines(
     client.inventoryValuationEntry.findMany({
       where: {
         sourceKey: { in: lineIds.map((id) => `GRN-COST:${id}`) },
-        entryType: "PURCHASE_RECEIPT",
+        entryType: { in: ["PURCHASE_RECEIPT", "SUPPLIER_REPLACEMENT"] },
         state: "FINAL",
       },
       select: { sourceKey: true, unitCost: true },
@@ -674,6 +691,15 @@ function mapInvoice(row: InvoiceRow): PurchaseInvoiceRecord {
         canonicalUnitSymbol: line.purchaseOrderLine.canonicalUnit.symbol,
         invoicedQuantity: line.invoicedQuantity.toFixed(6),
         invoicedUnitRate: line.invoicedUnitRate.toFixed(6),
+        orderUnitSymbol: line.purchaseOrderLine.orderUnit.symbol,
+        displayQuantity: new Decimal(line.invoicedQuantity.toString())
+          .div(orderUnitFactor(line.purchaseOrderLine))
+          .toDecimalPlaces(6)
+          .toString(),
+        displayUnitRate: new Decimal(line.invoicedUnitRate.toString())
+          .mul(orderUnitFactor(line.purchaseOrderLine))
+          .toDecimalPlaces(4)
+          .toString(),
         taxPercent: line.taxPercent.toFixed(4),
         grossAmount: line.grossAmount.toFixed(6),
         taxAmount: line.taxAmount.toFixed(6),
@@ -764,4 +790,14 @@ function mapError(error: unknown) {
   return error instanceof Error
     ? error
     : new PurchasingRepositoryError("conflict", "Purchase invoice operation failed.");
+}
+
+function orderUnitFactor(line: {
+  normalizedQuantity: { toString(): string };
+  orderedQuantity: { toString(): string };
+}) {
+  const ordered = new Decimal(line.orderedQuantity.toString());
+  return ordered.isZero()
+    ? new Decimal(1)
+    : new Decimal(line.normalizedQuantity.toString()).div(ordered);
 }

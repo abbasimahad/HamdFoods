@@ -11,11 +11,16 @@ const expectedPermissions = [
   "inventory.manage",
   "purchasing.view",
   "purchasing.manage",
+  "receiving.manage",
+  "purchase_invoices.manage",
   "production.view",
   "production.manage",
   "quality.manage",
+  "waste.manage",
   "sales.view",
   "sales.manage",
+  "sales.approve",
+  "customer_payments.manage",
   "accounting.view",
   "accounting.manage",
   "reports.view",
@@ -66,7 +71,16 @@ describe("access-control domain", () => {
       "dashboard.view",
       "sales.view",
       "sales.manage",
+      "inventory.view",
     ]);
     expect(DEFAULT_ROLE_PERMISSIONS.PRODUCTION_MANAGER).not.toContain("quality.manage");
+    // Maker/checker: Sales books orders but cannot approve them or take cash.
+    expect(DEFAULT_ROLE_PERMISSIONS.SALES).not.toContain("sales.approve");
+    expect(DEFAULT_ROLE_PERMISSIONS.SALES).not.toContain("customer_payments.manage");
+    expect(DEFAULT_ROLE_PERMISSIONS.ACCOUNTS).toContain("customer_payments.manage");
+    expect(DEFAULT_ROLE_PERMISSIONS.ACCOUNTS).toContain("purchase_invoices.manage");
+    // The store keeper receives goods without full purchasing rights.
+    expect(DEFAULT_ROLE_PERMISSIONS.STORE_KEEPER).toContain("receiving.manage");
+    expect(DEFAULT_ROLE_PERMISSIONS.STORE_KEEPER).not.toContain("purchasing.manage");
   });
 });

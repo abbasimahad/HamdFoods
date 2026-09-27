@@ -27,7 +27,7 @@ export async function saveCustomerPaymentAction(
   form: FormData,
 ) {
   const result = await saveCustomerPayment(
-    await requirePermission("sales.manage"),
+    await requirePermission("customer_payments.manage"),
     Object.fromEntries(form),
     repository,
   );
@@ -42,7 +42,11 @@ export async function postCustomerPaymentAction(
   form: FormData,
 ) {
   const id = String(form.get("id") ?? "");
-  const result = await postCustomerPayment(await requirePermission("sales.manage"), id, repository);
+  const result = await postCustomerPayment(
+    await requirePermission("customer_payments.manage"),
+    id,
+    repository,
+  );
   if (result.ok) refresh(id, String(form.get("customerId") ?? ""));
   return { ok: result.ok, message: result.ok ? "Payment posted." : result.message };
 }
@@ -52,7 +56,7 @@ export async function cancelCustomerPaymentAction(
 ) {
   const id = String(form.get("id") ?? "");
   const result = await cancelCustomerPayment(
-    await requirePermission("sales.manage"),
+    await requirePermission("customer_payments.manage"),
     id,
     String(form.get("reason") ?? ""),
     repository,
@@ -66,7 +70,7 @@ export async function allocateCustomerCreditAction(
 ) {
   const id = String(form.get("id") ?? "");
   const result = await allocateCustomerCredit(
-    await requirePermission("sales.manage"),
+    await requirePermission("customer_payments.manage"),
     id,
     Object.fromEntries(form),
     repository,
@@ -86,7 +90,7 @@ export async function reverseCustomerPaymentAction(
     return { ok: false, message: error instanceof Error ? error.message : "Reversal is invalid." };
   }
   const result = await reverseCustomerPayment(
-    await requirePermission("sales.manage"),
+    await requirePermission("customer_payments.manage"),
     id,
     date,
     String(form.get("reason") ?? ""),

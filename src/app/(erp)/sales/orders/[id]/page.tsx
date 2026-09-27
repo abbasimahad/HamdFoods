@@ -26,6 +26,7 @@ export default async function SalesOrderDetailPage({
   const order = await new PrismaSalesOrderRepository().getSalesOrder((await params).id);
   if (!order) notFound();
   const canManage = hasPermission(principal, "sales.manage");
+  const canApprove = hasPermission(principal, "sales.approve");
   const canCancel = ["DRAFT", "APPROVED"].includes(order.status);
   const hasUnreservedRedelivery = order.lines.some(
     (line) => line.redeliveryReservationPieces !== "0",
@@ -99,18 +100,26 @@ export default async function SalesOrderDetailPage({
           <p>{order.cancellationReason}</p>
         </Card>
       )}
-      {canManage && (canCancel || hasUnreservedRedelivery) && (
-        <Card className="mt-5 space-y-4 p-5">
-          <h2 className="font-semibold">Lifecycle actions</h2>
-          {order.status === "DRAFT" && (
-            <ApproveSalesOrderForm action={approveSalesOrderAction} id={order.id} />
-          )}
-          {hasUnreservedRedelivery && (
-            <ReserveRedeliveryStockForm action={reserveRedeliveryStockAction} id={order.id} />
-          )}
-          {canCancel && <CancelSalesOrderForm action={cancelSalesOrderAction} id={order.id} />}
-        </Card>
-      )}
+      {(canManage || canApprove) &&
+        (canCancel || hasUnreservedRedelivery || (canApprove && order.status === "DRAFT")) && (
+          <Card className="mt-5 space-y-4 p-5">
+            <h2 className="font-semibold">Lifecycle actions</h2>
+            {canApprove && order.status === "DRAFT" && (
+              <ApproveSalesOrderForm action={approveSalesOrderAction} id={order.id} />
+            )}
+            {canManage && !canApprove && order.status === "DRAFT" && (
+              <p className="text-sm text-[var(--muted)]">
+                Awaiting approval by Accounts or a manager before stock is reserved.
+              </p>
+            )}
+            {canManage && hasUnreservedRedelivery && (
+              <ReserveRedeliveryStockForm action={reserveRedeliveryStockAction} id={order.id} />
+            )}
+            {canManage && canCancel && (
+              <CancelSalesOrderForm action={cancelSalesOrderAction} id={order.id} />
+            )}
+          </Card>
+        )}
     </ResponsiveContainer>
   );
 }

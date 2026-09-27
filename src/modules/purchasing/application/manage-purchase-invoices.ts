@@ -1,9 +1,20 @@
 import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { z } from "zod";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
-import { requirePurchasingManager, type PurchasingMutationResult } from "./contracts";
+import type { PurchasingMutationResult } from "./contracts";
+
 import type { PurchaseInvoiceInput, PurchaseInvoiceRepository } from "./purchase-invoice-contracts";
 import { describeValidationIssue } from "@/server/shared/validation-message";
+
+function requirePurchaseInvoiceManager(
+  actor: ApplicationPrincipal,
+): PurchasingMutationResult | null {
+  return actor.active &&
+    (actor.permissions.includes("purchasing.manage") ||
+      actor.permissions.includes("purchase_invoices.manage"))
+    ? null
+    : { ok: false, message: "Purchase invoice permission is required." };
+}
 
 const optional = (max: number) => z.string().trim().max(max).optional();
 const matchSchema = z.object({
@@ -36,7 +47,7 @@ export async function savePurchaseInvoice(
   form: Record<string, unknown>,
   repository: PurchaseInvoiceRepository,
 ): Promise<PurchasingMutationResult> {
-  const denied = requirePurchasingManager(actor);
+  const denied = requirePurchaseInvoiceManager(actor);
   if (denied) return denied;
   const lines = decode(form.linesJson);
   if (!lines.ok) return { ok: false, message: "Purchase invoice lines are invalid." };
@@ -78,7 +89,7 @@ export async function cancelPurchaseInvoice(
   reason: string,
   repository: PurchaseInvoiceRepository,
 ): Promise<PurchasingMutationResult> {
-  const denied = requirePurchasingManager(actor);
+  const denied = requirePurchaseInvoiceManager(actor);
   if (denied) return denied;
   const parsed = z
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
@@ -102,7 +113,7 @@ export async function reversePurchaseInvoice(
   reason: string,
   repository: PurchaseInvoiceRepository,
 ): Promise<PurchasingMutationResult> {
-  const denied = requirePurchasingManager(actor);
+  const denied = requirePurchaseInvoiceManager(actor);
   if (denied) return denied;
   const parsed = z
     .object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(1000) })
@@ -126,7 +137,7 @@ async function lifecycle(
   repository: PurchaseInvoiceRepository,
   operation: (actorId: string) => Promise<void>,
 ) {
-  const denied = requirePurchasingManager(actor);
+  const denied = requirePurchaseInvoiceManager(actor);
   if (denied) return denied;
   if (!z.string().uuid().safeParse(id).success)
     return { ok: false as const, message: "Invalid purchase invoice." };

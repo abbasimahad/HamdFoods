@@ -2,12 +2,12 @@ import { PurchaseInvoiceForm } from "@/components/purchasing/purchase-invoice-fo
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaPurchaseInvoiceRepository } from "@/server/purchasing/prisma-purchase-invoice-repository";
 import { savePurchaseInvoiceAction } from "../actions";
 
 export default async function NewPurchaseInvoicePage() {
-  await requirePermission("purchasing.manage");
+  await requireAnyPermission(["purchasing.manage", "purchase_invoices.manage"]);
   const repository = new PrismaPurchaseInvoiceRepository();
   const [poLines, grnLines] = await Promise.all([
     repository.listEligiblePurchaseOrderLines(),

@@ -624,6 +624,8 @@ function mapInvoice(invoice: InvoiceRow): SalesInvoiceRecord {
     customerId: invoice.customerId,
     customerName: invoice.customer.name,
     customerCode: invoice.customer.code,
+    customerTaxRegistrationNo: invoice.customer.taxRegistrationNo,
+    customerPhone: invoice.customer.phone,
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate,
     paymentTermsDays: invoice.paymentTermsDays,

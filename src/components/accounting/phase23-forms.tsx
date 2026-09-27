@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import Decimal from "decimal.js";
+import { useActionState, useState } from "react";
+import {
+  emptyExpenseLine,
+  ExpenseLinesEditor,
+  type ExpenseLine,
+} from "@/components/accounting/account-lines-editor";
 import { FormActions } from "@/components/ui/form-actions";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import {
@@ -198,30 +204,80 @@ export function SupplierPaymentAllocationForm({
   proposal,
 }: {
   paymentId: string;
-  proposal: readonly { payableLedgerEntryId: string; allocatedAmount: string }[];
+  proposal: readonly {
+    payableLedgerEntryId: string;
+    allocatedAmount: string;
+    sourceNumber: string;
+    entryDate: string;
+    outstanding: string;
+  }[];
 }) {
   const [state, action, pending] = useActionState(allocateSupplierPaymentAction, undefined);
-  const example = JSON.stringify(proposal, null, 2);
+  const [amounts, setAmounts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      proposal.map((item) => [
+        item.payableLedgerEntryId,
+        new Decimal(item.allocatedAmount).toFixed(2),
+      ]),
+    ),
+  );
+  if (!proposal.length)
+    return <p className="text-sm text-[var(--muted)]">No open payables to allocate.</p>;
+  const payload = JSON.stringify(
+    proposal
+      .filter((item) => (amounts[item.payableLedgerEntryId] ?? "").trim())
+      .map((item) => ({
+        payableLedgerEntryId: item.payableLedgerEntryId,
+        allocatedAmount: (amounts[item.payableLedgerEntryId] ?? "").trim(),
+      })),
+  );
   return (
     <form action={action} className="space-y-2">
       <input name="id" type="hidden" value={paymentId} />
-      <textarea
-        className="min-h-28 w-full rounded border p-3 font-mono text-xs"
-        name="allocationsJson"
-        defaultValue={example}
-      />
+      <input name="allocationsJson" type="hidden" value={payload} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="p-2 text-left">Payable</th>
+              <th className="p-2 text-left">Date</th>
+              <th className="p-2 text-right">Outstanding</th>
+              <th className="p-2 text-right">Allocate</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {proposal.map((item) => (
+              <tr key={item.payableLedgerEntryId}>
+                <td className="p-2">{item.sourceNumber}</td>
+                <td className="p-2">{item.entryDate}</td>
+                <td className="p-2 text-right">{new Decimal(item.outstanding).toFixed(2)}</td>
+                <td className="p-2 text-right">
+                  <input
+                    aria-label={`Allocate to ${item.sourceNumber}`}
+                    className="min-h-11 w-32 rounded border px-2 text-right"
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      setAmounts((current) => ({
+                        ...current,
+                        [item.payableLedgerEntryId]: event.target.value,
+                      }))
+                    }
+                    value={amounts[item.payableLedgerEntryId] ?? ""}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <p className="text-xs text-[var(--muted)]">
-        Review and confirm the server-proposed oldest-first allocation before saving. Only the
-        remaining supplier advance is proposed.
+        The oldest open payables are proposed first. Adjust or clear amounts before saving; any
+        unallocated value remains a supplier advance.
       </p>
       <button className={button} disabled={pending}>
-        Allocate supplier advance
+        {pending ? "Allocating…" : "Allocate supplier advance"}
       </button>
-      {state ? (
-        <p className={state.ok ? "text-sm text-green-700" : "text-sm text-red-700"}>
-          {state.message}
-        </p>
-      ) : null}
+      {state ? <ActionFeedback message={state.message} ok={state.ok} /> : null}
     </form>
   );
 }
@@ -268,60 +324,78 @@ export function ExpenseReversalForm({ id }: { id: string }) {
 export function ExpenseVoucherForm({
   treasuries,
   accounts,
+  defaultDate,
 }: {
   treasuries: readonly { id: string; code: string; name: string }[];
   accounts: readonly { id: string; code: string; name: string }[];
+  defaultDate: string;
 }) {
-  const [state, action, pending] = useActionState(saveExpenseVoucherAction, undefined);
-  const example = JSON.stringify(
-    [{ expenseAccountId: accounts[0]?.id ?? "", description: "Expense", amount: "0.000000" }],
-    null,
-    2,
+  const [lines, setLines] = useState<ExpenseLine[]>(() => [emptyExpenseLine()]);
+  const [formKey, setFormKey] = useState(0);
+  const [state, action, pending] = useActionState(
+    async (
+      previous: Awaited<ReturnType<typeof saveExpenseVoucherAction>> | undefined,
+      form: FormData,
+    ) => {
+      const result = await saveExpenseVoucherAction(previous, form);
+      if (result.ok) {
+        setLines([emptyExpenseLine()]);
+        setFormKey((key) => key + 1);
+      }
+      return result;
+    },
+    undefined,
   );
   return (
-    <form action={action} className="space-y-2">
-      <div className="grid gap-2 md:grid-cols-3">
-        <input className="rounded border px-3 py-2" name="expenseDate" type="date" required />
-        <input className="rounded border px-3 py-2" name="payee" placeholder="Payee" />
-        <select className="rounded border px-3 py-2" name="treasuryAccountId" required>
-          <option value="">Treasury account</option>
-          {treasuries.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.code} — {account.name}
-            </option>
-          ))}
-        </select>
+    <div className="space-y-2">
+      <form action={action} className="space-y-2" key={formKey}>
+        <div className="grid gap-2 md:grid-cols-3">
+          <input
+            className="rounded border px-3 py-2"
+            defaultValue={defaultDate}
+            name="expenseDate"
+            type="date"
+            required
+          />
+          <input className="rounded border px-3 py-2" name="payee" placeholder="Payee" />
+          <select className="rounded border px-3 py-2" name="treasuryAccountId" required>
+            <option value="">Paid from (cash / bank)</option>
+            {treasuries.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.code} — {account.name}
+              </option>
+            ))}
+          </select>
+          <input
+            className="rounded border px-3 py-2 md:col-span-2"
+            name="description"
+            placeholder="Voucher description"
+            required
+          />
+          <input
+            className="rounded border px-3 py-2"
+            name="referenceNumber"
+            placeholder="Reference"
+          />
+        </div>
         <input
-          className="rounded border px-3 py-2 md:col-span-2"
-          name="description"
-          placeholder="Voucher description"
-          required
+          name="linesJson"
+          type="hidden"
+          value={JSON.stringify(
+            lines.map((line) => ({
+              expenseAccountId: line.expenseAccountId,
+              description: line.description.trim(),
+              amount: line.amount.trim(),
+            })),
+          )}
         />
-        <input
-          className="rounded border px-3 py-2"
-          name="referenceNumber"
-          placeholder="Reference"
-        />
-      </div>
-      <textarea
-        className="min-h-32 w-full rounded border p-3 font-mono text-xs"
-        defaultValue={example}
-        name="linesJson"
-        required
-      />
-      <p className="text-xs text-[var(--muted)]">
-        Use exact expense-account UUIDs from the available list; tax is included in the entered
-        expense amount.
-      </p>
-      <button className={button} disabled={pending}>
-        Save expense draft
-      </button>
-      {state ? (
-        <p className={state.ok ? "text-sm text-green-700" : "text-sm text-red-700"}>
-          {state.message}
-        </p>
-      ) : null}
-    </form>
+        <ExpenseLinesEditor accounts={accounts} lines={lines} onChange={setLines} />
+        <button className={button} disabled={pending}>
+          {pending ? "Saving…" : "Save expense draft"}
+        </button>
+      </form>
+      {state ? <ActionFeedback message={state.message} ok={state.ok} /> : null}
+    </div>
   );
 }
 export function TreasuryTransferForm({

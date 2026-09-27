@@ -19,7 +19,8 @@ export default async function GoodsReceiptDetailPage({
   const principal = await requirePermission("purchasing.view");
   const receipt = await new PrismaGoodsReceiptRepository().getGoodsReceipt((await params).id);
   if (!receipt) notFound();
-  const canManage = hasPermission(principal, "purchasing.manage");
+  const canManage =
+    hasPermission(principal, "purchasing.manage") || hasPermission(principal, "receiving.manage");
   return (
     <ResponsiveContainer>
       <PageHeader

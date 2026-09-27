@@ -3,7 +3,7 @@ export function ActionFeedback({
   ok = false,
   className = "",
 }: {
-  message?: string;
+  message?: string | undefined;
   ok?: boolean;
   className?: string;
 }) {
