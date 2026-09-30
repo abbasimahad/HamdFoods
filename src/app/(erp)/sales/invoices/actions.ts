@@ -28,7 +28,7 @@ export async function saveInvoiceAction(_: { ok: boolean; message: string }, for
 }
 export async function postInvoiceAction(_: { ok: boolean; message: string }, form: FormData) {
   const id = String(form.get("id") ?? "");
-  const r = await postSalesInvoice(await requirePermission("sales.manage"), id, repo);
+  const r = await postSalesInvoice(await requirePermission("sales_invoices.post"), id, repo);
   if (r.ok) refresh(id);
   return { ok: r.ok, message: r.ok ? "Invoice posted." : r.message };
 }

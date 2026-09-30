@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import { CancelDocumentForm, PostDocumentForm } from "@/components/accounting/phase23-forms";
 import { Card } from "@/components/ui/card";
@@ -53,7 +54,7 @@ export default async function Page() {
                 <td className="p-3">{payment.paymentDate.toISOString().slice(0, 10)}</td>
                 <td className="p-3">{payment.supplier.name}</td>
                 <td className="p-3">{payment.treasuryAccount.name}</td>
-                <td className="p-3">{payment.totalAmount.toString()}</td>
+                <td className="p-3">{formatMoney(payment.totalAmount, "")}</td>
                 <td className="p-3">
                   {payment.allocated} / {payment.unallocated}
                 </td>

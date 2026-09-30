@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -108,7 +109,7 @@ export default async function SalesDispatchesPage({
                       {dispatch.number}
                     </Link>
                   </td>
-                  <td className="p-4">{dispatch.dispatchAt.toLocaleDateString()}</td>
+                  <td className="p-4">{formatFactoryDate(dispatch.dispatchAt)}</td>
                   <td className="p-4">
                     <Link
                       className="text-[var(--accent)]"

@@ -60,7 +60,11 @@ export async function completeSalesReturnAction(
   form: FormData,
 ) {
   const id = String(form.get("id") ?? "");
-  const result = await completeSalesReturn(await requirePermission("sales.manage"), id, repository);
+  const result = await completeSalesReturn(
+    await requirePermission("sales_invoices.post"),
+    id,
+    repository,
+  );
   if (result.ok) refresh(id);
   return { ok: result.ok, message: result.ok ? "Customer return credit posted." : result.message };
 }

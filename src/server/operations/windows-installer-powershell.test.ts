@@ -459,7 +459,7 @@ describe("Windows installer PowerShell architecture boundaries", () => {
         "$tokens = $null",
         "$errors = $null",
         `$ast = [Management.Automation.Language.Parser]::ParseFile('${psLiteral(setupScript)}', [ref]$tokens, [ref]$errors)`,
-        "$functions = $ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Stop-HamdFoodsManagedRuntime','Remove-HamdFoodsScheduledTasks') }, $true)",
+        "$functions = $ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Get-HamdFoodsExpectedRuntimeNodes','Stop-HamdFoodsManagedRuntime','Remove-HamdFoodsScheduledTasks') }, $true)",
         "$functions | ForEach-Object { . ([scriptblock]::Create($_.Extent.Text)) }",
         "$AppRoot = 'C:\\Program Files\\HamdFoodsERP-InstallDrill'",
         "$Port = 3200",

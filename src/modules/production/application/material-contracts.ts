@@ -78,6 +78,10 @@ export type MaterialTransactionRecord = {
   cancelledAt: Date | null;
   cancellationReason: string | null;
   createdAt: Date;
+  /** Set on a reversal document: the posted transaction it reverses (BUG-31). */
+  reversalOfNumber: string | null;
+  /** Set on a reversed original: the reversal document that cancelled it. */
+  reversedByNumber: string | null;
   line: {
     id: string;
     batchRequirementId: string;
@@ -129,6 +133,7 @@ export interface ProductionMaterialRepository {
   updateTransaction(input: MaterialTransactionInput & { id: string }): Promise<string>;
   postTransaction(id: string, actorUserId: string): Promise<void>;
   cancelTransaction(id: string, actorUserId: string, reason: string): Promise<void>;
+  reverseTransaction(id: string, actorUserId: string, reason: string): Promise<string>;
 }
 
 export function requireProductionMaterialManager(

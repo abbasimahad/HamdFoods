@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -27,7 +28,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <Card className="space-y-4 p-5 text-sm">
         <dl className="grid gap-2 md:grid-cols-2">
           <dt>Timestamp</dt>
-          <dd>{event.occurredAt.toLocaleString()}</dd>
+          <dd>{formatFactoryDateTime(event.occurredAt)}</dd>
           <dt>Actor</dt>
           <dd>{event.actor.name}</dd>
           <dt>Module</dt>

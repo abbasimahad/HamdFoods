@@ -8,6 +8,7 @@ import {
   type GoodsReceiptInput,
   type GoodsReceiptRepository,
   requireReceivingManager,
+  requireReceivingQcRecorder,
 } from "./receiving-contracts";
 
 const optional = (max: number) => z.string().trim().max(max).optional();
@@ -110,7 +111,7 @@ export async function completeGoodsReceiptQc(
   form: Record<string, unknown>,
   repository: GoodsReceiptRepository,
 ): Promise<PurchasingMutationResult> {
-  const denied = requireReceivingManager(actor);
+  const denied = requireReceivingQcRecorder(actor);
   if (denied) return denied;
   if (!z.string().uuid().safeParse(id).success)
     return { ok: false, message: "Invalid goods receipt." };

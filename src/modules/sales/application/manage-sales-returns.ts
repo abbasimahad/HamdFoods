@@ -92,12 +92,17 @@ export async function completeSalesReturn(
   id: string,
   repository: SalesReturnRepository,
 ): Promise<SalesReturnMutationResult> {
-  return runId(
-    actor,
-    id,
-    repository.completeSalesReturn.bind(repository),
-    "Sales return could not be completed.",
-  );
+  // ROLE-2: completing a return posts the customer credit note, which sits with Accounts.
+  if (!actor.active || !actor.permissions.includes("sales_invoices.post"))
+    return { ok: false, message: "Customer credit posting permission is required." };
+  if (!z.string().uuid().safeParse(id).success)
+    return { ok: false, message: "Sales return is invalid." };
+  try {
+    await repository.completeSalesReturn(id, actor.id);
+    return { ok: true, id };
+  } catch (error) {
+    return failure(error, "Sales return could not be completed.");
+  }
 }
 export async function cancelSalesReturn(
   actor: ApplicationPrincipal,

@@ -22,6 +22,7 @@ import {
 import { piecesToCartons } from "@/modules/quantity/domain/cartons";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { parseFactoryLocalDateTime } from "@/server/shared/factory-local-time";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { postProductionOutputInventory } from "@/server/inventory/transactional-inventory-posting";
 import { PrismaProductionMaterialRepository } from "./prisma-production-material-repository";
@@ -840,21 +841,23 @@ async function inputComponents(client: Prisma.TransactionClient | typeof prisma,
       productionBatchId: batchId,
       movementType: "PRODUCTION_CONSUMPTION",
       status: "IN_PRODUCTION",
-      quantity: { lt: 0 },
     },
     _sum: { quantity: true },
   });
   const units = await client.unit.findMany({
     where: { id: { in: rows.map((row) => row.canonicalUnitId) } },
   });
-  return rows.map((row) => {
-    const unit = units.find((candidate) => candidate.id === row.canonicalUnitId)!;
-    return {
-      dimension: unit.dimension,
-      quantity: new Decimal(row._sum.quantity?.toString() ?? 0).abs().toFixed(),
-      unitSymbol: unit.symbol,
-    };
-  });
+  // Net consumption: reversal rows (BUG-31) are positive and cancel what they reverse.
+  return rows
+    .filter((row) => new Decimal(row._sum.quantity?.toString() ?? 0).lt(0))
+    .map((row) => {
+      const unit = units.find((candidate) => candidate.id === row.canonicalUnitId)!;
+      return {
+        dimension: unit.dimension,
+        quantity: new Decimal(row._sum.quantity?.toString() ?? 0).abs().toFixed(),
+        unitSymbol: unit.symbol,
+      };
+    });
 }
 
 async function custodyBalances(client: Prisma.TransactionClient | typeof prisma, batchId: string) {
@@ -876,6 +879,9 @@ async function packagingAggregates(client: Prisma.TransactionClient, batchId: st
         materialType: "PACKAGING_MATERIAL",
         transactionType: "CONSUMPTION",
         status: "POSTED",
+        // A reversed consumption and its reversal cancel out (BUG-31).
+        reversalOfId: null,
+        reversal: { is: null },
       },
     },
     _sum: { normalizedQuantity: true },
@@ -889,16 +895,20 @@ async function packagingAggregates(client: Prisma.TransactionClient, batchId: st
 }
 
 async function consumedLots(client: typeof prisma, batchId: string) {
-  const rows = await client.inventoryMovement.groupBy({
-    by: ["itemId", "inventoryLotId", "canonicalUnitId"],
-    where: {
-      productionBatchId: batchId,
-      movementType: "PRODUCTION_CONSUMPTION",
-      quantity: { lt: 0 },
-      inventoryLotId: { not: null },
-    },
-    _sum: { quantity: true },
-  });
+  const rows = await client.inventoryMovement
+    .groupBy({
+      by: ["itemId", "inventoryLotId", "canonicalUnitId"],
+      where: {
+        productionBatchId: batchId,
+        movementType: "PRODUCTION_CONSUMPTION",
+        inventoryLotId: { not: null },
+      },
+      _sum: { quantity: true },
+    })
+    .then((groups) =>
+      // Net consumption per lot: fully reversed lots (BUG-31) drop out of traceability.
+      groups.filter((row) => new Decimal(row._sum.quantity?.toString() ?? 0).lt(0)),
+    );
   const [items, lots, units] = await Promise.all([
     client.item.findMany({ where: { id: { in: rows.map((row) => row.itemId) } } }),
     client.inventoryLot.findMany({
@@ -977,7 +987,7 @@ async function nextNumber(transaction: Prisma.TransactionClient) {
 }
 
 function parseDateTime(value: string) {
-  const date = new Date(value);
+  const date = parseFactoryLocalDateTime(value);
   if (Number.isNaN(date.valueOf()))
     throw new ProductionOutputRepositoryError("invalid-reference", "Transaction date is invalid.");
   return date;

@@ -15,9 +15,12 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const criticalRuntimeDependencies = ["next", "react", "react-dom"] as const;
 
 export function prepareProductionRuntime(root = repositoryRoot) {
-  const standaloneDirectory = path.join(root, ".next", "standalone");
+  // NEXT_VERIFY_DIST_DIR (see next.config.ts) lets an installer build run while the local
+  // production server keeps the default .next/standalone open.
+  const distDir = process.env.NEXT_VERIFY_DIST_DIR || ".next";
+  const standaloneDirectory = path.join(root, distDir, "standalone");
   const publicDirectory = path.join(root, "public");
-  const staticDirectory = path.join(root, ".next", "static");
+  const staticDirectory = path.join(root, distDir, "static");
 
   if (!existsSync(standaloneDirectory))
     throw new Error("Next standalone output is missing. Run the production build first.");
@@ -30,8 +33,8 @@ export function prepareProductionRuntime(root = repositoryRoot) {
     recursive: true,
     force: true,
   });
-  mkdirSync(path.join(standaloneDirectory, ".next"), { recursive: true });
-  cpSync(staticDirectory, path.join(standaloneDirectory, ".next", "static"), {
+  mkdirSync(path.join(standaloneDirectory, distDir), { recursive: true });
+  cpSync(staticDirectory, path.join(standaloneDirectory, distDir, "static"), {
     recursive: true,
     force: true,
   });

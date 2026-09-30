@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Decimal from "decimal.js";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -86,11 +87,11 @@ export default async function ProductionOutputPage({
           />
           <Info
             label="Production date"
-            value={view.productionLot?.productionDate.toLocaleDateString() ?? "-"}
+            value={formatFactoryDate(view.productionLot?.productionDate) ?? "-"}
           />
           <Info
             label="Expiry"
-            value={view.productionLot?.expiryDate?.toLocaleDateString() ?? "Not specified"}
+            value={formatFactoryDate(view.productionLot?.expiryDate) ?? "Not specified"}
           />
           <Info label="Status" value={view.batchStatus} />
         </div>
@@ -369,7 +370,7 @@ export default async function ProductionOutputPage({
               {view.transactions.map((transaction) => (
                 <tr key={transaction.id}>
                   <td className="p-3 font-mono font-semibold">{transaction.outputNumber}</td>
-                  <td className="p-3">{transaction.transactionDate.toLocaleString()}</td>
+                  <td className="p-3">{formatFactoryDateTime(transaction.transactionDate)}</td>
                   <td className="p-3">
                     {transaction.outputType.replaceAll("_", " ")}
                     {transaction.lossNature && (
@@ -445,7 +446,7 @@ export default async function ProductionOutputPage({
         <Card className="p-5">
           <h2 className="font-semibold">Completed batch</h2>
           <p className="mt-2 text-sm">
-            Completed by {view.completedByName} at {view.completedAt?.toLocaleString()}.
+            Completed by {view.completedByName} at {formatFactoryDateTime(view.completedAt)}.
           </p>
           <p className="mt-2 whitespace-pre-wrap text-sm">
             Reconciliation explanation:{" "}

@@ -51,3 +51,28 @@ export function factoryBusinessDate(instant: Date): Date {
   const local = new Date(instant.getTime() + FACTORY_UTC_OFFSET_HOURS * 60 * 60 * 1000);
   return new Date(`${local.toISOString().slice(0, 10)}T00:00:00.000Z`);
 }
+
+/**
+ * The instant a document dated `businessDate` (a date-only value) takes effect when it was
+ * actually posted at `postedAt`. Posting on the document's own local day keeps the real posting
+ * instant; a back- or forward-dated document takes effect at the end of its local business day.
+ * Never returns the bare UTC-midnight date, which is 05:00 local and sorts ahead of every
+ * movement posted earlier that same local day.
+ */
+export function factoryEffectiveInstant(businessDate: Date, postedAt: Date): Date {
+  const dateOnly = businessDate.toISOString().slice(0, 10);
+  return factoryBusinessDate(postedAt).toISOString().slice(0, 10) === dateOnly
+    ? postedAt
+    : endOfFactoryLocalDay(dateOnly);
+}
+
+/**
+ * Parses a `<input type="datetime-local">` value ("YYYY-MM-DDTHH:mm[:ss]", no zone) as factory
+ * wall-clock time, independent of the server process timezone. A value that already carries a
+ * zone ("Z" or "+05:00") is parsed as-is. Returns an invalid Date for unparseable input.
+ */
+export function parseFactoryLocalDateTime(value: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$/.test(value))
+    return new Date(Date.parse(`${value}Z`) - FACTORY_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  return new Date(value);
+}

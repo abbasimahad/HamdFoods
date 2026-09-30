@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
@@ -23,7 +24,7 @@ export default async function PrintSalesReturnPage({
       <PrintCompanyHeader profile={companyProfile} />
       <h1 className="text-2xl font-bold">Sales Return Note — {salesReturn.number}</h1>
       <p className="mt-2">
-        Customer: {salesReturn.customerName} · Date: {salesReturn.returnAt.toLocaleDateString()} ·
+        Customer: {salesReturn.customerName} · Date: {formatFactoryDate(salesReturn.returnAt)} ·
         Dispatch: {salesReturn.salesDispatchNumber}
       </p>
       <p>Invoice: {salesReturn.salesInvoiceNumber ?? "Not invoiced — dispatch refusal"}</p>

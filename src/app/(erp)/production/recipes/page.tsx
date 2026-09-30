@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -142,7 +143,7 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
                       : "-"}
                   </td>
                   <td className="p-4">{recipe.status}</td>
-                  <td className="p-4">{recipe.effectiveDate?.toLocaleDateString() ?? "-"}</td>
+                  <td className="p-4">{formatFactoryDate(recipe.effectiveDate) ?? "-"}</td>
                   <td className="p-4">{recipe.approvedByName ?? "-"}</td>
                 </tr>
               ))}

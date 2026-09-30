@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
@@ -24,7 +25,7 @@ export default async function PrintSalesOrderPage({ params }: { params: Promise<
           <p>{order.number}</p>
         </div>
         <div className="text-right text-sm">
-          <p>{order.orderDate.toLocaleDateString()}</p>
+          <p>{formatFactoryDate(order.orderDate)}</p>
           <p>Status: {order.status}</p>
         </div>
       </header>
@@ -42,7 +43,7 @@ export default async function PrintSalesOrderPage({ params }: { params: Promise<
         <div>
           <strong>Delivery</strong>
           <p>Warehouse: {order.warehouseName}</p>
-          <p>Requested: {order.deliveryDate?.toLocaleDateString() ?? "-"}</p>
+          <p>Requested: {formatFactoryDate(order.deliveryDate) ?? "-"}</p>
         </div>
       </section>
       <table className="w-full border-collapse text-sm">

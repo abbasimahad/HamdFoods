@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -75,13 +76,13 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
               : "Not comparable across dimensions"
           }
         />
-        <Info label="Effective date" value={recipe.effectiveDate?.toLocaleDateString() ?? "-"} />
+        <Info label="Effective date" value={formatFactoryDate(recipe.effectiveDate) ?? "-"} />
         <Info label="Created by" value={recipe.createdByName} />
         <Info
           label="Approved"
           value={
             recipe.approvedAt
-              ? `${recipe.approvedByName} - ${recipe.approvedAt.toLocaleString()}`
+              ? `${recipe.approvedByName} - ${formatFactoryDateTime(recipe.approvedAt)}`
               : "Not approved"
           }
         />

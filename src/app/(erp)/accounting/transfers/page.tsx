@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import {
   CancelDocumentForm,
@@ -59,7 +60,7 @@ export default async function Page() {
                 <td className="p-3">{transfer.transferDate.toISOString().slice(0, 10)}</td>
                 <td className="p-3">{transfer.sourceTreasuryAccount.name}</td>
                 <td className="p-3">{transfer.destinationTreasuryAccount.name}</td>
-                <td className="p-3">{transfer.amount.toString()}</td>
+                <td className="p-3">{formatMoney(transfer.amount, "")}</td>
                 <td className="p-3">{transfer.status}</td>
                 <td className="p-3">
                   {transfer.status === "DRAFT" && hasPermission(principal, "accounting.manage") ? (

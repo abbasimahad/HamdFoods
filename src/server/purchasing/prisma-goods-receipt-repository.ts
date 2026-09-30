@@ -25,6 +25,7 @@ import {
   supportedQuantityUnitDimension,
 } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { parseFactoryLocalDateTime } from "@/server/shared/factory-local-time";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import {
   postPurchaseReceiptInventory,
@@ -961,7 +962,7 @@ function dateOnly(value: string, label: string) {
   return date;
 }
 function dateTime(value: string, label: string) {
-  const date = new Date(value);
+  const date = parseFactoryLocalDateTime(value);
   if (Number.isNaN(date.valueOf()))
     throw new PurchasingRepositoryError("invalid-reference", `${label} is invalid.`);
   return date;

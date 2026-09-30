@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -136,7 +137,7 @@ export default async function PurchaseInvoicesPage({
                       {record.number}
                     </Link>
                   </td>
-                  <td className="p-4">{record.invoiceDate.toLocaleDateString()}</td>
+                  <td className="p-4">{formatFactoryDate(record.invoiceDate)}</td>
                   <td className="p-4">{record.supplierName}</td>
                   <td className="p-4">{record.supplierInvoiceNumber}</td>
                   <td className="p-4">{record.status}</td>

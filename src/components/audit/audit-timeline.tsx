@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { Card } from "@/components/ui/card";
 import { entityAuditTimeline } from "@/server/audit/audit-history";
 
@@ -17,7 +18,7 @@ export async function AuditTimeline({
         {events.map((event) => (
           <li className="p-4" key={event.id}>
             <p>
-              <strong>{event.action}</strong> · {event.occurredAt.toLocaleString()} ·{" "}
+              <strong>{event.action}</strong> · {formatFactoryDateTime(event.occurredAt)} ·{" "}
               {event.actor.name}
             </p>
             <p className="text-[var(--muted)]">

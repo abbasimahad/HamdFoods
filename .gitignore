@@ -4,6 +4,7 @@ node_modules/
 # Next.js and test output
 .next/
 .next-verify/
+.next-installer/
 out/
 coverage/
 playwright-report/

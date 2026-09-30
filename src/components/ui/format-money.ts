@@ -41,3 +41,22 @@ export function formatDocumentDate(value: Date | null | undefined) {
   const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
 }
+
+const EXACT_AMOUNT = /^-?\d+\.\d{6}$/;
+
+/**
+ * Display-only pass over a report object (UX-9): every exact 6-decimal amount string that the
+ * reporting layer returns ("36350.000000") becomes a grouped 2-decimal amount ("36,350.00").
+ * The reporting layer itself stays exact, so reconciliation and tests keep comparing full
+ * precision; only what the page renders is rounded. Dates and other values pass through.
+ */
+export function displayAmounts<T>(value: T): T {
+  if (typeof value === "string")
+    return (EXACT_AMOUNT.test(value) ? formatMoney(value, "") : value) as T;
+  if (Array.isArray(value)) return value.map((entry) => displayAmounts(entry)) as T;
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype)
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, displayAmounts(entry)]),
+    ) as T;
+  return value;
+}

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -14,7 +15,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const action = process.argv[2];
 
 try {
-  const environment = loadProductionEnvironment();
+  const environment = action === "build" ? loadBuildEnvironment() : loadProductionEnvironment();
 
   switch (action) {
     case "build":
@@ -85,6 +86,44 @@ function loadProductionEnvironment() {
     ...serverEnv,
     AUTH_BYPASS_ENABLED: String(serverEnv.AUTH_BYPASS_ENABLED),
     BETTER_AUTH_TRUSTED_ORIGINS: serverEnv.BETTER_AUTH_TRUSTED_ORIGINS.join(","),
+    NODE_ENV: "production" as const,
+  };
+}
+
+/**
+ * INST-2: building the installer payload must not need a hand-made .env.production. `next build`
+ * only needs a configuration that passes production validation; nothing from it is baked into the
+ * output (the installed runtime loads its own protected ProgramData configuration at start-up).
+ * When no production configuration exists on the build machine, build with loopback placeholders
+ * and a throwaway secret that is generated in memory and never written anywhere.
+ */
+function loadBuildEnvironment() {
+  const productionEnvPath = resolveProductionEnvFile({
+    repositoryRoot,
+    configuredPath: process.env.HAMDFOODS_ENV_FILE,
+    dataRoot: process.env.HAMDFOODS_DATA_ROOT,
+    programDataRoot: process.env.ProgramData,
+  });
+  if (existsSync(productionEnvPath)) return loadProductionEnvironment();
+  console.log(
+    "No production configuration found; building with build-only placeholders (runtime configuration is written by the installer).",
+  );
+  const placeholder = {
+    APP_ENV: "production",
+    AUTH_BYPASS_ENABLED: "false",
+    DATABASE_URL:
+      "postgresql://build_placeholder:build_placeholder@127.0.0.1:5432/build_placeholder",
+    BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
+    BETTER_AUTH_URL: "http://127.0.0.1:3100",
+    BETTER_AUTH_TRUSTED_ORIGINS: "http://127.0.0.1:3100",
+    HOSTNAME: "127.0.0.1",
+    PORT: "3100",
+  };
+  const serverEnv = parseNativeProductionEnv({ ...process.env, ...placeholder });
+  return {
+    ...process.env,
+    ...placeholder,
+    AUTH_BYPASS_ENABLED: String(serverEnv.AUTH_BYPASS_ENABLED),
     NODE_ENV: "production" as const,
   };
 }

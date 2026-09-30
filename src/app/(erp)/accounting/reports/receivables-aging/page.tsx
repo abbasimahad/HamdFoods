@@ -1,3 +1,4 @@
+import { displayAmounts } from "@/components/ui/format-money";
 import { FinancialReportControls } from "@/components/accounting/financial-report-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -8,7 +9,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   await requirePermission("accounting.view");
   const q = await searchParams;
   const asOf = reportAsOf(q.asOf);
-  const report = await receivableAging(asOf);
+  const report = displayAmounts(await receivableAging(asOf));
   return (
     <ResponsiveContainer>
       <PageHeader

@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Decimal from "decimal.js";
 import { formatMoney, formatQuantity } from "@/components/ui/format-money";
 import Link from "next/link";
@@ -9,7 +10,6 @@ import {
 } from "@/components/purchasing/purchase-invoice-actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
-import { formatDateTimeUtc } from "@/components/ui/format-datetime";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
@@ -54,12 +54,10 @@ export default async function PurchaseInvoiceDetailPage({
       <Card className="mb-5 grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
         <Info label="Supplier" value={`${record.supplierCode} - ${record.supplierName}`} />
         <Info label="Supplier invoice number" value={record.supplierInvoiceNumber} />
-        <Info label="Invoice date" value={record.invoiceDate.toLocaleDateString()} />
+        <Info label="Invoice date" value={formatFactoryDate(record.invoiceDate)} />
         <Info
           label="Due date"
-          value={
-            record.dueDate ? `${record.dueDate.toLocaleDateString()} (informational only)` : "-"
-          }
+          value={record.dueDate ? `${formatFactoryDate(record.dueDate)} (informational only)` : "-"}
         />
         <Info label="Subtotal" value={formatMoney(record.subtotal)} />
         <Info label="Tax total" value={formatMoney(record.taxTotal)} />
@@ -73,7 +71,7 @@ export default async function PurchaseInvoiceDetailPage({
           label="Posted"
           value={
             record.postedAt
-              ? `${record.postedByName} - ${formatDateTimeUtc(record.postedAt)}`
+              ? `${record.postedByName} - ${formatFactoryDateTime(record.postedAt)}`
               : "Not posted"
           }
         />
@@ -154,7 +152,7 @@ export default async function PurchaseInvoiceDetailPage({
         )}
         {record.reversedAt && (
           <p className="mt-4 text-sm text-red-700">
-            Reversed by {record.reversedByName} on {formatDateTimeUtc(record.reversedAt)}:{" "}
+            Reversed by {record.reversedByName} on {formatFactoryDateTime(record.reversedAt)}:{" "}
             {record.reversalReason}
           </p>
         )}

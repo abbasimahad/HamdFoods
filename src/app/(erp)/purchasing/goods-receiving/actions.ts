@@ -15,7 +15,7 @@ export async function saveGoodsReceiptAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  const actor = await requireAnyPermission(["receiving.manage"]);
   const result = await saveGoodsReceipt(actor, Object.fromEntries(formData), repository);
   if (result.ok && result.id) {
     refresh(result.id);
@@ -27,7 +27,7 @@ export async function postGoodsReceiptAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  const actor = await requireAnyPermission(["receiving.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await postGoodsReceipt(actor, id, repository);
   if (result.ok) refresh(id);
@@ -40,7 +40,7 @@ export async function cancelGoodsReceiptAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  const actor = await requireAnyPermission(["receiving.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await cancelGoodsReceipt(
     actor,
@@ -55,7 +55,7 @@ export async function completeGoodsReceiptQcAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  const actor = await requireAnyPermission(["receiving.manage", "quality.manage"]);
   const id = String(formData.get("id") ?? "");
   const result = await completeGoodsReceiptQc(actor, id, Object.fromEntries(formData), repository);
   if (result.ok) {

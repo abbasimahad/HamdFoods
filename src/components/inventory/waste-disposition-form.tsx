@@ -104,6 +104,13 @@ export function WasteDispositionForm({
         : null;
     })
     .filter(Boolean);
+  // UX-5: "Add item" takes the next eligible lot that is not already on a line, and is disabled
+  // (with an explanation) once every eligible lot in the warehouse is used, instead of adding a
+  // blank line whose picker can only say "No matching options".
+  const nextSourceIndex = sources.findIndex(
+    (source, sourceIndex) =>
+      source.warehouseId === warehouseId && !lines.some((line) => line.sourceIndex === sourceIndex),
+  );
   return (
     <SingleFlightForm action={formAction} className="space-y-6">
       {initial && <input name="id" type="hidden" value={initial.id} />}
@@ -146,14 +153,15 @@ export function WasteDispositionForm({
             Disposition lines
           </h2>
           <button
-            className="rounded-lg border px-3 py-2 text-sm font-semibold"
+            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            disabled={nextSourceIndex < 0}
             onClick={() =>
               setLines((current) => [
                 ...current,
                 {
-                  sourceIndex: -1,
-                  quantity: "",
-                  action: "MOVE_TO_SCRAP",
+                  sourceIndex: nextSourceIndex,
+                  quantity: sources[nextSourceIndex]?.quantity ?? "",
+                  action: defaultAction(sources[nextSourceIndex]),
                   reason: "DAMAGED",
                   notes: "",
                 },
@@ -164,6 +172,12 @@ export function WasteDispositionForm({
             Add item
           </button>
         </div>
+        {nextSourceIndex < 0 && sources.some((source) => source.warehouseId === warehouseId) && (
+          <p className="text-xs text-[var(--muted)]">
+            Every eligible lot in this warehouse is already on a line. Change a line&apos;s quantity
+            or action instead of adding another line for the same lot.
+          </p>
+        )}
         {lines.map((line, index) => {
           const source = sources[line.sourceIndex];
           const allowed = allowedActions(source);

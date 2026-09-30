@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApproveOrderForm, CancelOrderForm } from "@/components/purchasing/purchase-order-actions";
@@ -24,7 +25,8 @@ export default async function PurchaseOrderDetailPage({
   ]);
   if (!order) notFound();
   const canManage = hasPermission(principal, "purchasing.manage");
-  const canReceive = canManage || hasPermission(principal, "receiving.manage");
+  const canApprove = hasPermission(principal, "purchase_orders.approve");
+  const canReceive = hasPermission(principal, "receiving.manage");
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -58,10 +60,10 @@ export default async function PurchaseOrderDetailPage({
       <Card className="mb-5 grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
         <Info label="Supplier" value={`${order.supplierCode} - ${order.supplierName}`} />
         <Info label="Contact" value={`${order.supplierContactPerson} / ${order.supplierPhone}`} />
-        <Info label="Order date" value={order.orderDate.toLocaleDateString()} />
+        <Info label="Order date" value={formatFactoryDate(order.orderDate)} />
         <Info
           label="Expected delivery"
-          value={order.expectedDeliveryDate?.toLocaleDateString() ?? "-"}
+          value={formatFactoryDate(order.expectedDeliveryDate) ?? "-"}
         />
         <Info label="Supplier reference" value={order.supplierReference ?? "-"} />
         <Info label="Created by" value={order.createdByName} />
@@ -69,7 +71,7 @@ export default async function PurchaseOrderDetailPage({
           label="Approved"
           value={
             order.approvedAt
-              ? `${order.approvedByName} - ${order.approvedAt.toLocaleString()}`
+              ? `${order.approvedByName} - ${formatFactoryDateTime(order.approvedAt)}`
               : "Pending"
           }
         />
@@ -83,19 +85,25 @@ export default async function PurchaseOrderDetailPage({
         {order.cancelledAt && (
           <div className="mt-4 border-t pt-4 text-sm text-red-800">
             <strong>
-              Cancelled by {order.cancelledByName} on {order.cancelledAt.toLocaleString()}
+              Cancelled by {order.cancelledByName} on {formatFactoryDateTime(order.cancelledAt)}
             </strong>
             <p>{order.cancellationReason}</p>
           </div>
         )}
       </Card>
-      {canManage && ["DRAFT", "APPROVED"].includes(order.status) && (
+      {(canManage || canApprove) && ["DRAFT", "APPROVED"].includes(order.status) && (
         <Card className="mt-5 space-y-4 p-5">
           <h2 className="font-semibold">Lifecycle actions</h2>
-          {order.status === "DRAFT" && (
-            <ApproveOrderForm action={approvePurchaseOrderAction} id={order.id} />
-          )}
-          <CancelOrderForm action={cancelPurchaseOrderAction} id={order.id} />
+          {order.status === "DRAFT" &&
+            (canApprove ? (
+              <ApproveOrderForm action={approvePurchaseOrderAction} id={order.id} />
+            ) : (
+              <p className="text-sm text-[var(--muted)]">
+                Waiting for approval by someone with purchase-order approval permission (Accounts or
+                an administrator).
+              </p>
+            ))}
+          {canManage && <CancelOrderForm action={cancelPurchaseOrderAction} id={order.id} />}
         </Card>
       )}
     </ResponsiveContainer>

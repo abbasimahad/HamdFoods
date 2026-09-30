@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -67,7 +68,7 @@ export default async function SalesDispatchDetailPage({
         <Info label="Customer" value={`${dispatch.customerCode} — ${dispatch.customerName}`} />
         <Info
           label="Dispatch / warehouse"
-          value={`${dispatch.dispatchAt.toLocaleDateString()} / ${dispatch.warehouseName}`}
+          value={`${formatFactoryDate(dispatch.dispatchAt)} / ${dispatch.warehouseName}`}
         />
         <Info label="Status" value={dispatch.status} />
         <Info label="Delivery address" value={dispatch.deliveryAddress} />
@@ -90,7 +91,7 @@ export default async function SalesDispatchDetailPage({
           label="Posted"
           value={
             dispatch.postedByName
-              ? `${dispatch.postedByName} on ${dispatch.postedAt?.toLocaleString()}`
+              ? `${dispatch.postedByName} on ${formatFactoryDateTime(dispatch.postedAt)}`
               : "Not posted"
           }
         />
@@ -98,7 +99,7 @@ export default async function SalesDispatchDetailPage({
           label="Delivered"
           value={
             dispatch.deliveredByName
-              ? `${dispatch.deliveredByName} on ${dispatch.deliveredAt?.toLocaleString()}`
+              ? `${dispatch.deliveredByName} on ${formatFactoryDateTime(dispatch.deliveredAt)}`
               : "Not confirmed"
           }
         />
@@ -119,7 +120,7 @@ export default async function SalesDispatchDetailPage({
       {dispatch.status === "CANCELLED" && (
         <Card className="mt-5 p-5 text-red-800">
           <strong>
-            Cancelled by {dispatch.cancelledByName} on {dispatch.cancelledAt?.toLocaleString()}
+            Cancelled by {dispatch.cancelledByName} on {formatFactoryDateTime(dispatch.cancelledAt)}
           </strong>
           <p>{dispatch.cancellationReason}</p>
         </Card>
@@ -196,7 +197,7 @@ function DispatchLines({
                     <span className="block" key={`${allocation.id}-${allocation.quantity}`}>
                       {allocation.lotNumber} — {allocation.quantity} pcs{" "}
                       {allocation.expiryDate
-                        ? `(expires ${new Date(allocation.expiryDate).toLocaleDateString()})`
+                        ? `(expires ${formatFactoryDate(new Date(allocation.expiryDate))})`
                         : ""}
                     </span>
                   ))}

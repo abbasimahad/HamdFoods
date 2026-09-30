@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
+import { BUILD_INFO, buildLabel } from "@/config/build-info";
 import { getActiveNavigationItem, getPermittedNavigation } from "@/config/navigation";
 import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 
@@ -113,6 +114,14 @@ export function SidebarNavigation({
           );
         })}
       </ul>
+      {!collapsed && (
+        <p
+          className="mt-4 px-3 text-[0.625rem] text-[var(--sidebar-muted)]"
+          title={BUILD_INFO.builtAt ? `Built ${BUILD_INFO.builtAt}` : undefined}
+        >
+          Hamd Foods ERP {buildLabel()}
+        </p>
+      )}
     </nav>
   );
 }

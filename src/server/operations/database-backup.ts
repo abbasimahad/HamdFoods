@@ -355,6 +355,136 @@ export function assertSafeRestoreTarget(targetUrl: string, safety: RestoreSafety
   return target;
 }
 
+export type LiveRestoreOptions = {
+  backupIdentifier: string;
+  backupDirectory?: string;
+  /** The installation's own DATABASE_URL (its non-superuser owner role and live database). */
+  databaseUrl: string;
+  /** PostgreSQL administrator password; needed only to create and rename databases. */
+  adminPassword: string;
+  adminUsername?: string;
+  postgresBin?: string;
+  now?: Date;
+};
+
+export type LiveRestoreResult = RestoreResult & {
+  previousDatabaseName: string;
+  /** Reconciliation checks that did not hold in the backed-up data (not a restore failure). */
+  warnings: string[];
+};
+
+/**
+ * INST-9: puts a verified backup of this installation back into service without ever deleting
+ * the current data. The backup is restored, as the installation's own role, into a new side
+ * database and must pass every post-restore integrity check; only then are the databases swapped
+ * by rename. The replaced database is kept as `<name>_before_restore_<timestamp>`, so a restore
+ * can itself be undone. Any failure before the swap leaves the live database untouched; a failed
+ * swap is rolled back. The caller stops the ERP first and migrates/starts it afterwards.
+ */
+export async function restoreLiveDatabase(options: LiveRestoreOptions): Promise<LiveRestoreResult> {
+  const verified = await verifyBackupArtifact(options.backupDirectory, options.backupIdentifier);
+  const live = parseDatabaseUrl(options.databaseUrl, "DATABASE_URL");
+  if (verified.manifest.databaseName.toLowerCase() !== live.databaseName.toLowerCase())
+    throw new DatabaseBackupError(
+      `Backup ${verified.manifest.backupId} is of database ${verified.manifest.databaseName}, not this installation's ${live.databaseName}.`,
+    );
+  const stamp = (options.now ?? new Date()).toISOString().replace(/[-:]/g, "").slice(0, 15);
+  const liveName = safeIdentifier(live.databaseName);
+  const owner = safeIdentifier(live.username);
+  const incomingName = safeIdentifier(`${live.databaseName}_incoming_${stamp}`.toLowerCase());
+  const previousName = safeIdentifier(`${live.databaseName}_before_restore_${stamp}`.toLowerCase());
+  const adminUrl = new URL(databaseUrlFor(live, "postgres"));
+  adminUrl.username = encodeURIComponent(options.adminUsername ?? "postgres");
+  adminUrl.password = encodeURIComponent(options.adminPassword);
+  const admin = new Client({ connectionString: adminUrl.toString() });
+  try {
+    await admin.connect();
+  } catch {
+    throw new DatabaseBackupError("PostgreSQL administrator login failed; nothing was changed.");
+  }
+  try {
+    const clash = await admin.query("SELECT 1 FROM pg_database WHERE datname = ANY($1::text[])", [
+      [incomingName, previousName],
+    ]);
+    if (clash.rowCount) throw new DatabaseBackupError("A restore database name is already in use.");
+    await admin.query(`CREATE DATABASE "${incomingName}" OWNER "${owner}"`);
+    const incoming: DatabaseEndpoint = {
+      ...live,
+      databaseName: incomingName,
+      url: databaseUrlFor(live, incomingName),
+    };
+    let inspection: Awaited<ReturnType<typeof inspectRestoredDatabase>>;
+    try {
+      const pgRestore = resolvePostgresTool("pg_restore", options.postgresBin);
+      runTool(pgRestore, ["--list", verified.dumpPath]);
+      runTool(
+        pgRestore,
+        [
+          "--exit-on-error",
+          "--single-transaction",
+          "--no-owner",
+          "--no-privileges",
+          ...connectionArguments(incoming),
+          verified.dumpPath,
+        ],
+        incoming,
+      );
+      inspection = await inspectRestoredDatabase(incoming.url, verified.manifest);
+      // Fidelity is mandatory: the copy must be exactly what was backed up. The business
+      // reconciliations describe the backed-up data itself (it may legitimately carry an open
+      // posting block), so they are reported as warnings instead of refusing the recovery.
+      const { expectedTables, migrationsMatch, factsMatch, auditPreserved } = inspection.integrity;
+      assertIntegrity({
+        expectedTables,
+        migrationsMatch,
+        factsMatch,
+        auditPreserved,
+      } as RestoreIntegrity);
+    } catch (error) {
+      await admin.query(`DROP DATABASE IF EXISTS "${incomingName}" WITH (FORCE)`).catch(() => {});
+      throw error;
+    }
+    await admin.query(`ALTER DATABASE "${liveName}" WITH ALLOW_CONNECTIONS false`);
+    try {
+      await admin.query(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+        [liveName],
+      );
+      await admin.query(`ALTER DATABASE "${liveName}" RENAME TO "${previousName}"`);
+    } catch (error) {
+      await admin.query(`ALTER DATABASE "${liveName}" WITH ALLOW_CONNECTIONS true`).catch(() => {});
+      await admin.query(`DROP DATABASE IF EXISTS "${incomingName}" WITH (FORCE)`).catch(() => {});
+      throw error;
+    }
+    try {
+      await admin.query(`ALTER DATABASE "${incomingName}" RENAME TO "${liveName}"`);
+    } catch (error) {
+      await admin.query(`ALTER DATABASE "${previousName}" RENAME TO "${liveName}"`).catch(() => {});
+      await admin.query(`ALTER DATABASE "${liveName}" WITH ALLOW_CONNECTIONS true`).catch(() => {});
+      throw error;
+    }
+    // The kept copy stays closed to logins so nothing writes to it by mistake.
+    return {
+      manifest: verified.manifest,
+      targetDatabaseName: liveName,
+      restoredFacts: inspection.restoredFacts,
+      integrity: inspection.integrity,
+      warnings: Object.entries(inspection.integrity)
+        .filter(([, passed]) => !passed)
+        .map(([name]) => name),
+      previousDatabaseName: previousName,
+    };
+  } finally {
+    await admin.end().catch(() => undefined);
+  }
+}
+
+function safeIdentifier(value: string) {
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value))
+    throw new DatabaseBackupError(`PostgreSQL identifier ${value} is not a safe lowercase name.`);
+  return value;
+}
+
 export async function removeSafeRestoreDatabase(
   targetDatabaseUrl: string,
   safety: RestoreSafety,

@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -50,8 +51,7 @@ export default async function GoodsReceivingPage({
         description="Receive approved purchase orders into quality hold and classify them through purchase QC."
       />
       <div className="mb-4 flex justify-end">
-        {(hasPermission(principal, "purchasing.manage") ||
-          hasPermission(principal, "receiving.manage")) && (
+        {hasPermission(principal, "receiving.manage") && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
             href="/purchasing/goods-receiving/new"
@@ -135,7 +135,7 @@ export default async function GoodsReceivingPage({
                       {receipt.number}
                     </Link>
                   </td>
-                  <td className="p-4">{receipt.receiptDate.toLocaleString()}</td>
+                  <td className="p-4">{formatFactoryDateTime(receipt.receiptDate)}</td>
                   <td className="p-4">
                     <Link href={`/purchasing/purchase-orders/${receipt.purchaseOrderId}`}>
                       {receipt.purchaseOrderNumber}

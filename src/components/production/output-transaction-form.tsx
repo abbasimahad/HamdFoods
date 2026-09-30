@@ -1,5 +1,6 @@
 "use client";
 
+import { factoryLocalDateTimeValue } from "@/server/shared/factory-local-time";
 import { useActionState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
@@ -227,6 +228,5 @@ function dateOnly(value?: Date | null) {
   return value ? value.toISOString().slice(0, 10) : undefined;
 }
 function dateTimeLocal(value?: Date) {
-  const date = value ?? new Date();
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  return factoryLocalDateTimeValue(value ?? new Date());
 }

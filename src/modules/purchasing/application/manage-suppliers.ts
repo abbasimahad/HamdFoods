@@ -22,7 +22,11 @@ const supplierSchema = z.object({
   contactPerson: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(5).max(40),
   secondaryPhone: optionalText(40),
-  email: z.string().trim().email().max(160),
+  // UX-9: many local suppliers have no email address; it is optional but must be valid if given.
+  email: z.preprocess(
+    (value) => (String(value ?? "").trim() ? String(value).trim() : undefined),
+    z.string().email().max(160).optional(),
+  ),
   address: z.string().trim().min(5).max(500),
   city: z.string().trim().min(2).max(100),
   taxRegistrationNo: optionalText(80),
@@ -52,6 +56,7 @@ export async function saveSupplier(
       id: await repository.saveSupplier({
         ...parsed.data,
         secondaryPhone: parsed.data.secondaryPhone ?? null,
+        email: parsed.data.email ?? null,
         taxRegistrationNo: parsed.data.taxRegistrationNo ?? null,
         paymentTermsDays: parsed.data.paymentTermsDays ?? null,
         notes: parsed.data.notes ?? null,

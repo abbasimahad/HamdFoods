@@ -53,8 +53,9 @@ export async function postSalesInvoice(
   id: string,
   repository: SalesInvoiceRepository,
 ): Promise<SalesInvoiceMutationResult> {
-  const denied = requireSalesInvoiceManager(actor);
-  if (denied) return denied;
+  // ROLE-2: posting creates the receivable, so it sits with Accounts, not with Sales.
+  if (!actor.active || !actor.permissions.includes("sales_invoices.post"))
+    return { ok: false, message: "Sales invoice posting permission is required." };
   if (!z.string().uuid().safeParse(id).success)
     return { ok: false, message: "Invoice is invalid." };
   try {

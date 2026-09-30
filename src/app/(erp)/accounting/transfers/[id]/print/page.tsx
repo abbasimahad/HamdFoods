@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
@@ -30,7 +31,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <dt>Destination</dt>
         <dd>{transfer.destinationTreasuryAccount.name}</dd>
         <dt>Amount</dt>
-        <dd>{transfer.amount.toString()}</dd>
+        <dd>{formatMoney(transfer.amount, "")}</dd>
         <dt>Reference</dt>
         <dd>{transfer.referenceNumber ?? "—"}</dd>
         <dt>Notes</dt>

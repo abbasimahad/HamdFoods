@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -38,7 +39,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <p>Paid from: {expense.treasuryAccount.name}</p>
         <p>Payee: {expense.payee ?? expense.supplier?.name ?? "—"}</p>
         <p>Description: {expense.description}</p>
-        <p>Total: {expense.totalAmount.toString()}</p>
+        <p>Total: {formatMoney(expense.totalAmount, "")}</p>
         <p>Reference: {expense.referenceNumber ?? "—"}</p>
         <p>
           <Link className="text-[var(--accent)]" href={`/accounting/expenses/${expense.id}/print`}>
@@ -76,7 +77,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   {line.expenseAccount.code} — {line.expenseAccount.name}
                 </td>
                 <td className="p-3">{line.description}</td>
-                <td className="p-3">{line.amount.toString()}</td>
+                <td className="p-3">{formatMoney(line.amount, "")}</td>
               </tr>
             ))}
           </tbody>

@@ -9,6 +9,8 @@ export default defineConfig([
   prettier,
   globalIgnores([
     ".next/**",
+    ".next-verify/**",
+    ".next-installer/**",
     ".installer-cache/**",
     ".installer-work/**",
     "installer/output/**",

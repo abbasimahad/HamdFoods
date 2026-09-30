@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -37,7 +38,7 @@ export default async function PrintGoodsReceiptPage({
         </div>
         <div className="text-right">
           <strong className="text-xl">{receipt.number}</strong>
-          <p>{receipt.receiptDate.toLocaleString()}</p>
+          <p>{formatFactoryDateTime(receipt.receiptDate)}</p>
           <p>{receipt.status.replaceAll("_", " ")}</p>
         </div>
       </header>
@@ -91,7 +92,7 @@ export default async function PrintGoodsReceiptPage({
                 {line.enteredQuantity} {line.enteredUnitSymbol}
               </td>
               <td className="border p-2">{line.supplierLotNumber ?? "-"}</td>
-              <td className="border p-2">{line.expiryDate?.toLocaleDateString() ?? "-"}</td>
+              <td className="border p-2">{formatFactoryDate(line.expiryDate) ?? "-"}</td>
               <td className="border p-2">
                 {line.acceptedQuantity} {line.canonicalUnitSymbol}
               </td>
@@ -108,12 +109,12 @@ export default async function PrintGoodsReceiptPage({
         <p className="mt-6">
           Posted:{" "}
           {receipt.postedAt
-            ? `${receipt.postedByName} on ${receipt.postedAt.toLocaleString()}`
+            ? `${receipt.postedByName} on ${formatFactoryDateTime(receipt.postedAt)}`
             : "Not posted"}
         </p>
         {receipt.qcCompletedAt && (
           <p className="mt-2">
-            QC completed: {receipt.qcByName} on {receipt.qcCompletedAt.toLocaleString()}
+            QC completed: {receipt.qcByName} on {formatFactoryDateTime(receipt.qcCompletedAt)}
           </p>
         )}
       </section>

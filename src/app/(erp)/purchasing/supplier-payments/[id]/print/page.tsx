@@ -1,3 +1,5 @@
+import { formatMoney } from "@/components/ui/format-money";
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -43,7 +45,7 @@ export default async function PrintSupplierPaymentPage({
         </div>
         <div className="text-right">
           <strong className="text-xl">{payment.number}</strong>
-          <p>{payment.paymentDate.toLocaleDateString()}</p>
+          <p>{formatFactoryDate(payment.paymentDate)}</p>
           <p>{reversed ? `${payment.status} (REVERSED)` : payment.status}</p>
         </div>
       </header>
@@ -69,7 +71,7 @@ export default async function PrintSupplierPaymentPage({
             <strong>Method:</strong> {payment.method} via {payment.treasuryAccount.name}
           </p>
           <p>
-            <strong>Amount:</strong> {payment.totalAmount.toString()}
+            <strong>Amount:</strong> {formatMoney(payment.totalAmount, "")}
           </p>
           <p>
             <strong>Reference:</strong> {payment.referenceNumber ?? "-"}
@@ -93,7 +95,7 @@ export default async function PrintSupplierPaymentPage({
                 {allocation.payableLedgerEntry.sourceNumber ??
                   allocation.payableLedgerEntry.sourceId}
               </td>
-              <td className="border p-2">{allocation.allocatedAmount.toString()}</td>
+              <td className="border p-2">{formatMoney(allocation.allocatedAmount, "")}</td>
             </tr>
           ))}
           {payment.allocations.length === 0 && (
@@ -109,7 +111,7 @@ export default async function PrintSupplierPaymentPage({
         <p>
           Posted:{" "}
           {payment.postedAt
-            ? `${payment.postedBy?.name ?? "-"} on ${payment.postedAt.toLocaleString()}`
+            ? `${payment.postedBy?.name ?? "-"} on ${formatFactoryDateTime(payment.postedAt)}`
             : "Not posted"}
         </p>
       </section>

@@ -1,3 +1,4 @@
+import { displayAmounts } from "@/components/ui/format-money";
 import { FinancialReportControls } from "@/components/accounting/financial-report-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -12,7 +13,7 @@ export default async function Page({
   await requirePermission("accounting.view");
   const q = await searchParams;
   const range = reportRange(q.from, q.to);
-  const report = await cashFlow(range);
+  const report = displayAmounts(await cashFlow(range));
   const rows = [
     ["Opening cash", report.openingCash],
     ["Operating cash movement", report.operating],

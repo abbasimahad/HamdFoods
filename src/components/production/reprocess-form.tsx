@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useMemo, useState } from "react";
 
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -86,7 +87,7 @@ export function ReprocessForm({
         </div>
         {source && (
           <p className="mt-3 rounded-lg bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
-            Expiry {source.expiryDate?.toLocaleDateString() ?? "missing"}; approved reprocess shelf
+            Expiry {formatFactoryDate(source.expiryDate) ?? "missing"}; approved reprocess shelf
             life {source.shelfLifeDays ?? "missing"} days. The server rechecks both before saving.
           </p>
         )}

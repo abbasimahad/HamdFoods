@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -140,9 +141,9 @@ export default async function PurchaseOrdersPage({
                       {order.number}
                     </Link>
                   </td>
-                  <td className="p-4">{order.orderDate.toLocaleDateString()}</td>
+                  <td className="p-4">{formatFactoryDate(order.orderDate)}</td>
                   <td className="p-4">{order.supplierName}</td>
-                  <td className="p-4">{order.expectedDeliveryDate?.toLocaleDateString() ?? "-"}</td>
+                  <td className="p-4">{formatFactoryDate(order.expectedDeliveryDate) ?? "-"}</td>
                   <td className="p-4">{order.status.replaceAll("_", " ")}</td>
                   <td className="p-4 font-semibold">{formatMoney(order.grandTotal)}</td>
                   <td className="p-4">{order.createdByName}</td>

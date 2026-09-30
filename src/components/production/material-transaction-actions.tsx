@@ -70,3 +70,55 @@ export function CancelMaterialTransactionForm({
     </form>
   );
 }
+
+export function ReverseMaterialTransactionForm({
+  transactionId,
+  transactionNumber,
+  productionBatchId,
+  action,
+}: {
+  transactionId: string;
+  transactionNumber: string;
+  productionBatchId: string;
+  action: Action;
+}) {
+  const [state, formAction, pending] = useActionState(action, initialProductionActionState);
+  return (
+    <form
+      action={formAction}
+      className="flex min-w-72 flex-col gap-2"
+      onSubmit={(event) => {
+        if (
+          !window.confirm(
+            `Reverse ${transactionNumber}? A reversal document is posted and the batch cost is corrected. This cannot be undone.`,
+          )
+        )
+          event.preventDefault();
+      }}
+    >
+      <input name="transactionId" type="hidden" value={transactionId} />
+      <input name="productionBatchId" type="hidden" value={productionBatchId} />
+      <div className="flex gap-2">
+        <input
+          className="min-h-9 min-w-44 flex-1 rounded-lg border px-2 text-xs"
+          maxLength={1000}
+          minLength={10}
+          name="reason"
+          placeholder="Why is this wrong? (e.g. wrong quantity)"
+          required
+        />
+        <button
+          className="rounded-lg border border-amber-400 px-3 text-xs font-semibold text-amber-800 disabled:opacity-60"
+          disabled={pending}
+        >
+          {pending ? "Reversing..." : "Reverse"}
+        </button>
+      </div>
+      {state.message && (
+        <p className="max-w-72 text-xs" role="status">
+          {state.message}
+        </p>
+      )}
+    </form>
+  );
+}

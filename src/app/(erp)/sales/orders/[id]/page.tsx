@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -28,9 +29,13 @@ export default async function SalesOrderDetailPage({
   const canManage = hasPermission(principal, "sales.manage");
   const canApprove = hasPermission(principal, "sales.approve");
   const canCancel = ["DRAFT", "APPROVED"].includes(order.status);
-  const hasUnreservedRedelivery = order.lines.some(
-    (line) => line.redeliveryReservationPieces !== "0",
-  );
+  // Redelivery stock is only relevant after a dispatch was refused on an approved order (UX-9);
+  // a draft order has nothing to redeliver yet.
+  const hasUnreservedRedelivery =
+    !["DRAFT", "CANCELLED"].includes(order.status) &&
+    order.lines.some(
+      (line) => line.redeliveryReservationPieces !== "0" && line.refusedPieces !== "0",
+    );
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -69,7 +74,7 @@ export default async function SalesOrderDetailPage({
         <Info label="Warehouse" value={order.warehouseName} />
         <Info
           label="Order / delivery"
-          value={`${order.orderDate.toLocaleDateString()} / ${order.deliveryDate?.toLocaleDateString() ?? "-"}`}
+          value={`${formatFactoryDate(order.orderDate)} / ${formatFactoryDate(order.deliveryDate) ?? "-"}`}
         />
         <Info
           label="Credit limit / terms"
@@ -80,7 +85,7 @@ export default async function SalesOrderDetailPage({
           label="Approval"
           value={
             order.approvedByName
-              ? `${order.approvedByName} on ${order.approvedAt?.toLocaleString()}`
+              ? `${order.approvedByName} on ${formatFactoryDateTime(order.approvedAt)}`
               : "Pending"
           }
         />
@@ -95,7 +100,7 @@ export default async function SalesOrderDetailPage({
       {order.status === "CANCELLED" && (
         <Card className="mt-5 p-5 text-red-800">
           <strong>
-            Cancelled by {order.cancelledByName} on {order.cancelledAt?.toLocaleString()}
+            Cancelled by {order.cancelledByName} on {formatFactoryDateTime(order.cancelledAt)}
           </strong>
           <p>{order.cancellationReason}</p>
         </Card>

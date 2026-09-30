@@ -6,6 +6,7 @@ import type { ProductionActionState } from "@/components/production/action-state
 import {
   cancelPackagingTransaction,
   postPackagingTransaction,
+  reversePackagingTransaction,
   savePackagingTransaction,
 } from "@/modules/production/application/manage-packaging-transactions";
 import { requirePermission } from "@/server/auth/licensed-guards";
@@ -59,6 +60,26 @@ export async function cancelPackagingTransactionAction(
   return {
     ok: result.ok,
     message: result.ok ? "Draft packaging transaction cancelled." : result.message,
+  };
+}
+
+export async function reversePackagingTransactionAction(
+  _state: ProductionActionState,
+  formData: FormData,
+): Promise<ProductionActionState> {
+  const actor = await requirePermission("production.manage");
+  const id = String(formData.get("transactionId") ?? "");
+  const batchId = String(formData.get("productionBatchId") ?? "");
+  const result = await reversePackagingTransaction(
+    actor,
+    id,
+    String(formData.get("reason") ?? ""),
+    repository,
+  );
+  if (result.ok) refresh(batchId);
+  return {
+    ok: result.ok,
+    message: result.ok ? "Posted transaction reversed; batch cost corrected." : result.message,
   };
 }
 

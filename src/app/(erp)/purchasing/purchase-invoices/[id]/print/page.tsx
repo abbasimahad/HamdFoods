@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { formatMoney, formatQuantity } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
@@ -38,7 +39,7 @@ export default async function PrintPurchaseInvoicePage({
         </div>
         <div className="text-right">
           <strong className="text-xl">{record.number}</strong>
-          <p>{record.invoiceDate.toLocaleDateString()}</p>
+          <p>{formatFactoryDate(record.invoiceDate)}</p>
           <p>{record.status}</p>
         </div>
       </header>
@@ -54,7 +55,7 @@ export default async function PrintPurchaseInvoicePage({
             <strong>Supplier invoice number:</strong> {record.supplierInvoiceNumber}
           </p>
           <p>
-            <strong>Due date:</strong> {record.dueDate?.toLocaleDateString() ?? "-"}
+            <strong>Due date:</strong> {formatFactoryDate(record.dueDate) ?? "-"}
           </p>
           <p>
             <strong>Created by:</strong> {record.createdByName}
@@ -104,7 +105,7 @@ export default async function PrintPurchaseInvoicePage({
         <p className="mt-6">
           Posted:{" "}
           {record.postedAt
-            ? `${record.postedByName} on ${record.postedAt.toLocaleString()}`
+            ? `${record.postedByName} on ${formatFactoryDateTime(record.postedAt)}`
             : "Not posted"}
         </p>
       </section>

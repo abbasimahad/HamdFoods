@@ -82,6 +82,26 @@ export async function cancelPackagingTransaction(
   );
 }
 
+export async function reversePackagingTransaction(
+  actor: ApplicationPrincipal,
+  id: string,
+  reason: string,
+  repository: ProductionPackagingRepository,
+): Promise<MaterialMutationResult> {
+  const parsed = z.string().trim().min(10).max(1000).safeParse(reason);
+  if (!parsed.success)
+    return { ok: false, message: "Explain the correction (at least 10 characters)." };
+  const denied = requirePackagingManager(actor);
+  if (denied) return denied;
+  if (!z.string().uuid().safeParse(id).success)
+    return { ok: false, message: "Invalid packaging transaction." };
+  try {
+    return { ok: true, id: await repository.reverseTransaction(id, actor.id, parsed.data) };
+  } catch (error) {
+    return fail(error, "Packaging transaction could not be reversed.");
+  }
+}
+
 async function lifecycle(
   actor: ApplicationPrincipal,
   id: string,

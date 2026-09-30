@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormActions } from "@/components/ui/form-actions";
@@ -263,7 +264,7 @@ export function CustomerPaymentForm({
                 {invoices.map((invoice) => (
                   <tr key={invoice.id}>
                     <td className="p-3">{invoice.number}</td>
-                    <td className="p-3">{invoice.dueDate.toLocaleDateString()}</td>
+                    <td className="p-3">{formatFactoryDate(invoice.dueDate)}</td>
                     <td className="p-3">{invoice.originalAmount}</td>
                     <td className="p-3">{invoice.alreadyPaid}</td>
                     <td className="p-3">{invoice.outstandingAmount}</td>

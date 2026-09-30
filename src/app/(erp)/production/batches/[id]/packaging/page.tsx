@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
@@ -5,6 +6,7 @@ import { PackagingTransactionForm } from "@/components/production/packaging-tran
 import {
   CancelMaterialTransactionForm,
   PostMaterialTransactionForm,
+  ReverseMaterialTransactionForm,
 } from "@/components/production/material-transaction-actions";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -18,6 +20,7 @@ import { PrismaProductionPackagingRepository } from "@/server/production/prisma-
 import {
   cancelPackagingTransactionAction,
   postPackagingTransactionAction,
+  reversePackagingTransactionAction,
   savePackagingTransactionAction,
 } from "./actions";
 
@@ -167,7 +170,7 @@ export default async function BatchPackagingPage({
               {view.transactions.map((transaction) => (
                 <tr key={transaction.id}>
                   <td className="p-3 font-mono font-semibold">{transaction.transactionNumber}</td>
-                  <td className="p-3">{transaction.transactionDate.toLocaleString()}</td>
+                  <td className="p-3">{formatFactoryDateTime(transaction.transactionDate)}</td>
                   <td className="p-3">
                     {transaction.transactionType}
                     {transaction.damageReason && (
@@ -199,9 +202,31 @@ export default async function BatchPackagingPage({
                   </td>
                   <td className="p-3">
                     {transaction.postedByName ?? transaction.createdByName}
-                    <span className="block text-xs">{transaction.status}</span>
+                    <span className="block text-xs">
+                      {transaction.reversedByNumber
+                        ? `REVERSED (${transaction.reversedByNumber})`
+                        : transaction.status}
+                    </span>
+                    {transaction.reversalOfNumber && (
+                      <span className="block text-xs font-semibold text-amber-800">
+                        Reversal of {transaction.reversalOfNumber}
+                      </span>
+                    )}
                   </td>
                   <td className="p-3">
+                    {canManage &&
+                      transaction.status === "POSTED" &&
+                      (transaction.transactionType === "ISSUE" ||
+                        transaction.transactionType === "CONSUMPTION") &&
+                      !transaction.reversalOfNumber &&
+                      !transaction.reversedByNumber && (
+                        <ReverseMaterialTransactionForm
+                          action={reversePackagingTransactionAction}
+                          productionBatchId={id}
+                          transactionId={transaction.id}
+                          transactionNumber={transaction.transactionNumber}
+                        />
+                      )}
                     {canManage && transaction.status === "DRAFT" && (
                       <div className="space-y-2">
                         <Link

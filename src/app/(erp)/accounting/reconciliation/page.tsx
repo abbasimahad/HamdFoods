@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -26,9 +27,11 @@ export default async function Page() {
             {rows.map((row) => (
               <tr key={row.name}>
                 <td className="p-3">{row.name}</td>
-                <td className="p-3">{row.gl.toFixed(6)}</td>
-                <td className="p-3">{row.comparable ? row.source.toFixed(6) : "Reference only"}</td>
-                <td className="p-3">{row.comparable ? row.difference.toFixed(6) : "—"}</td>
+                <td className="p-3">{formatMoney(row.gl, "")}</td>
+                <td className="p-3">
+                  {row.comparable ? formatMoney(row.source, "") : "Reference only"}
+                </td>
+                <td className="p-3">{row.comparable ? formatMoney(row.difference, "") : "—"}</td>
               </tr>
             ))}
           </tbody>

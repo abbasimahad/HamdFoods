@@ -6,6 +6,7 @@ import type { ProductionActionState } from "@/components/production/action-state
 import {
   cancelMaterialTransaction,
   postMaterialTransaction,
+  reverseMaterialTransaction,
   saveMaterialTransaction,
 } from "@/modules/production/application/manage-material-transactions";
 import { requirePermission } from "@/server/auth/licensed-guards";
@@ -57,6 +58,26 @@ export async function cancelMaterialTransactionAction(
   );
   if (result.ok) refresh(batchId);
   return { ok: result.ok, message: result.ok ? "Draft transaction cancelled." : result.message };
+}
+
+export async function reverseMaterialTransactionAction(
+  _state: ProductionActionState,
+  formData: FormData,
+): Promise<ProductionActionState> {
+  const actor = await requirePermission("production.manage");
+  const id = String(formData.get("transactionId") ?? "");
+  const batchId = String(formData.get("productionBatchId") ?? "");
+  const result = await reverseMaterialTransaction(
+    actor,
+    id,
+    String(formData.get("reason") ?? ""),
+    repository,
+  );
+  if (result.ok) refresh(batchId);
+  return {
+    ok: result.ok,
+    message: result.ok ? "Posted transaction reversed; batch cost corrected." : result.message,
+  };
 }
 
 function refresh(batchId: string) {

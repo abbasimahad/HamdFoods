@@ -671,6 +671,7 @@ function mapInvoice(invoice: InvoiceRow): SalesInvoiceRecord {
       notes: line.notes,
       allocations: line.allocations.map((allocation) => ({
         lotNumber: allocation.productionLot.lotNumber,
+        expiryDate: allocation.productionLot.expiryDate,
         quantity: allocation.quantity.toString(),
       })),
     })),

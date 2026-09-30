@@ -1,4 +1,5 @@
 "use client";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useState } from "react";
 import type { OpenInvoice } from "@/modules/sales/application/customer-payment-contracts";
 type State = { ok: boolean; message: string };
@@ -60,7 +61,7 @@ export function CustomerCreditAllocationForm({
             {invoices.map((invoice) => (
               <tr key={invoice.id}>
                 <td className="p-3">{invoice.number}</td>
-                <td className="p-3">{invoice.dueDate.toLocaleDateString()}</td>
+                <td className="p-3">{formatFactoryDate(invoice.dueDate)}</td>
                 <td className="p-3">{invoice.outstandingAmount}</td>
                 <td className="p-3">
                   <input

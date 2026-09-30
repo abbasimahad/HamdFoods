@@ -1,3 +1,6 @@
+import Decimal from "decimal.js";
+import { formatQuantity } from "@/components/ui/format-money";
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -19,8 +22,8 @@ export default async function GoodsReceiptDetailPage({
   const principal = await requirePermission("purchasing.view");
   const receipt = await new PrismaGoodsReceiptRepository().getGoodsReceipt((await params).id);
   if (!receipt) notFound();
-  const canManage =
-    hasPermission(principal, "purchasing.manage") || hasPermission(principal, "receiving.manage");
+  const canManage = hasPermission(principal, "receiving.manage");
+  const canQc = canManage || hasPermission(principal, "quality.manage");
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -42,7 +45,7 @@ export default async function GoodsReceiptDetailPage({
             Edit draft
           </Link>
         )}
-        {canManage && receipt.status === "POSTED" && (
+        {canQc && receipt.status === "POSTED" && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
             href={`/purchasing/goods-receiving/${receipt.id}/qc`}
@@ -69,7 +72,7 @@ export default async function GoodsReceiptDetailPage({
         <Info label="Purchase order" value={receipt.purchaseOrderNumber} />
         <Info label="Supplier" value={`${receipt.supplierCode} - ${receipt.supplierName}`} />
         <Info label="Warehouse" value={`${receipt.warehouseCode} - ${receipt.warehouseName}`} />
-        <Info label="Receipt date" value={receipt.receiptDate.toLocaleString()} />
+        <Info label="Receipt date" value={formatFactoryDateTime(receipt.receiptDate)} />
         <Info label="Delivery / challan" value={receipt.supplierDeliveryNumber ?? "-"} />
         <Info label="Vehicle / reference" value={receipt.vehicleReference ?? "-"} />
         <Info label="Received by" value={receipt.receivedByName} />
@@ -77,7 +80,7 @@ export default async function GoodsReceiptDetailPage({
           label="Posted"
           value={
             receipt.postedAt
-              ? `${receipt.postedByName} - ${receipt.postedAt.toLocaleString()}`
+              ? `${receipt.postedByName} - ${formatFactoryDateTime(receipt.postedAt)}`
               : "Not posted"
           }
         />
@@ -85,7 +88,7 @@ export default async function GoodsReceiptDetailPage({
           label="QC"
           value={
             receipt.qcCompletedAt
-              ? `${receipt.qcByName} - ${receipt.qcCompletedAt.toLocaleString()}`
+              ? `${receipt.qcByName} - ${formatFactoryDateTime(receipt.qcCompletedAt)}`
               : receipt.status === "POSTED"
                 ? "Pending"
                 : "-"
@@ -125,12 +128,12 @@ export default async function GoodsReceiptDetailPage({
                     {line.normalizedQuantity} {line.canonicalUnitSymbol}
                   </td>
                   <td className="p-3">{line.supplierLotNumber ?? "-"}</td>
-                  <td className="p-3">{line.expiryDate?.toLocaleDateString() ?? "-"}</td>
+                  <td className="p-3">{formatFactoryDate(line.expiryDate) ?? "-"}</td>
                   <td className="p-3">
-                    {line.acceptedQuantity} {line.canonicalUnitSymbol}
+                    <ReceivedUnitQuantity line={line} quantity={line.acceptedQuantity} />
                   </td>
                   <td className="p-3">
-                    {line.rejectedQuantity} {line.canonicalUnitSymbol}
+                    <ReceivedUnitQuantity line={line} quantity={line.rejectedQuantity} />
                   </td>
                   <td className="p-3">
                     {line.rejectionReason?.replaceAll("_", " ") ??
@@ -166,5 +169,40 @@ function Info({ label, value }: { label: string; value: string }) {
       <dt className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</dt>
       <dd className="mt-1 text-sm">{value}</dd>
     </div>
+  );
+}
+
+/**
+ * UX-3: QC is entered in the unit the goods were received in (e.g. kg), so show accepted and
+ * rejected quantities in that unit too, with the canonical stock quantity (e.g. g) underneath.
+ */
+function ReceivedUnitQuantity({
+  line,
+  quantity,
+}: {
+  line: {
+    enteredQuantity: string;
+    enteredUnitSymbol: string;
+    normalizedQuantity: string;
+    canonicalUnitSymbol: string;
+  };
+  quantity: string | null;
+}) {
+  if (quantity === null || quantity === undefined) return <>-</>;
+  const normalized = new Decimal(line.normalizedQuantity);
+  if (line.enteredUnitSymbol === line.canonicalUnitSymbol || normalized.isZero())
+    return (
+      <>
+        {formatQuantity(quantity)} {line.canonicalUnitSymbol}
+      </>
+    );
+  const inReceivedUnit = new Decimal(quantity).mul(line.enteredQuantity).div(normalized);
+  return (
+    <>
+      {formatQuantity(inReceivedUnit.toDecimalPlaces(6).toFixed())} {line.enteredUnitSymbol}
+      <span className="block text-xs text-[var(--muted)]">
+        {formatQuantity(quantity)} {line.canonicalUnitSymbol}
+      </span>
+    </>
   );
 }

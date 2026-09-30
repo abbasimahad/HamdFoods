@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { PrintButton } from "@/components/purchasing/print-button";
 import Decimal from "decimal.js";
 import { notFound } from "next/navigation";
@@ -88,7 +89,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   {l.allocations.length
                     ? l.allocations.map((lot) => (
                         <span className="block" key={lot.lotNumber}>
-                          {lot.lotNumber} ({formatQuantity(lot.quantity)})
+                          {lot.lotNumber}
+                          {lot.expiryDate ? ` / exp. ${formatFactoryDate(lot.expiryDate)}` : ""} (
+                          {formatQuantity(lot.quantity)})
                         </span>
                       ))
                     : "—"}

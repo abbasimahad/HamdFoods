@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [ValidateSet('Install', 'Repair', 'StopRuntime', 'UninstallTasks')][string]$Mode = 'Install',
+  [ValidateSet('Install', 'Repair', 'StopRuntime', 'UninstallTasks', 'RemoveData')][string]$Mode = 'Install',
   [string]$AppRoot = 'C:\Program Files\HamdFoodsERP',
   [string]$DataRoot = 'C:\ProgramData\HamdFoodsERP',
   [string]$TaskName = 'HamdFoodsERP',
@@ -66,6 +66,12 @@ if ($Mode -eq 'StopRuntime') {
 if ($Mode -eq 'UninstallTasks') {
   Remove-HamdFoodsScheduledTasks
   Write-Output 'Business data and backups were preserved.'
+  exit 0
+}
+
+if ($Mode -eq 'RemoveData') {
+  Remove-HamdFoodsBusinessData
+  Write-Output 'The ERP database, its role and configuration were removed. Backups were kept.'
   exit 0
 }
 
@@ -143,7 +149,7 @@ try {
     $stage = 'PostgreSQLCredentialValidation'
     $existing = Get-PostgresResourceState -Postgres $postgres -Password $postgresPassword
     if ($existing.Database -or $existing.Role) {
-      throw 'A matching PostgreSQL database or role already exists without matching installer provenance; setup will not claim it.'
+      throw "A PostgreSQL database '$DatabaseName' or role '$RoleName' already exists without this installation's configuration, so setup will not claim it. If it is left over from an earlier installation whose data you no longer need, reinstall that build and uninstall it choosing 'Remove database', or drop them in pgAdmin; otherwise restore the earlier ProgramData configuration."
     }
     Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
 
@@ -188,6 +194,10 @@ try {
       Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
     }
   }
+
+  $stage = 'InstalledReleaseActivation'
+  Clear-HamdFoodsActiveReleasePointer
+  Write-HamdFoodsProvisioningEvent -Path $provisioningLogPath -Stage $stage -Status 'PASS'
 
   if ($repair -or -not (Test-HamdFoodsProvisioningStage -State $managedState -Stage 'MigrationDeployment')) {
     $stage = 'MigrationDeployment'
@@ -292,11 +302,57 @@ function Find-SupportedPostgres {
   return @{ Bin = $bin; Psql = (Join-Path $bin 'psql.exe'); PgIsReady = (Join-Path $bin 'pg_isready.exe') }
 }
 
+function Get-HamdFoodsExpectedRuntimeNodes {
+  # The runtime is either the flat installer layout or, after an in-app update, the active
+  # release's own node.exe (Phase 34). Both are this installation's exact runtime; anything else
+  # on the port is never terminated.
+  $nodes = @(Join-Path $AppRoot 'runtime\node\node.exe')
+  try {
+    $release = Resolve-HamdFoodsActiveRelease -AppRoot $AppRoot
+    if ($release.Layered) { $nodes += $release.NodeExe }
+  } catch { }
+  return $nodes
+}
+
+function Clear-HamdFoodsActiveReleasePointer {
+  # INST-8: a full installer run (install over the top) always installs the flat layout. If an
+  # earlier in-app update had activated releases\<version>, the runtime would otherwise keep
+  # starting that older release and silently ignore the build just installed. Release
+  # directories are kept on disk; only the pointer is removed.
+  $pointer = Get-HamdFoodsActiveReleasePointerPath -AppRoot $AppRoot
+  if (Test-Path -LiteralPath $pointer -PathType Leaf) { Remove-Item -LiteralPath $pointer -Force }
+}
+
+function Remove-HamdFoodsBusinessData {
+  # INST-4: the uninstaller's optional "remove database" choice. Takes a final verified backup
+  # (kept under ProgramData\...\backups), then drops this installation's own database and role
+  # and removes its configuration and installer state, so the next Setup is a clean install.
+  $configPath = Join-Path $DataRoot 'config\.env.production'
+  $backupRoot = Join-Path $DataRoot 'backups'
+  $stateRoot = Join-Path $DataRoot 'state'
+  Remove-HamdFoodsScheduledTasks
+  $postgres = Find-SupportedPostgres
+  if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+    if (-not (Test-HamdFoodsRestrictedPath -Path $configPath)) { throw 'The configuration is not installer-owned; data will not be removed.' }
+    Import-HamdFoodsEnvironment -EnvironmentFile $configPath
+    Invoke-InstalledBackup -Verify
+  }
+  $password = Get-PostgresAdministratorPassword
+  try {
+    Invoke-Psql -Postgres $postgres -Password $password -Command "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DatabaseName' AND pid <> pg_backend_pid()" | Out-Null
+    Invoke-Psql -Postgres $postgres -Password $password -Command "DROP DATABASE IF EXISTS $DatabaseName" | Out-Null
+    Invoke-Psql -Postgres $postgres -Password $password -Command "DROP ROLE IF EXISTS $RoleName" | Out-Null
+  } finally { $password = $null }
+  foreach ($directory in @((Join-Path $DataRoot 'config'), $stateRoot)) {
+    if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force }
+  }
+}
+
 function Stop-HamdFoodsManagedRuntime {
   Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 2
   $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
-  $expectedNode = Join-Path $AppRoot 'runtime\node\node.exe'
+  $expectedNodes = @(Get-HamdFoodsExpectedRuntimeNodes)
   foreach ($listener in $listeners) {
     if ($listener.LocalAddress -notin @('127.0.0.1', '::1')) { throw "Port $Port has a non-loopback listener; setup will not terminate it." }
     $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
@@ -306,7 +362,7 @@ function Stop-HamdFoodsManagedRuntime {
     }
     if (
       $process.ProcessName -ne 'node' -or
-      -not [StringComparer]::OrdinalIgnoreCase.Equals([string]$process.Path, $expectedNode)
+      -not @($expectedNodes | Where-Object { [StringComparer]::OrdinalIgnoreCase.Equals([string]$process.Path, $_) }).Count
     ) { throw "Port $Port is not owned by the exact installed runtime; setup will not terminate it." }
     $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
     $termination = Start-Process -FilePath $taskkill -ArgumentList @('/PID', [string]$listener.OwningProcess, '/T', '/F') -WindowStyle Hidden -Wait -PassThru

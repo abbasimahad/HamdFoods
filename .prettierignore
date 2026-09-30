@@ -1,4 +1,6 @@
 .next/
+.next-verify/
+.next-installer/
 coverage/
 node_modules/
 pnpm-lock.yaml

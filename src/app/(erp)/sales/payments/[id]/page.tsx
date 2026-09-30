@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CustomerCreditAllocationForm } from "@/components/sales/customer-credit-allocation-form";
@@ -34,7 +35,9 @@ export default async function CustomerPaymentDetailPage({
         description={
           payment.reversalOfNumber
             ? `Reversal of receipt ${payment.reversalOfNumber} — cancels that receipt's receivable and cash effect.`
-            : `Customer receipt ${payment.status}; its receivable and treasury effects are server-posted and auditable.`
+            : payment.reversalPaymentNumber
+              ? `Customer receipt REVERSED by ${payment.reversalPaymentNumber}; it no longer reduces the receivable or holds cash.`
+              : `Customer receipt ${payment.status}; its receivable and treasury effects are server-posted and auditable.`
         }
       />
       {payment.reversalPaymentNumber && (
@@ -57,7 +60,7 @@ export default async function CustomerPaymentDetailPage({
         <p>
           Customer: {payment.customerCode} — {payment.customerName}
         </p>
-        <p>Date: {payment.paymentDate.toLocaleDateString()}</p>
+        <p>Date: {formatFactoryDate(payment.paymentDate)}</p>
         <p>Method: {payment.method}</p>
         <p>
           Received into:{" "}
@@ -68,7 +71,7 @@ export default async function CustomerPaymentDetailPage({
         <p>Reference: {payment.referenceNumber ?? "-"}</p>
         <p>
           Bank / cheque:{" "}
-          {[payment.bankName, payment.chequeNumber, payment.chequeDate?.toLocaleDateString()]
+          {[payment.bankName, payment.chequeNumber, formatFactoryDate(payment.chequeDate)]
             .filter(Boolean)
             .join(" / ") || "-"}
         </p>
@@ -81,7 +84,7 @@ export default async function CustomerPaymentDetailPage({
         <p>
           Posted:{" "}
           {payment.postedByName
-            ? `${payment.postedByName} on ${payment.postedAt?.toLocaleString()}`
+            ? `${payment.postedByName} on ${formatFactoryDateTime(payment.postedAt)}`
             : "Not posted"}
         </p>
       </Card>
@@ -105,7 +108,7 @@ export default async function CustomerPaymentDetailPage({
                     {allocation.number}
                   </Link>
                 </td>
-                <td className="p-3">{allocation.invoiceDate.toLocaleDateString()}</td>
+                <td className="p-3">{formatFactoryDate(allocation.invoiceDate)}</td>
                 <td className="p-3">{allocation.originalAmount}</td>
                 <td className="p-3">{allocation.allocatedAmount}</td>
                 <td className="p-3">{allocation.outstandingAmount}</td>

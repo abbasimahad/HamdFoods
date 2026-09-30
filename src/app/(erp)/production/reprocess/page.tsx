@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -139,7 +140,7 @@ export default async function ReprocessPage({
                         {record.status}
                       </StatusBadge>
                     </td>
-                    <td className="p-4">{record.documentDate.toLocaleDateString()}</td>
+                    <td className="p-4">{formatFactoryDate(record.documentDate)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Decimal from "decimal.js";
@@ -255,7 +256,7 @@ export function SalesDispatchForm({
                             </td>
                             <td className="p-2">
                               {lot?.expiryDate
-                                ? new Date(lot.expiryDate).toLocaleDateString()
+                                ? formatFactoryDate(new Date(lot.expiryDate))
                                 : "No expiry"}
                             </td>
                             <td className="p-2">{lot?.availablePieces ?? "-"} pcs</td>

@@ -1,5 +1,6 @@
 "use client";
 
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import {
@@ -273,6 +274,7 @@ export function ManualJournalReversalForm({ journalId }: { journalId: string }) 
         Reversal date
         <input
           className="mt-1 block min-h-11 w-full rounded border px-3 py-2"
+          defaultValue={todayInFactoryTimeZone()}
           name="date"
           type="date"
           required

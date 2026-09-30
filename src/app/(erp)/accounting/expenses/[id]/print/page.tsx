@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
@@ -44,12 +45,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 {line.expenseAccount.code} — {line.expenseAccount.name}
               </td>
               <td className="p-2">{line.description}</td>
-              <td className="p-2 text-right">{line.amount.toString()}</td>
+              <td className="p-2 text-right">{formatMoney(line.amount, "")}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="mt-4 text-right font-semibold">Total: {expense.totalAmount.toString()}</p>
+      <p className="mt-4 text-right font-semibold">Total: {formatMoney(expense.totalAmount, "")}</p>
     </main>
   );
 }

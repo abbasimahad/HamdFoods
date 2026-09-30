@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 
 import { readableInventoryQuantity } from "@/components/inventory/quantity-display";
@@ -118,7 +119,9 @@ export default async function StockMovementsPage({
                   : [...units, unit];
                 return (
                   <tr key={movement.id}>
-                    <td className="whitespace-nowrap p-4">{movement.postedAt.toLocaleString()}</td>
+                    <td className="whitespace-nowrap p-4">
+                      {formatFactoryDateTime(movement.postedAt)}
+                    </td>
                     <td className="p-4">
                       <strong>{movement.itemCode}</strong>
                       <span className="block text-xs text-[var(--muted)]">{movement.itemName}</span>
@@ -139,12 +142,15 @@ export default async function StockMovementsPage({
                       {movement.referenceType}
                       {movement.referenceId ? ` · ${movement.referenceId}` : ""}
                       {movement.movementType === "TRANSFER_OUT" && movement.groupId ? (
-                        <a
-                          className="ml-2 font-semibold text-[var(--accent)]"
-                          href={`/inventory/transfers/${movement.groupId}/print`}
-                        >
-                          Gate pass
-                        </a>
+                        <>
+                          {" "}
+                          <a
+                            className="ml-2 font-semibold text-[var(--accent)]"
+                            href={`/inventory/transfers/${movement.groupId}/print`}
+                          >
+                            Gate pass
+                          </a>
+                        </>
                       ) : null}
                       {movement.supplierLotNumber ? (
                         <span className="block">Lot: {movement.supplierLotNumber}</span>

@@ -31,11 +31,13 @@ export function reportRange(from?: string, to?: string): ReportRange {
   const todayEnd = endOfFactoryLocalDay();
   const firstDay = new Date(Date.UTC(todayEnd.getUTCFullYear(), 0, 1));
   const start = parseDate(from) ?? firstDay;
-  const end = parseDate(to) ?? todayEnd;
+  // An inclusive "to"/"as of" date covers the whole factory-local day, so timestamped rows
+  // (valuation entries, completions) posted after 05:00 PKT on that date are not cut off.
+  const end = parseDate(to) ? endOfFactoryLocalDay(to) : todayEnd;
   return start <= end ? { from: start, to: end } : { from: end, to: start };
 }
 export function reportAsOf(value?: string) {
-  return parseDate(value) ?? endOfFactoryLocalDay();
+  return parseDate(value) ? endOfFactoryLocalDay(value) : endOfFactoryLocalDay();
 }
 
 export async function profitAndLoss(range: ReportRange) {
@@ -228,11 +230,21 @@ export async function payableAging(asOf: Date) {
 }
 
 export async function inventoryValuation(asOf: Date) {
-  const [entries, accounts, mappings, nonFinalEntryCount] = await Promise.all([
-    prisma.inventoryValuationEntry.findMany({
-      where: { effectiveAt: { lte: asOf } },
-      include: { item: true },
-      orderBy: [{ effectiveAt: "asc" }, { createdAt: "asc" }],
+  // The authoritative per-item balance (the same figure Inventory > Valuation and the GL
+  // reconciliation use) minus every valuation entry that takes effect after the as-of date. This
+  // does not depend on the order of `effectiveAt` timestamps: picking the "latest" entry by
+  // effectiveAt returned a stale running balance whenever an entry was stamped earlier than
+  // movements posted before it (BUG-30, waste write-offs stamped at 00:00 UTC).
+  const [items, later, accounts, mappings, nonFinalEntryCount] = await Promise.all([
+    prisma.item.findMany({
+      where: { inventoryValuationBalance: { isNot: null } },
+      include: { inventoryValuationBalance: true },
+      orderBy: [{ itemType: "asc" }, { code: "asc" }],
+    }),
+    prisma.inventoryValuationEntry.groupBy({
+      by: ["itemId"],
+      where: { effectiveAt: { gt: asOf } },
+      _sum: { quantityEffect: true, valueDelta: true },
     }),
     postedBalances({ from: new Date("1970-01-01T00:00:00.000Z"), to: asOf }),
     mappingIds(),
@@ -240,32 +252,48 @@ export async function inventoryValuation(asOf: Date) {
       where: { effectiveAt: { lte: asOf }, state: { not: "FINAL" } },
     }),
   ]);
-  const latestByItem = new Map(entries.map((entry) => [entry.itemId, entry]));
-  const balances = [...latestByItem.values()];
+  const laterByItem = new Map(later.map((row) => [row.itemId, row._sum]));
+  const balances = items.flatMap((item) => {
+    const balance = item.inventoryValuationBalance!;
+    const after = laterByItem.get(item.id);
+    const quantity = new Decimal(balance.ownedQuantity.toString()).sub(
+      after?.quantityEffect?.toString() ?? "0",
+    );
+    const value = new Decimal(balance.inventoryValue.toString()).sub(
+      after?.valueDelta?.toString() ?? "0",
+    );
+    if (quantity.isZero() && value.isZero()) return [];
+    return [{ item, quantity, value, missingBasisCount: balance.missingBasisCount }];
+  });
   const byType = new Map<string, Decimal>();
   for (const balance of balances)
     byType.set(
       balance.item.itemType,
-      (byType.get(balance.item.itemType) ?? zero()).add(balance.runningInventoryValue.toString()),
+      (byType.get(balance.item.itemType) ?? zero()).add(balance.value),
     );
   const mappingByType = new Map([
     ["RAW_MATERIAL", "RAW_MATERIAL_INVENTORY"],
     ["PACKAGING_MATERIAL", "PACKAGING_INVENTORY"],
     ["FINISHED_GOOD", "FINISHED_GOODS_INVENTORY"],
   ]);
-  const summary = [...byType].map(([type, value]) => {
-    const gl = mappedBalance(accounts, mappings, mappingByType.get(type) ?? "");
-    return { type, valuation: format(value), gl: format(gl), difference: format(gl.sub(value)) };
+  const summary = [...mappingByType].flatMap(([type, mapping]) => {
+    const value = byType.get(type) ?? zero();
+    const gl = mappedBalance(accounts, mappings, mapping);
+    if (!byType.has(type) && gl.isZero()) return [];
+    return [{ type, valuation: format(value), gl: format(gl), difference: format(gl.sub(value)) }];
   });
   return {
     rows: balances.map((row) => ({
       code: row.item.code,
       name: row.item.name,
       type: row.item.itemType,
-      quantity: row.runningOwnedQuantity.toString(),
-      value: row.runningInventoryValue.toString(),
-      unitCost: row.resultingAverageUnitCost?.toString() ?? null,
-      missingBasisCount: row.state === "MISSING_VALUATION_BASIS" ? 1 : 0,
+      quantity: row.quantity.toFixed(),
+      value: row.value.toFixed(6),
+      unitCost:
+        row.missingBasisCount === 0 && row.quantity.gt(0)
+          ? row.value.div(row.quantity).toDecimalPlaces(6, Decimal.ROUND_HALF_UP).toFixed(6)
+          : null,
+      missingBasisCount: row.missingBasisCount,
     })),
     summary,
     total: format(sum([...byType.values()])),
@@ -412,7 +440,7 @@ export async function salesProfitability(range: ReportRange) {
       revenue: format(row.revenue),
       discounts: format(row.discounts),
       returns: format(row.returns),
-      quantity: format(row.quantity),
+      quantity: row.quantity.toFixed(),
       cogs: format(row.cogs),
       grossProfit: format(row.revenue.sub(row.discounts).sub(row.returns).sub(row.cogs)),
     }))

@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -152,11 +153,11 @@ export default async function SalesInvoicesPage({
                       {invoice.number}
                     </Link>
                   </td>
-                  <td className="p-3">{invoice.invoiceDate.toLocaleDateString()}</td>
+                  <td className="p-3">{formatFactoryDate(invoice.invoiceDate)}</td>
                   <td className="p-3">{invoice.customerName}</td>
                   <td className="p-3">{invoice.salesOrderNumber}</td>
                   <td className="p-3">{invoice.grandTotal}</td>
-                  <td className="p-3">{invoice.dueDate.toLocaleDateString()}</td>
+                  <td className="p-3">{formatFactoryDate(invoice.dueDate)}</td>
                   <td className="p-3">{invoice.status}</td>
                   <td className="p-3">{invoice.outstandingAmount}</td>
                   <td className="p-3">{invoice.postedByName ?? "-"}</td>

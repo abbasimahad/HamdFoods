@@ -39,7 +39,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
     "receiving.manage",
     "waste.manage",
   ],
-  // Raises and approves purchase orders and manages suppliers and returns.
+  // Raises purchase orders and manages suppliers and returns. Approval (Accounts), receiving
+  // (Store Keeper) and receiving QC (Store Keeper / Quality Control) sit with other people, so a
+  // purchaser can neither approve nor receive its own order (ROLE-2).
   PURCHASER: ["dashboard.view", "purchasing.view", "purchasing.manage", "inventory.view"],
   PRODUCTION_MANAGER: [
     "dashboard.view",
@@ -48,7 +50,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
     "production.manage",
     "waste.manage",
   ],
-  // The independent second person who releases reprocessed goods.
+  // The independent second person who records receiving QC and releases reprocessed goods.
   QUALITY_CONTROL: [
     "dashboard.view",
     "inventory.view",
@@ -56,8 +58,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
     "purchasing.view",
     "quality.manage",
   ],
-  // Books orders and dispatches. Cash handling and order approval sit with Accounts
-  // (maker/checker), so Sales cannot approve its own orders or take receipts.
+  // Books orders, dispatches and draft invoices/returns. Order approval, posting invoices and
+  // credit notes, and cash handling sit with Accounts (maker/checker), so Sales cannot approve
+  // its own orders, post receivables or credits, or take receipts.
   SALES: ["dashboard.view", "sales.view", "sales.manage", "inventory.view"],
   ACCOUNTS: [
     "dashboard.view",
@@ -66,8 +69,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
     "reports.view",
     "sales.view",
     "sales.approve",
+    "sales_invoices.post",
     "customer_payments.manage",
     "purchasing.view",
+    "purchase_orders.approve",
     "purchase_invoices.manage",
     "inventory.view",
   ],

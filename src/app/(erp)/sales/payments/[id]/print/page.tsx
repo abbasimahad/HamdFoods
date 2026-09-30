@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
@@ -35,7 +36,7 @@ export default async function CustomerPaymentPrintPage({
           <p>{payment.number}</p>
         </div>
         <div className="text-right">
-          <p>{payment.paymentDate.toLocaleDateString()}</p>
+          <p>{formatFactoryDate(payment.paymentDate)}</p>
           <p>{reversed ? "POSTED (REVERSED)" : payment.status}</p>
         </div>
       </header>

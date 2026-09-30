@@ -1,9 +1,9 @@
 "use client";
 
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { useActionState } from "react";
 import type { CompanyProfileMutationResult } from "@/modules/administration/application/company-profile-contracts";
 import type { CompanyProfileRecord } from "@/modules/administration/application/company-profile-contracts";
-import { formatDateTimeUtc } from "@/components/ui/format-datetime";
 
 type Action = (
   state: CompanyProfileMutationResult | undefined,
@@ -97,7 +97,7 @@ export function CompanyProfileForm({
       </p>
       {profile.updatedByName && (
         <p className="text-xs text-[var(--muted)] md:col-span-2">
-          Last updated by {profile.updatedByName} on {formatDateTimeUtc(profile.updatedAt)}
+          Last updated by {profile.updatedByName} on {formatFactoryDateTime(profile.updatedAt)}
         </p>
       )}
     </form>

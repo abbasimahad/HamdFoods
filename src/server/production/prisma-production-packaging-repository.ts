@@ -15,15 +15,19 @@ import {
 import { reconcilePackaging } from "@/modules/production/domain/packaging-reconciliation";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { parseFactoryLocalDateTime } from "@/server/shared/factory-local-time";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { postProductionMaterialInventory } from "@/server/inventory/transactional-inventory-posting";
 import { valueProductionConsumption } from "@/server/costing/prisma-inventory-valuation-repository";
+import { reverseMaterialTransaction } from "./material-reversal";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
 
 const transactionInclude = {
   productionBatch: true,
   createdBy: true,
   postedBy: true,
+  reversalOf: { select: { transactionNumber: true } },
+  reversal: { select: { transactionNumber: true } },
   lines: {
     include: {
       item: true,
@@ -218,6 +222,18 @@ export class PrismaProductionPackagingRepository implements ProductionPackagingR
     });
   }
 
+  async reverseTransaction(id: string, actorUserId: string, reason: string) {
+    return serializable((transaction) =>
+      reverseMaterialTransaction(transaction, {
+        id,
+        materialType: "PACKAGING_MATERIAL",
+        actorUserId,
+        reason,
+        nextNumber: (type) => nextNumber(transaction, type),
+      }),
+    );
+  }
+
   async getTransaction(id: string) {
     const row = await prisma.productionMaterialTransaction.findFirst({
       where: { id, materialType: "PACKAGING_MATERIAL" },
@@ -257,7 +273,6 @@ export class PrismaProductionPackagingRepository implements ProductionPackagingR
           itemId: { in: itemIds },
           status: "IN_PRODUCTION",
           movementType: "PACKAGING_ISSUE",
-          quantity: { gt: 0 },
         }),
         aggregate({
           productionBatchId,
@@ -272,7 +287,6 @@ export class PrismaProductionPackagingRepository implements ProductionPackagingR
             itemId: { in: itemIds },
             status: "IN_PRODUCTION",
             movementType: "PACKAGING_CONSUMPTION",
-            quantity: { lt: 0 },
           },
           true,
         ),
@@ -495,6 +509,8 @@ function mapTransaction(row: TransactionRow): PackagingTransactionRecord {
     createdByName: row.createdBy.name,
     postedByName: row.postedBy?.name ?? null,
     postedAt: row.postedAt,
+    reversalOfNumber: row.reversalOf?.transactionNumber ?? null,
+    reversedByNumber: row.reversal?.transactionNumber ?? null,
     line: {
       id: line.id,
       packagingRequirementId: line.packagingRequirementId,
@@ -548,7 +564,7 @@ async function nextNumber(transaction: Prisma.TransactionClient, type: Packaging
 }
 
 function parseDate(value: string) {
-  const date = new Date(value);
+  const date = parseFactoryLocalDateTime(value);
   if (Number.isNaN(date.valueOf()))
     throw new ProductionPackagingRepositoryError(
       "invalid-reference",

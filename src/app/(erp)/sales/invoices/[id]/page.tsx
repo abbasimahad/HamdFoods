@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,6 +13,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const x = await new PrismaSalesInvoiceRepository().getSalesInvoice((await params).id);
   if (!x) notFound();
   const canManage = hasPermission(principal, "sales.manage");
+  const canPost = hasPermission(principal, "sales_invoices.post");
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -37,8 +39,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <Card className="mb-4 grid gap-3 p-5 md:grid-cols-2">
         <p>Customer: {x.customerName}</p>
         <p>Sales order: {x.salesOrderNumber}</p>
-        <p>Invoice date: {x.invoiceDate.toLocaleDateString()}</p>
-        <p>Due date: {x.dueDate.toLocaleDateString()}</p>
+        <p>Invoice date: {formatFactoryDate(x.invoiceDate)}</p>
+        <p>Due date: {formatFactoryDate(x.dueDate)}</p>
         <p>
           Salesperson / area / route:{" "}
           {[x.salespersonName, x.areaName, x.routeName].filter(Boolean).join(" / ")}
@@ -47,7 +49,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <p>Created by: {x.createdByName}</p>
         <p>
           Posted:{" "}
-          {x.postedByName ? `${x.postedByName} on ${x.postedAt?.toLocaleString()}` : "Not posted"}
+          {x.postedByName
+            ? `${x.postedByName} on ${formatFactoryDateTime(x.postedAt)}`
+            : "Not posted"}
         </p>
       </Card>
       <Card className="overflow-x-auto">
@@ -91,19 +95,27 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           {x.grandTotal}
         </p>
       </Card>
-      {canManage && x.status === "DRAFT" && (
-        <Card className="mt-4 flex gap-3 p-5">
-          <form action={postInvoiceFormAction}>
-            <input name="id" type="hidden" value={x.id} />
-            <button className="rounded bg-[var(--accent)] px-4 py-2 text-white">
-              Post invoice
-            </button>
-          </form>
-          <form action={cancelInvoiceFormAction}>
-            <input name="id" type="hidden" value={x.id} />
-            <input name="reason" placeholder="Reason" required />
-            <button className="ml-2 rounded border px-4 py-2">Cancel draft</button>
-          </form>
+      {(canManage || canPost) && x.status === "DRAFT" && (
+        <Card className="mt-4 flex flex-wrap items-center gap-3 p-5">
+          {canPost ? (
+            <form action={postInvoiceFormAction}>
+              <input name="id" type="hidden" value={x.id} />
+              <button className="rounded bg-[var(--accent)] px-4 py-2 text-white">
+                Post invoice
+              </button>
+            </form>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">
+              Draft ready. Accounts posts the invoice to the customer&apos;s account.
+            </p>
+          )}
+          {canManage && (
+            <form action={cancelInvoiceFormAction}>
+              <input name="id" type="hidden" value={x.id} />
+              <input name="reason" placeholder="Reason" required />
+              <button className="ml-2 rounded border px-4 py-2">Cancel draft</button>
+            </form>
+          )}
         </Card>
       )}
     </ResponsiveContainer>

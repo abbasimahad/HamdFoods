@@ -15,9 +15,11 @@ import { ProductionMaterialRepositoryError } from "@/modules/production/applicat
 import { reconcileMaterial } from "@/modules/production/domain/material-reconciliation";
 import { normalizeQuantity } from "@/modules/quantity/domain/quantity";
 import { prisma } from "@/server/db/prisma";
+import { parseFactoryLocalDateTime } from "@/server/shared/factory-local-time";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { postProductionMaterialInventory } from "@/server/inventory/transactional-inventory-posting";
 import { valueProductionConsumption } from "@/server/costing/prisma-inventory-valuation-repository";
+import { reverseMaterialTransaction } from "./material-reversal";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
 
 const transactionInclude = {
@@ -25,6 +27,8 @@ const transactionInclude = {
   createdBy: true,
   postedBy: true,
   cancelledBy: true,
+  reversalOf: { select: { transactionNumber: true } },
+  reversal: { select: { transactionNumber: true } },
   lines: {
     include: {
       item: true,
@@ -250,6 +254,18 @@ export class PrismaProductionMaterialRepository implements ProductionMaterialRep
     });
   }
 
+  async reverseTransaction(id: string, actorUserId: string, reason: string) {
+    return serializable((transaction) =>
+      reverseMaterialTransaction(transaction, {
+        id,
+        materialType: "RAW_MATERIAL",
+        actorUserId,
+        reason,
+        nextNumber: (type) => nextTransactionNumber(transaction, type),
+      }),
+    );
+  }
+
   async getTransaction(id: string) {
     const row = await prisma.productionMaterialTransaction.findFirst({
       where: { id, materialType: "RAW_MATERIAL" },
@@ -283,12 +299,12 @@ export class PrismaProductionMaterialRepository implements ProductionMaterialRep
         warehouseId: batch.rawMaterialWarehouseId,
         status: "AVAILABLE",
       }),
+      // Net of issue reversals (negative IN_PRODUCTION issue rows, BUG-31).
       aggregateByItem({
         productionBatchId,
         itemId: { in: itemIds },
         status: "IN_PRODUCTION",
         movementType: "PRODUCTION_ISSUE",
-        quantity: { gt: 0 },
       }),
       aggregateByItem({
         productionBatchId,
@@ -297,13 +313,13 @@ export class PrismaProductionMaterialRepository implements ProductionMaterialRep
         movementType: "PRODUCTION_RETURN",
         quantity: { gt: 0 },
       }),
+      // Net of consumption reversals (positive consumption rows, BUG-31).
       aggregateByItem(
         {
           productionBatchId,
           itemId: { in: itemIds },
           status: "IN_PRODUCTION",
           movementType: "PRODUCTION_CONSUMPTION",
-          quantity: { lt: 0 },
         },
         true,
       ),
@@ -521,6 +537,8 @@ function mapTransaction(row: TransactionRow): MaterialTransactionRecord {
     cancelledAt: row.cancelledAt,
     cancellationReason: row.cancellationReason,
     createdAt: row.createdAt,
+    reversalOfNumber: row.reversalOf?.transactionNumber ?? null,
+    reversedByNumber: row.reversal?.transactionNumber ?? null,
     line: {
       id: line.id,
       batchRequirementId: line.batchRequirementId,
@@ -575,7 +593,7 @@ async function nextTransactionNumber(
 }
 
 function transactionDate(value: string) {
-  const date = new Date(value);
+  const date = parseFactoryLocalDateTime(value);
   if (Number.isNaN(date.valueOf()))
     throw new ProductionMaterialRepositoryError(
       "invalid-reference",

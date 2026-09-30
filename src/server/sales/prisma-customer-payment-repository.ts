@@ -466,22 +466,39 @@ async function savePayment(
   // A cheque/transfer reference reused for the same customer and method is
   // almost always the same instrument entered twice, not a coincidence --
   // nothing previously stopped that duplicate data entry.
+  // Only live receipts count: a reversed (bounced) receipt and its reversal row no longer hold
+  // the instrument, so a re-presented cheque can be entered again.
+  const liveReceipt = {
+    customerId: input.customerId,
+    status: { in: ["DRAFT", "POSTED"] as ("DRAFT" | "POSTED")[] },
+    reversalOfId: null,
+    reversalPayment: { is: null },
+    ...(input.id ? { id: { not: input.id } } : {}),
+  } satisfies Prisma.CustomerPaymentWhereInput;
   const reference = input.referenceNumber?.trim();
   if (reference && input.method !== "CASH") {
     const duplicate = await transaction.customerPayment.findFirst({
-      where: {
-        customerId: input.customerId,
-        method: input.method,
-        referenceNumber: reference,
-        status: { in: ["DRAFT", "POSTED"] },
-        ...(input.id ? { id: { not: input.id } } : {}),
-      },
+      where: { ...liveReceipt, method: input.method, referenceNumber: reference },
       select: { number: true },
     });
     if (duplicate)
       throw problem(
         "invalid-reference",
         `Reference ${reference} is already used on payment ${duplicate.number} for this customer.`,
+      );
+  }
+  // BUG-25: the separate cheque-number field was never checked, so the same cheque could be
+  // recorded twice under different references.
+  const chequeNumber = input.chequeNumber?.trim();
+  if (chequeNumber) {
+    const duplicate = await transaction.customerPayment.findFirst({
+      where: { ...liveReceipt, chequeNumber: { equals: chequeNumber, mode: "insensitive" } },
+      select: { number: true },
+    });
+    if (duplicate)
+      throw problem(
+        "invalid-reference",
+        `Cheque ${chequeNumber} is already recorded on payment ${duplicate.number} for this customer.`,
       );
   }
   const header = {
@@ -491,7 +508,7 @@ async function savePayment(
     totalAmount: totalAmount.toFixed(),
     referenceNumber: input.referenceNumber ?? null,
     bankName: input.bankName ?? null,
-    chequeNumber: input.chequeNumber ?? null,
+    chequeNumber: input.chequeNumber?.trim() || null,
     chequeDate,
     notes: input.notes ?? null,
     treasuryAccountId: input.treasuryAccountId ?? null,

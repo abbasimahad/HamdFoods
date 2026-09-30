@@ -11,7 +11,7 @@ export default async function EditGoodsReceiptPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  await requireAnyPermission(["receiving.manage"]);
   const repository = new PrismaGoodsReceiptRepository();
   const receipt = await repository.getGoodsReceipt((await params).id);
   if (!receipt) notFound();

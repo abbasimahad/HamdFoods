@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
@@ -25,7 +26,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <Card className="mb-4 p-4 text-sm">
         <p>{journal.description}</p>
         <p className="mt-1">
-          Posted by {journal.postedBy?.name ?? "—"} at {journal.postedAt?.toLocaleString() ?? "—"}
+          Posted by {journal.postedBy?.name ?? "—"} at{" "}
+          {formatFactoryDateTime(journal.postedAt) ?? "—"}
         </p>
         {journal.sourceType === "MANUAL_JOURNAL" &&
         journal.status === "POSTED" &&

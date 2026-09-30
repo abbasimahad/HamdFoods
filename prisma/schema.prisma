@@ -1068,7 +1068,7 @@ model Supplier {
   contactPerson        String
   phone                String
   secondaryPhone       String?
-  email                String
+  email                String?
   address              String
   city                 String
   taxRegistrationNo    String?
@@ -1751,29 +1751,29 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id                  String               @id @default(uuid())
-  purchaseOrderId     String
-  position            Int
-  itemId              String
-  itemType            ItemType
-  orderedQuantity     Decimal              @db.Decimal(24, 6)
-  orderUnitId         String
-  normalizedQuantity  Decimal              @db.Decimal(24, 6)
-  canonicalUnitId     String
-  unitRate            Decimal              @db.Decimal(24, 6)
-  discountPercent     Decimal              @db.Decimal(7, 4)
-  taxPercent          Decimal              @db.Decimal(7, 4)
-  grossAmount         Decimal              @db.Decimal(24, 6)
-  discountAmount      Decimal              @db.Decimal(24, 6)
-  taxAmount           Decimal              @db.Decimal(24, 6)
-  netAmount           Decimal              @db.Decimal(24, 6)
-  notes               String?
-  purchaseOrder       PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  item                Item                 @relation(fields: [itemId, itemType], references: [id, itemType], onDelete: Restrict)
-  orderUnit           Unit                 @relation("PurchaseOrderUnit", fields: [orderUnitId], references: [id], onDelete: Restrict)
-  canonicalUnit       Unit                 @relation("PurchaseOrderCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
-  goodsReceiptLines   GoodsReceiptLine[]
-  purchaseReturnLines PurchaseReturnLine[]
+  id                   String                @id @default(uuid())
+  purchaseOrderId      String
+  position             Int
+  itemId               String
+  itemType             ItemType
+  orderedQuantity      Decimal               @db.Decimal(24, 6)
+  orderUnitId          String
+  normalizedQuantity   Decimal               @db.Decimal(24, 6)
+  canonicalUnitId      String
+  unitRate             Decimal               @db.Decimal(24, 6)
+  discountPercent      Decimal               @db.Decimal(7, 4)
+  taxPercent           Decimal               @db.Decimal(7, 4)
+  grossAmount          Decimal               @db.Decimal(24, 6)
+  discountAmount       Decimal               @db.Decimal(24, 6)
+  taxAmount            Decimal               @db.Decimal(24, 6)
+  netAmount            Decimal               @db.Decimal(24, 6)
+  notes                String?
+  purchaseOrder        PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  item                 Item                  @relation(fields: [itemId, itemType], references: [id, itemType], onDelete: Restrict)
+  orderUnit            Unit                  @relation("PurchaseOrderUnit", fields: [orderUnitId], references: [id], onDelete: Restrict)
+  canonicalUnit        Unit                  @relation("PurchaseOrderCanonicalUnit", fields: [canonicalUnitId], references: [id], onDelete: Restrict)
+  goodsReceiptLines    GoodsReceiptLine[]
+  purchaseReturnLines  PurchaseReturnLine[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
 
   @@unique([purchaseOrderId, position])
@@ -1836,29 +1836,29 @@ model GoodsReceipt {
 }
 
 model GoodsReceiptLine {
-  id                          String                  @id @default(uuid())
+  id                          String                     @id @default(uuid())
   goodsReceiptId              String
   position                    Int
   purchaseOrderLineId         String
   itemId                      String
-  enteredQuantity             Decimal                 @db.Decimal(24, 6)
+  enteredQuantity             Decimal                    @db.Decimal(24, 6)
   enteredUnitId               String
-  normalizedQuantity          Decimal                 @db.Decimal(24, 6)
+  normalizedQuantity          Decimal                    @db.Decimal(24, 6)
   canonicalUnitId             String
   supplierLotNumber           String?
-  manufacturingDate           DateTime?               @db.Date
-  expiryDate                  DateTime?               @db.Date
+  manufacturingDate           DateTime?                  @db.Date
+  expiryDate                  DateTime?                  @db.Date
   notes                       String?
   purchaseReturnLineId        String?
-  createdAt                   DateTime                @default(now())
-  updatedAt                   DateTime                @updatedAt
-  goodsReceipt                GoodsReceipt            @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
-  purchaseOrderLine           PurchaseOrderLine       @relation(fields: [purchaseOrderLineId, itemId, canonicalUnitId], references: [id, itemId, canonicalUnitId], onDelete: Restrict)
-  enteredUnit                 Unit                    @relation("GoodsReceiptEnteredUnit", fields: [enteredUnitId], references: [id], onDelete: Restrict)
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+  goodsReceipt                GoodsReceipt               @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine           PurchaseOrderLine          @relation(fields: [purchaseOrderLineId, itemId, canonicalUnitId], references: [id, itemId, canonicalUnitId], onDelete: Restrict)
+  enteredUnit                 Unit                       @relation("GoodsReceiptEnteredUnit", fields: [enteredUnitId], references: [id], onDelete: Restrict)
   inventoryLot                InventoryLot?
   qcDecision                  GoodsReceiptQcDecision?
-  purchaseReturnLine          PurchaseReturnLine?     @relation(fields: [purchaseReturnLineId], references: [id], onDelete: Restrict)
-  originalPurchaseReturnLines PurchaseReturnLine[]    @relation("OriginalPurchaseReturnLine")
+  purchaseReturnLine          PurchaseReturnLine?        @relation(fields: [purchaseReturnLineId], references: [id], onDelete: Restrict)
+  originalPurchaseReturnLines PurchaseReturnLine[]       @relation("OriginalPurchaseReturnLine")
   landedCostAllocations       LandedCostAllocation[]
   purchaseInvoiceLineMatches  PurchaseInvoiceLineMatch[]
 
@@ -2021,36 +2021,36 @@ model PurchaseReturnSequence {
 }
 
 model PurchaseInvoice {
-  id                     String                @id @default(uuid())
-  number                 String                @unique
-  supplierId             String
-  supplierInvoiceNumber  String
-  invoiceDate            DateTime              @db.Date
-  dueDate                DateTime?             @db.Date
-  status                 PurchaseInvoiceStatus @default(DRAFT)
-  notes                  String?
-  subtotal               Decimal               @db.Decimal(24, 6)
-  taxTotal               Decimal               @db.Decimal(24, 6)
-  grandTotal             Decimal               @db.Decimal(24, 6)
-  priceVarianceTotal     Decimal               @default(0) @db.Decimal(24, 6)
-  taxVarianceTotal       Decimal               @default(0) @db.Decimal(24, 6)
-  createdByUserId        String
-  postedByUserId         String?
-  postedAt               DateTime?
-  cancelledByUserId      String?
-  cancelledAt            DateTime?
-  cancellationReason     String?
-  reversedByUserId       String?
-  reversedAt             DateTime?
-  reversalReason         String?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
-  supplier               Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  createdBy               User                 @relation("PurchaseInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  postedBy                User?                @relation("PurchaseInvoicePostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
-  cancelledBy              User?               @relation("PurchaseInvoiceCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
-  reversedBy               User?               @relation("PurchaseInvoiceReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
-  lines                  PurchaseInvoiceLine[]
+  id                    String                @id @default(uuid())
+  number                String                @unique
+  supplierId            String
+  supplierInvoiceNumber String
+  invoiceDate           DateTime              @db.Date
+  dueDate               DateTime?             @db.Date
+  status                PurchaseInvoiceStatus @default(DRAFT)
+  notes                 String?
+  subtotal              Decimal               @db.Decimal(24, 6)
+  taxTotal              Decimal               @db.Decimal(24, 6)
+  grandTotal            Decimal               @db.Decimal(24, 6)
+  priceVarianceTotal    Decimal               @default(0) @db.Decimal(24, 6)
+  taxVarianceTotal      Decimal               @default(0) @db.Decimal(24, 6)
+  createdByUserId       String
+  postedByUserId        String?
+  postedAt              DateTime?
+  cancelledByUserId     String?
+  cancelledAt           DateTime?
+  cancellationReason    String?
+  reversedByUserId      String?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  supplier              Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy             User                  @relation("PurchaseInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy              User?                 @relation("PurchaseInvoicePostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy           User?                 @relation("PurchaseInvoiceCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  reversedBy            User?                 @relation("PurchaseInvoiceReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
+  lines                 PurchaseInvoiceLine[]
 
   @@unique([supplierId, supplierInvoiceNumber], map: "purchase_invoice_supplier_number_uidx")
   @@index([status, invoiceDate])
@@ -2083,17 +2083,17 @@ model PurchaseInvoiceLine {
 }
 
 model PurchaseInvoiceLineMatch {
-  id                     String              @id @default(uuid())
-  purchaseInvoiceLineId  String
-  goodsReceiptLineId     String
-  matchedQuantity        Decimal             @db.Decimal(24, 6)
-  grnDerivedUnitCost     Decimal             @default(0) @db.Decimal(30, 12)
-  grnDerivedTaxAmount    Decimal             @default(0) @db.Decimal(24, 6)
-  priceVarianceAmount    Decimal             @default(0) @db.Decimal(24, 6)
-  taxVarianceAmount      Decimal             @default(0) @db.Decimal(24, 6)
-  createdAt              DateTime            @default(now())
-  purchaseInvoiceLine    PurchaseInvoiceLine @relation(fields: [purchaseInvoiceLineId], references: [id], onDelete: Cascade)
-  goodsReceiptLine       GoodsReceiptLine    @relation(fields: [goodsReceiptLineId], references: [id], onDelete: Restrict)
+  id                    String              @id @default(uuid())
+  purchaseInvoiceLineId String
+  goodsReceiptLineId    String
+  matchedQuantity       Decimal             @db.Decimal(24, 6)
+  grnDerivedUnitCost    Decimal             @default(0) @db.Decimal(30, 12)
+  grnDerivedTaxAmount   Decimal             @default(0) @db.Decimal(24, 6)
+  priceVarianceAmount   Decimal             @default(0) @db.Decimal(24, 6)
+  taxVarianceAmount     Decimal             @default(0) @db.Decimal(24, 6)
+  createdAt             DateTime            @default(now())
+  purchaseInvoiceLine   PurchaseInvoiceLine @relation(fields: [purchaseInvoiceLineId], references: [id], onDelete: Cascade)
+  goodsReceiptLine      GoodsReceiptLine    @relation(fields: [goodsReceiptLineId], references: [id], onDelete: Restrict)
 
   @@unique([purchaseInvoiceLineId, goodsReceiptLineId], map: "purchase_invoice_line_match_uidx")
   @@index([goodsReceiptLineId])
@@ -2373,8 +2373,12 @@ model ProductionMaterialTransaction {
   cancelledByUserId  String?
   cancelledAt        DateTime?
   cancellationReason String?
+  /// BUG-31: a posted ISSUE/CONSUMPTION is corrected by a POSTED reversal document pointing here.
+  reversalOfId       String?                             @unique
   createdAt          DateTime                            @default(now())
   updatedAt          DateTime                            @updatedAt
+  reversalOf         ProductionMaterialTransaction?      @relation("ProductionMaterialReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal           ProductionMaterialTransaction?      @relation("ProductionMaterialReversal")
   productionBatch    ProductionBatch                     @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
   createdBy          User                                @relation("ProductionMaterialCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   postedBy           User?                               @relation("ProductionMaterialPostedBy", fields: [postedByUserId], references: [id], onDelete: Restrict)

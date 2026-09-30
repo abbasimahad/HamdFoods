@@ -9,6 +9,7 @@ import {
   type Prisma,
 } from "@/generated/prisma/client";
 import { recordAuditEvent } from "@/server/audit/audit-event";
+import { findOrOpenAccountingPeriod } from "@/server/accounting/accounting-periods";
 
 type Client = Prisma.TransactionClient;
 
@@ -72,13 +73,7 @@ export async function postDirectAccountJournal(
     select: { id: true },
   });
   if (existing) return existing.id;
-  const period = await tx.accountingPeriod.findFirst({
-    where: {
-      status: "OPEN",
-      startDate: { lte: input.accountingDate },
-      endDate: { gte: input.accountingDate },
-    },
-  });
+  const period = await findOrOpenAccountingPeriod(tx, input.accountingDate, input.actorUserId);
   if (!period)
     throw new AccountingPostingError("No OPEN accounting period contains the journal date.");
   const accountIds = [...new Set(input.lines.map((line) => line.accountId))];
@@ -161,13 +156,17 @@ export async function postAutomaticJournal(
       where: { id: "default" },
       include: { mappings: { include: { account: true } } },
     }),
-    tx.accountingPeriod.findFirst({
-      where: {
-        status: "OPEN",
-        startDate: { lte: input.accountingDate },
-        endDate: { gte: input.accountingDate },
-      },
-    }),
+    // Historical backfill never opens periods; live postings open their calendar month on
+    // first use when no period covers it yet (INST-6).
+    input.allowHistoricalBackfill
+      ? tx.accountingPeriod.findFirst({
+          where: {
+            status: "OPEN",
+            startDate: { lte: input.accountingDate },
+            endDate: { gte: input.accountingDate },
+          },
+        })
+      : findOrOpenAccountingPeriod(tx, input.accountingDate, input.actorUserId),
   ]);
   if (!settings)
     return block(
@@ -399,29 +398,34 @@ export async function postValuationAccounting(
           ],
     });
   }
-  if (["PRODUCTION_CONSUMPTION", "PACKAGING_CONSUMPTION"].includes(entry.entryType))
+  if (["PRODUCTION_CONSUMPTION", "PACKAGING_CONSUMPTION"].includes(entry.entryType)) {
+    // A consumption moves value from inventory into WIP (negative valuation delta); a reversal of
+    // a consumption (BUG-31) moves the same value back (positive delta).
+    const reversal = value.gt(0);
+    const batch = entry.productionBatchId ? { productionBatchId: entry.productionBatchId } : {};
     return postAutomaticJournal(tx, {
       ...common,
       sourceType:
         entry.entryType === "PRODUCTION_CONSUMPTION"
           ? "PRODUCTION_CONSUMPTION"
           : "PACKAGING_CONSUMPTION",
-      description: `Production consumption: ${entry.sourceNumber ?? entry.sourceKey}.`,
+      description: `${reversal ? "Production consumption reversal" : "Production consumption"}: ${entry.sourceNumber ?? entry.sourceKey}.`,
       lines: [
         {
           mapping: "WORK_IN_PROCESS",
-          debit: value.abs().toFixed(),
-          ...(entry.productionBatchId ? { productionBatchId: entry.productionBatchId } : {}),
+          ...(reversal ? { credit: value.abs().toFixed() } : { debit: value.abs().toFixed() }),
+          ...batch,
           itemId: entry.itemId,
         },
         {
           mapping: inventory,
-          credit: value.abs().toFixed(),
-          ...(entry.productionBatchId ? { productionBatchId: entry.productionBatchId } : {}),
+          ...(reversal ? { debit: value.abs().toFixed() } : { credit: value.abs().toFixed() }),
+          ...batch,
           itemId: entry.itemId,
         },
       ],
     });
+  }
   if (entry.entryType === "REPROCESS_CONSUMPTION")
     return postAutomaticJournal(tx, {
       ...common,
@@ -1330,13 +1334,7 @@ export async function postManualJournal(tx: Client, journalId: string, actorUser
   });
   if (!journal || journal.sourceType !== "MANUAL_JOURNAL" || journal.status !== "DRAFT")
     throw new AccountingPostingError("Only an existing draft manual journal may be posted.");
-  const period = await tx.accountingPeriod.findFirst({
-    where: {
-      status: "OPEN",
-      startDate: { lte: journal.accountingDate },
-      endDate: { gte: journal.accountingDate },
-    },
-  });
+  const period = await findOrOpenAccountingPeriod(tx, journal.accountingDate, actorUserId);
   if (!period)
     throw new AccountingPostingError("No OPEN accounting period contains the journal date.");
   const lines = journal.lines.map((line) => ({
@@ -1394,9 +1392,7 @@ export async function reverseManualJournal(
     original.reversalJournal
   )
     throw new AccountingPostingError("Only an unreversed posted manual journal can be reversed.");
-  const period = await tx.accountingPeriod.findFirst({
-    where: { status: "OPEN", startDate: { lte: accountingDate }, endDate: { gte: accountingDate } },
-  });
+  const period = await findOrOpenAccountingPeriod(tx, accountingDate, actorUserId);
   if (!period)
     throw new AccountingPostingError("No OPEN accounting period contains the reversal date.");
   const number = await nextJournalNumber(tx, accountingDate.getUTCFullYear());

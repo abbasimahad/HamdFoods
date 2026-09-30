@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -37,7 +38,7 @@ export default async function PrintPurchaseReturnPage({
         </div>
         <div className="text-right">
           <strong className="text-xl">{record.number}</strong>
-          <p>{record.returnDate.toLocaleDateString()}</p>
+          <p>{formatFactoryDate(record.returnDate)}</p>
           <p>{record.status.replaceAll("_", " ")}</p>
         </div>
       </header>
@@ -98,7 +99,7 @@ export default async function PrintPurchaseReturnPage({
         <p className="mt-6">
           Posted:{" "}
           {record.postedAt
-            ? `${record.postedByName} on ${record.postedAt.toLocaleString()}`
+            ? `${record.postedByName} on ${formatFactoryDateTime(record.postedAt)}`
             : "Not posted"}
         </p>
       </section>

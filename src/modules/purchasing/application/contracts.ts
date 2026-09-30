@@ -10,7 +10,7 @@ export type SupplierRecord = {
   contactPerson: string;
   phone: string;
   secondaryPhone: string | null;
-  email: string;
+  email: string | null;
   address: string;
   city: string;
   taxRegistrationNo: string | null;
@@ -95,7 +95,7 @@ export type PurchaseOrderRecord = {
   supplierName: string;
   supplierContactPerson: string;
   supplierPhone: string;
-  supplierEmail: string;
+  supplierEmail: string | null;
   supplierAddress: string;
   supplierCity: string;
   orderDate: Date;

@@ -33,7 +33,7 @@ export function SupplierForm({
         label="Secondary phone"
         defaultValue={initial?.secondaryPhone ?? ""}
       />
-      <Field name="email" label="Email" type="email" defaultValue={initial?.email} required />
+      <Field name="email" label="Email" type="email" defaultValue={initial?.email ?? ""} />
       <Field name="city" label="City" defaultValue={initial?.city} required />
       <Field
         name="taxRegistrationNo"

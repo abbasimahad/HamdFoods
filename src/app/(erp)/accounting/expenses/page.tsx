@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import {
   CancelDocumentForm,
@@ -22,14 +23,34 @@ export default async function Page({
 }) {
   const principal = await requirePermission("accounting.view");
   const query = await searchParams;
-  const [treasuries, accounts, expensePage] = await Promise.all([
+  const [treasuries, accounts, expensePage, systemMappings] = await Promise.all([
     treasuryAccounts(),
     prisma.accountingAccount.findMany({
       where: { active: true, postingAllowed: true, isControl: false, accountType: "EXPENSE" },
       orderBy: { code: "asc" },
     }),
     expenseVoucherPage(query),
+    // UX-9: accounts the system posts to automatically (COGS, sales returns/discounts, stock
+    // losses, price variances) are not operating expenses and must not be picked on a voucher.
+    prisma.accountingAccountMapping.findMany({
+      where: {
+        accountingSettingsId: "default",
+        mappingKey: {
+          in: [
+            "COST_OF_GOODS_SOLD",
+            "SALES_RETURNS",
+            "SALES_DISCOUNTS",
+            "SALES_REVENUE",
+            "INVENTORY_LOSS_EXPENSE",
+            "PURCHASE_PRICE_VARIANCE",
+          ],
+        },
+      },
+      select: { accountId: true },
+    }),
   ]);
+  const systemAccountIds = new Set(systemMappings.map((mapping) => mapping.accountId));
+  const expenseAccounts = accounts.filter((account) => !systemAccountIds.has(account.id));
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -39,8 +60,14 @@ export default async function Page({
       {hasPermission(principal, "accounting.manage") ? (
         <Card className="mb-4 p-4">
           <ExpenseVoucherForm
+            // Remount after a draft is posted or cancelled so its "saved as a draft" message does
+            // not linger above a voucher that is already posted (UX-9).
+            key={expensePage.expenses
+              .filter((expense) => expense.status === "DRAFT")
+              .map((expense) => expense.id)
+              .join()}
             treasuries={treasuries.filter((account) => account.active)}
-            accounts={accounts}
+            accounts={expenseAccounts}
             defaultDate={todayInFactoryTimeZone()}
           />
         </Card>
@@ -109,7 +136,7 @@ export default async function Page({
                   {expense.lines.map((line) => line.expenseAccount.code).join(", ")}
                 </td>
                 <td className="p-3">{expense.treasuryAccount.name}</td>
-                <td className="p-3">{expense.totalAmount.toString()}</td>
+                <td className="p-3">{formatMoney(expense.totalAmount, "")}</td>
                 <td className="p-3">{expense.status}</td>
                 <td className="p-3">
                   {expense.status === "DRAFT" && hasPermission(principal, "accounting.manage") ? (

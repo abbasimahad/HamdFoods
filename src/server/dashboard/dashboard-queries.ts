@@ -127,6 +127,25 @@ export async function salesSnapshot(months = 6) {
       products.set(line.itemId, entry);
     }
   }
+  // UX-9: returns completed this month net off the product's sales (value excluding tax and
+  // pieces), the same way the sales profitability report does.
+  // Start of the month in factory-local time (00:00 PKT is 19:00 UTC the previous day).
+  const monthStartDate = new Date(monthStart(year, month - 1).getTime() - 5 * 60 * 60 * 1000);
+  const returns = await prisma.salesReturn.findMany({
+    where: { status: "COMPLETED", type: "INVOICED_RETURN", completedAt: { gte: monthStartDate } },
+    select: {
+      lines: { select: { itemId: true, netAmount: true, taxAmount: true, totalPieces: true } },
+    },
+  });
+  for (const salesReturn of returns)
+    for (const line of salesReturn.lines) {
+      const entry = products.get(line.itemId);
+      if (!entry) continue;
+      entry.value = entry.value
+        .sub(line.netAmount?.toString() ?? "0")
+        .add(line.taxAmount?.toString() ?? "0");
+      entry.pieces = entry.pieces.sub(line.totalPieces.toString());
+    }
   const items = await prisma.item.findMany({
     where: { id: { in: [...products.keys()] } },
     select: { id: true, code: true, name: true },

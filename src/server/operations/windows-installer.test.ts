@@ -512,6 +512,7 @@ describe("Windows installer safety model", () => {
       "operations/account-recovery.mjs",
       "windows/Account-Recovery-HamdFoodsERP.ps1",
       "windows/Backup-HamdFoodsERP.ps1",
+      "windows/Restore-HamdFoodsERP.ps1",
       "windows/Run-HamdFoodsERP.ps1",
       "windows/Setup-HamdFoodsERP.ps1",
       "package.json",
@@ -520,6 +521,7 @@ describe("Windows installer safety model", () => {
     for (const recoveryFile of [
       "operations/account-recovery.mjs",
       "windows/Account-Recovery-HamdFoodsERP.ps1",
+      "windows/Restore-HamdFoodsERP.ps1",
     ]) {
       expect(() =>
         validatePayloadFiles(valid.filter((file) => file !== recoveryFile)),

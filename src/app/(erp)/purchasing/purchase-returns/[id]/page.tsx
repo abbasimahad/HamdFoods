@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -56,14 +57,14 @@ export default async function PurchaseReturnDetailPage({
           value={record.originalGoodsReceiptNumber}
         />
         <Info label="Warehouse" value={record.sourceWarehouseName} />
-        <Info label="Return date" value={record.returnDate.toLocaleDateString()} />
+        <Info label="Return date" value={formatFactoryDate(record.returnDate)} />
         <Info label="Supplier reference" value={record.supplierReturnReference ?? "-"} />
         <Info label="Created by" value={record.createdByName} />
         <Info
           label="Posted"
           value={
             record.postedAt
-              ? `${record.postedByName} - ${record.postedAt.toLocaleString()}`
+              ? `${record.postedByName} - ${formatFactoryDateTime(record.postedAt)}`
               : "Not posted"
           }
         />

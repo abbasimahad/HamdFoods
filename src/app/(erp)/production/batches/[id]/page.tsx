@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -114,10 +115,10 @@ export default async function ProductionBatchDetailPage({
           value={`${batch.recipeCode} - ${batch.recipeName} / v${batch.recipeVersion}`}
         />
         <Info label="Status" value={batch.status} />
-        <Info label="Planned date" value={batch.plannedProductionDate.toLocaleDateString()} />
+        <Info label="Planned date" value={formatFactoryDate(batch.plannedProductionDate)} />
         <Info
           label="Target completion"
-          value={batch.targetCompletionDate?.toLocaleDateString() ?? "-"}
+          value={formatFactoryDate(batch.targetCompletionDate) ?? "-"}
         />
         <Info
           label="Raw-material source"
@@ -136,7 +137,7 @@ export default async function ProductionBatchDetailPage({
           label="Released"
           value={
             batch.releasedAt
-              ? `${batch.releasedByName} - ${batch.releasedAt.toLocaleString()}`
+              ? `${batch.releasedByName} - ${formatFactoryDateTime(batch.releasedAt)}`
               : "-"
           }
         />
@@ -144,7 +145,7 @@ export default async function ProductionBatchDetailPage({
           label="Cancelled"
           value={
             batch.cancelledAt
-              ? `${batch.cancelledByName} - ${batch.cancelledAt.toLocaleString()}`
+              ? `${batch.cancelledByName} - ${formatFactoryDateTime(batch.cancelledAt)}`
               : "-"
           }
         />

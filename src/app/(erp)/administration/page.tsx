@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
+import { BUILD_INFO, buildLabel } from "@/config/build-info";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import type { PermissionCode } from "@/modules/access/domain/permissions";
@@ -74,6 +76,10 @@ export default async function Page() {
         title="Administration"
         description="People, access, company details, audit trail and system maintenance."
       />
+      <p className="mb-4 text-sm text-[var(--muted)]">
+        Installed build: <strong>{buildLabel()}</strong>
+        {BUILD_INFO.builtAt ? ` (built ${formatFactoryDateTime(BUILD_INFO.builtAt)})` : ""}
+      </p>
       {activeUsers !== null ? (
         <p className="mb-4 text-sm text-[var(--muted)]">
           {activeUsers} active user{activeUsers === 1 ? "" : "s"}

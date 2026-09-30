@@ -29,7 +29,7 @@ export async function approvePurchaseOrderAction(
   _state: PurchasingActionState,
   formData: FormData,
 ): Promise<PurchasingActionState> {
-  const actor = await requirePermission("purchasing.manage");
+  const actor = await requirePermission("purchase_orders.approve");
   const id = String(formData.get("id") ?? "");
   const result = await approvePurchaseOrder(actor, id, repository);
   if (result.ok) {

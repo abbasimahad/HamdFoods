@@ -498,6 +498,7 @@ export function validatePayloadFiles(files: readonly string[]): void {
     "operations/account-recovery.mjs",
     "windows/account-recovery-hamdfoodserp.ps1",
     "windows/backup-hamdfoodserp.ps1",
+    "windows/restore-hamdfoodserp.ps1",
     "windows/run-hamdfoodserp.ps1",
     "windows/setup-hamdfoodserp.ps1",
     "package.json",

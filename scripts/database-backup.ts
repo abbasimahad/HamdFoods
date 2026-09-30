@@ -3,6 +3,7 @@ import {
   DatabaseBackupError,
   listBackups,
   restoreBackup,
+  restoreLiveDatabase,
   verifyBackupArtifact,
 } from "../src/server/operations/database-backup";
 
@@ -26,6 +27,15 @@ try {
       console.log(
         `${manifest.backupId} | ${manifest.createdAt} | ${manifest.databaseName} | ${manifest.byteSize} bytes | ${manifest.sha256}`,
       );
+  } else if (action === "list-recent") {
+    // Compact single-line form for the installed restore tool: "<backupId>@<createdAt>" for the
+    // 12 newest completed backups, newest first.
+    console.log(
+      listBackups(backupDirectory)
+        .slice(0, 12)
+        .map(({ manifest }) => `${manifest.backupId}@${manifest.createdAt}`)
+        .join(" "),
+    );
   } else if (action === "verify") {
     const backupId = requireIdentifier(identifier);
     const result = await verifyBackupArtifact(backupDirectory, backupId);
@@ -47,9 +57,25 @@ try {
     });
     console.log(`Restore verified: ${result.targetDatabaseName}`);
     console.log(`Backup: ${result.manifest.backupId}`);
+  } else if (action === "restore-live") {
+    // INST-9: used by the installed Restore-HamdFoodsERP.ps1 tool after it has stopped the ERP.
+    const backupId = requireIdentifier(identifier);
+    const result = await restoreLiveDatabase({
+      backupIdentifier: backupId,
+      ...(backupDirectory ? { backupDirectory } : {}),
+      databaseUrl: requireEnvironment("DATABASE_URL"),
+      adminPassword: requireEnvironment("POSTGRES_ADMIN_PASSWORD"),
+      ...(process.env.POSTGRES_BIN ? { postgresBin: process.env.POSTGRES_BIN } : {}),
+    });
+    console.log(`Restore complete: ${result.targetDatabaseName} now holds backup ${backupId}.`);
+    console.log(`Previous data kept as database: ${result.previousDatabaseName}`);
+    if (result.warnings.length)
+      console.log(
+        `Note: the restored data itself does not reconcile on: ${result.warnings.join(", ")} (as it was when backed up).`,
+      );
   } else {
     throw new DatabaseBackupError(
-      "Usage: database-backup.ts <create|list|verify|restore> [backup-id]",
+      "Usage: database-backup.ts <create|list|list-recent|verify|restore|restore-live> [backup-id]",
     );
   }
 } catch (error) {

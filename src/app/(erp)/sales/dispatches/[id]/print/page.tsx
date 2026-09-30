@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
@@ -27,7 +28,7 @@ export default async function PrintSalesDispatchPage({
           <p>{dispatch.number}</p>
         </div>
         <div className="text-right text-sm">
-          <p>Dispatch date: {dispatch.dispatchAt.toLocaleDateString()}</p>
+          <p>Dispatch date: {formatFactoryDate(dispatch.dispatchAt)}</p>
           <p>Status: {dispatch.status}</p>
         </div>
       </header>
@@ -75,7 +76,7 @@ export default async function PrintSalesDispatchPage({
                   <span className="block" key={`${allocation.id}-${allocation.quantity}`}>
                     {allocation.lotNumber}: {allocation.quantity} pcs
                     {allocation.expiryDate
-                      ? ` (exp. ${new Date(allocation.expiryDate).toLocaleDateString()})`
+                      ? ` (exp. ${formatFactoryDate(new Date(allocation.expiryDate))})`
                       : ""}
                   </span>
                 ))}

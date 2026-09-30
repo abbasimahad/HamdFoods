@@ -1,5 +1,7 @@
 "use client";
 
+import { factoryLocalDateTimeValue } from "@/server/shared/factory-local-time";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useMemo, useState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
@@ -69,8 +71,17 @@ export function MaterialTransactionForm({
             className="mt-1 min-h-11 w-full rounded-lg border bg-white px-3"
             name="batchRequirementId"
             onChange={(event) => {
+              const next = view.requirements.find(
+                (candidate) => candidate.requirementId === event.target.value,
+              );
               setRequirementId(event.target.value);
-              setLotId("");
+              // Preselect the first eligible lot of the newly chosen material so the lot list and
+              // the selected lot never lag behind the material (BUG-32).
+              setLotId(
+                (type === "ISSUE" ? view.availableLots : view.heldLots).find(
+                  (lot) => lot.itemId === next?.itemId,
+                )?.id ?? "",
+              );
             }}
             required
             value={requirementId}
@@ -178,7 +189,7 @@ export function MaterialTransactionForm({
         <p className="text-sm">
           Selected lot: {lot.supplierName}; supplier lot {lot.supplierLotNumber ?? "not supplied"};
           GRN {lot.goodsReceiptNumber}; available {lot.availableQuantity} {lot.canonicalUnitSymbol};
-          expiry {lot.expiryDate?.toLocaleDateString() ?? "not recorded"}.
+          expiry {formatFactoryDate(lot.expiryDate) ?? "not recorded"}.
         </p>
       )}
       <label className="block text-sm font-medium">
@@ -214,7 +225,5 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 function dateTimeLocal(value?: Date) {
-  const date = value ?? new Date();
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return factoryLocalDateTimeValue(value ?? new Date());
 }

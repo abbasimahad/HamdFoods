@@ -4,6 +4,9 @@
 #ifndef PayloadRoot
   #error PayloadRoot must be supplied by scripts/installer.ts
 #endif
+#ifndef BuildId
+  #define BuildId "local"
+#endif
 
 #define Publisher "Hamd Foods"
 #ifdef DrillBuild
@@ -18,7 +21,7 @@
   #define AppPort "3200"
   #define DatabaseName "hamd_foods_erp_installer_drill"
   #define RoleName "hamd_erp_installer_drill"
-  #define OutputName "HamdFoodsERP-" + AppVersion + "-InstallDrill-DEVELOPMENT-UNSIGNED"
+  #define OutputName "HamdFoodsERP-" + AppVersion + "-" + BuildId + "-InstallDrill-DEVELOPMENT-UNSIGNED"
   #define DrillSwitch " -Drill"
 #else
   #define ProductName "Hamd Foods ERP"
@@ -35,9 +38,9 @@
   #define DatabaseName "hamd_foods_erp"
   #define RoleName "hamd_erp"
   #ifdef InstallerSignTool
-    #define OutputName "HamdFoodsERP-" + AppVersion + "-Setup"
+    #define OutputName "HamdFoodsERP-" + AppVersion + "-" + BuildId + "-Setup"
   #else
-    #define OutputName "HamdFoodsERP-" + AppVersion + "-Setup-DEVELOPMENT-UNSIGNED"
+    #define OutputName "HamdFoodsERP-" + AppVersion + "-" + BuildId + "-Setup-DEVELOPMENT-UNSIGNED"
   #endif
   #define DrillSwitch ""
 #endif
@@ -46,6 +49,7 @@
 AppId={#ProductId}
 AppName={#ProductName}
 AppVersion={#AppVersion}
+AppVerName={#ProductName} {#AppVersion} (build {#BuildId})
 AppPublisher={#Publisher}
 AppPublisherURL=https://github.com/abbasimahad/HamdFoods
 DefaultDirName={autopf}\{#InstallFolder}
@@ -77,18 +81,29 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 Name: "dailybackup"; Description: "Run a daily backup at 02:00"; GroupDescription: "Backup automation:"; Flags: checkedonce
 
+[InstallDelete]
+; INST-8: installing over an existing build replaces the runtime completely, so no stale files from
+; the previous build are left in the application folders. The runtime was already stopped in
+; PrepareToInstall; business data lives under ProgramData and in PostgreSQL and is never touched.
+Type: filesandordirs; Name: "{app}\app"
+Type: filesandordirs; Name: "{app}\operations"
+
 [Files]
 Source: "{#PayloadRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#ShortcutName}"; Filename: "http://127.0.0.1:{#AppPort}"
 Name: "{group}\Account Recovery"; Filename: "{sysnative}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\windows\Account-Recovery-HamdFoodsERP.ps1"" -AppRoot ""{app}"" -DataRoot ""{commonappdata}\{#DataFolder}""{#DrillSwitch}"; WorkingDir: "{app}"
+Name: "{group}\Restore Backup"; Filename: "{sysnative}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\windows\Restore-HamdFoodsERP.ps1"" -AppRoot ""{app}"" -DataRoot ""{commonappdata}\{#DataFolder}""{#DrillSwitch}"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#ShortcutName}"; Filename: "http://127.0.0.1:{#AppPort}"; Tasks: desktopicon
 
 [UninstallRun]
 Filename: "{sysnative}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\windows\Setup-HamdFoodsERP.ps1"" -Mode UninstallTasks -AppRoot ""{app}"" -DataRoot ""{commonappdata}\{#DataFolder}"" -TaskName ""{#AppTask}"" -BackupTaskName ""{#BackupTask}"" -Port {#AppPort} -DatabaseName ""{#DatabaseName}"" -RoleName ""{#RoleName}""{#DrillSwitch}"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveHamdFoodsTasks"
 
 [Code]
+var
+  BusinessDataRemoved: Boolean;
+
 function HasDailyBackupTask(): Boolean;
 begin
   Result := WizardIsTaskSelected('dailybackup');
@@ -150,7 +165,8 @@ begin
     ) then
       Result := 'Could not launch the protected repair runtime stop.'
     else if ResultCode <> 0 then
-      Result := 'The protected repair runtime could not be stopped safely.';
+      Result := 'Setup could not stop the running Hamd Foods ERP before updating it, so nothing was changed and your data is untouched. Close the ERP in every browser, wait a minute and run Setup again. Details: ' +
+        ExpandConstant('{commonappdata}\{#DataFolder}\logs\installer\runtime-stop.log');
   end;
 end;
 
@@ -185,8 +201,41 @@ begin
     MsgBox('For security, copy this installer to a local drive before running it.', mbError, MB_OK);
 end;
 
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+function RemoveDataParameters(): String;
 begin
-  if CurUninstallStep = usPostUninstall then
-    MsgBox('Business data and backups were preserved under ProgramData. The PostgreSQL database and application role were also preserved.', mbInformation, MB_OK);
+  Result := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' +
+    ExpandConstant('{app}\windows\Setup-HamdFoodsERP.ps1') + '" -Mode RemoveData' +
+    ' -AppRoot "' + ExpandConstant('{app}') + '"' +
+    ' -DataRoot "' + ExpandConstant('{commonappdata}\{#DataFolder}') + '"' +
+    ' -TaskName "{#AppTask}" -BackupTaskName "{#BackupTask}"' +
+    ' -Port {#AppPort} -DatabaseName "{#DatabaseName}" -RoleName "{#RoleName}"' +
+    '{#DrillSwitch}';
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  { INST-4: keeping data stays the default (and the only behaviour for silent uninstalls). }
+  if (CurUninstallStep = usUninstall) and (not UninstallSilent()) and
+    FileExists(ExpandConstant('{commonappdata}\{#DataFolder}\config\.env.production')) then begin
+    if MsgBox('Keep the ERP database and business data?' + #13#10#13#10 +
+        'Yes (recommended): keep everything. Installing Hamd Foods ERP again later continues with the same data and logins.' + #13#10#13#10 +
+        'No: permanently remove the ERP database, its login role and configuration. A final backup is taken first and kept in ' +
+        ExpandConstant('{commonappdata}\{#DataFolder}\backups') + '. You will be asked for the PostgreSQL administrator password.',
+        mbConfirmation, MB_YESNO or MB_DEFBUTTON1) = IDNO then begin
+      if Exec(ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe'), RemoveDataParameters(),
+          ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+        BusinessDataRemoved := True
+      else
+        MsgBox('The database could not be removed, so it was kept. Nothing was lost; see ' +
+          ExpandConstant('{commonappdata}\{#DataFolder}\logs') + '.', mbError, MB_OK);
+    end;
+  end;
+  if CurUninstallStep = usPostUninstall then begin
+    if BusinessDataRemoved then
+      MsgBox('The ERP database and configuration were removed. The final backup and earlier backups remain under ProgramData.', mbInformation, MB_OK)
+    else
+      MsgBox('Business data and backups were preserved under ProgramData. The PostgreSQL database and application role were also preserved.', mbInformation, MB_OK);
+  end;
 end;

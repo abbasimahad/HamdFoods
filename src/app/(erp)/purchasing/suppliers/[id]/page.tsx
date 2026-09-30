@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { SupplierForm } from "@/components/purchasing/supplier-form";
@@ -45,7 +46,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
           label="Phone"
           value={[supplier.phone, supplier.secondaryPhone].filter(Boolean).join(" / ")}
         />
-        <Info label="Email" value={supplier.email} />
+        <Info label="Email" value={supplier.email ?? "-"} />
         <Info label="City" value={supplier.city} />
         <Info label="Tax / registration" value={supplier.taxRegistrationNo ?? "-"} />
         <Info
@@ -95,7 +96,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
                   <td className="p-3">{entry.entryDate.toISOString().slice(0, 10)}</td>
                   <td className="p-3">{entry.sourceNumber ?? entry.sourceId}</td>
                   <td className="p-3">{entry.entryType.replaceAll("_", " ")}</td>
-                  <td className="p-3">{entry.signedAmount.toString()}</td>
+                  <td className="p-3">{formatMoney(entry.signedAmount, "")}</td>
                 </tr>
               ))}
               {!payableEntries.length ? (

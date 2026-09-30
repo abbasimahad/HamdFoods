@@ -1,3 +1,4 @@
+import { displayAmounts } from "@/components/ui/format-money";
 import { FinancialReportControls } from "@/components/accounting/financial-report-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -9,7 +10,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   await requirePermission("accounting.view");
   const query = await searchParams;
   const asOf = reportAsOf(query.asOf);
-  const report = await balanceSheet(asOf);
+  const report = displayAmounts(await balanceSheet(asOf));
   const group = (
     title: string,
     rows: readonly { code: string; name: string; amount: string }[],

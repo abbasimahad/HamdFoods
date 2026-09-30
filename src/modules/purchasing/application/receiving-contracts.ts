@@ -178,12 +178,24 @@ export interface GoodsReceiptRepository {
   getPurchaseOrderProgress(id: string): Promise<PurchaseOrderProgress>;
 }
 
+/**
+ * Receiving is segregated from purchasing (ROLE-2): `purchasing.manage` alone no longer lets the
+ * person who ordered the goods also receive them.
+ */
 export function requireReceivingManager(
   actor: ApplicationPrincipal,
 ): PurchasingMutationResult | null {
-  return actor.active &&
-    (actor.permissions.includes("purchasing.manage") ||
-      actor.permissions.includes("receiving.manage"))
+  return actor.active && actor.permissions.includes("receiving.manage")
     ? null
     : { ok: false, message: "Goods receiving permission is required." };
+}
+
+/** Receiving QC can be recorded by the store (receiving) or by Quality Control. */
+export function requireReceivingQcRecorder(
+  actor: ApplicationPrincipal,
+): PurchasingMutationResult | null {
+  return actor.active &&
+    (actor.permissions.includes("receiving.manage") || actor.permissions.includes("quality.manage"))
+    ? null
+    : { ok: false, message: "Receiving QC permission is required." };
 }

@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
@@ -74,7 +75,7 @@ export default async function CustomerStatementPage({
               </tr>
               {statement.rows.map((row, index) => (
                 <tr key={`${row.reference}-${index}`}>
-                  <td className="p-3">{row.date.toLocaleDateString()}</td>
+                  <td className="p-3">{formatFactoryDate(row.date)}</td>
                   <td className="p-3">{row.reference}</td>
                   <td className="p-3">{row.type}</td>
                   <td className="p-3">{row.debit}</td>

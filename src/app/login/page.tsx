@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { Card } from "@/components/ui/card";
+import { buildLabel } from "@/config/build-info";
 import { getCurrentPrincipal } from "@/server/auth/server-guards";
 
 export default async function LoginPage() {
@@ -15,6 +16,7 @@ export default async function LoginPage() {
           Use the account provided by your administrator.
         </p>
         <LoginForm />
+        <p className="mt-6 text-center text-xs text-[var(--muted)]">{buildLabel()}</p>
       </Card>
     </main>
   );

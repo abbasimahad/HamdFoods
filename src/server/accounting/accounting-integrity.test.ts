@@ -155,6 +155,8 @@ describe("automatic accounting integrity", () => {
     ).resolves.toEqual({ journalId: null, blocked: true });
     expect(tx.journals()).toHaveLength(0);
     expect(tx.accountingPostingBlock.upsert).toHaveBeenCalledOnce();
+    // INST-6: a month already covered by a (closed) period is never reopened automatically.
+    expect(tx.accountingPeriod.createMany).not.toHaveBeenCalled();
   });
 });
 
@@ -214,6 +216,9 @@ function accountingTx() {
     accountingSettings: { findUnique: vi.fn(async () => ({ mappings })) },
     accountingPeriod: {
       findFirst: vi.fn(async (): Promise<{ id: string } | null> => ({ id: "period-1" })),
+      // A period (the closed one) already covers the month, so none is opened automatically.
+      count: vi.fn(async () => 1),
+      createMany: vi.fn(async () => ({ count: 0 })),
     },
     accountingPostingBlock: {
       updateMany: vi.fn(async () => ({ count: 0 })),

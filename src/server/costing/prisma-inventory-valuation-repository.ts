@@ -16,6 +16,7 @@ import {
   exactSignedCost,
 } from "@/modules/costing/domain/costing";
 import { prisma } from "@/server/db/prisma";
+import { factoryEffectiveInstant } from "@/server/shared/factory-local-time";
 import {
   InventoryValuationError,
   postHistoricalUnvaluedOutbound,
@@ -725,6 +726,10 @@ export async function valueProductionConsumption(
     include: { lines: { orderBy: [{ position: "asc" }, { id: "asc" }] } },
   });
   if (!document || document.transactionType !== "CONSUMPTION") return;
+  if (document.reversalOfId) {
+    await valueProductionConsumptionReversal(tx, document, actorUserId);
+    return;
+  }
   for (const line of document.lines) {
     const movement = await tx.inventoryMovement.findUnique({
       where: {
@@ -761,6 +766,84 @@ export async function valueProductionConsumption(
       select: { id: true },
     });
     if (valuation) await postValuationAccounting(tx, valuation.id, actorUserId, historical);
+  }
+}
+
+/**
+ * BUG-31: restores a reversed consumption to inventory at exactly the value it left with, so the
+ * batch's work-in-process and the item's moving average return to where they were.
+ */
+async function valueProductionConsumptionReversal(
+  tx: Prisma.TransactionClient,
+  document: {
+    id: string;
+    transactionNumber: string;
+    productionBatchId: string;
+    materialType: ItemType;
+    reversalOfId: string | null;
+    lines: readonly { id: string; position: number; itemId: string; inventoryLotId: string }[];
+  },
+  actorUserId: string,
+) {
+  const original = await tx.productionMaterialTransaction.findUnique({
+    where: { id: document.reversalOfId! },
+    include: { lines: true },
+  });
+  if (!original) throw new CostingRepositoryError("Reversed consumption is missing.");
+  for (const line of document.lines) {
+    const originalLine = original.lines.find((candidate) => candidate.position === line.position);
+    const originalValuation = originalLine
+      ? await tx.inventoryValuationEntry.findUnique({
+          where: { sourceKey: `PRODUCTION-CONSUMPTION-COST:${originalLine.id}` },
+        })
+      : null;
+    if (
+      !originalLine ||
+      !originalValuation ||
+      originalValuation.state !== "FINAL" ||
+      originalValuation.valueDelta === null ||
+      originalValuation.unitCost === null
+    )
+      throw new CostingRepositoryError(
+        "The original consumption has no final valuation, so it cannot be reversed at cost.",
+      );
+    const movement = await tx.inventoryMovement.findUnique({
+      where: {
+        sourceKey_movementType: {
+          sourceKey: `PMT:${line.id}:CONSUMPTION`,
+          movementType:
+            document.materialType === "RAW_MATERIAL"
+              ? "PRODUCTION_CONSUMPTION"
+              : "PACKAGING_CONSUMPTION",
+        },
+      },
+    });
+    if (!movement)
+      throw new CostingRepositoryError("Consumption reversal inventory provenance is missing.");
+    const sourceKey = `PRODUCTION-CONSUMPTION-COST:${line.id}`;
+    await postValuedInboundExact(tx, {
+      sourceKey,
+      itemId: line.itemId,
+      inventoryMovementId: movement.id,
+      entryType: originalValuation.entryType,
+      effectiveAt: movement.postedAt,
+      sourceType: "PRODUCTION_MATERIAL_TRANSACTION",
+      sourceId: document.id,
+      sourceNumber: document.transactionNumber,
+      productionBatchId: document.productionBatchId,
+      inventoryLotId: line.inventoryLotId,
+      notes: `Reversal of ${original.transactionNumber} at its original cost.`,
+      actorUserId,
+      quantity: new Decimal(originalValuation.quantityEffect.toString()).abs().toFixed(),
+      unitCost: originalValuation.unitCost.toString(),
+      value: new Decimal(originalValuation.valueDelta.toString()).abs().toFixed(),
+    });
+    const valuation = await tx.inventoryValuationEntry.findUniqueOrThrow({ where: { sourceKey } });
+    const accounting = await postValuationAccounting(tx, valuation.id, actorUserId);
+    if (accounting?.blocked)
+      throw new CostingRepositoryError(
+        "Consumption reversal cannot post until its accounting period and mappings are available.",
+      );
   }
 }
 
@@ -844,7 +927,7 @@ export async function valueWasteWriteOff(
     itemId: line.itemId,
     inventoryMovementId: movement.id,
     entryType: "INVENTORY_WRITE_OFF",
-    effectiveAt: line.disposition.dispositionDate,
+    effectiveAt: factoryEffectiveInstant(line.disposition.dispositionDate, movement.postedAt),
     sourceType: "WASTE_DISPOSITION",
     sourceId: line.disposition.id,
     sourceNumber: line.disposition.documentNumber,
@@ -901,7 +984,7 @@ export async function valueWasteWriteOffReversal(
     itemId: original.itemId,
     inventoryMovementId: movement.id,
     entryType: "INVENTORY_WRITE_OFF_REVERSAL",
-    effectiveAt: reversal.disposition.dispositionDate,
+    effectiveAt: factoryEffectiveInstant(reversal.disposition.dispositionDate, movement.postedAt),
     sourceType: "WASTE_DISPOSITION_REVERSAL",
     sourceId: reversal.disposition.id,
     sourceNumber: reversal.disposition.documentNumber,
@@ -1045,6 +1128,8 @@ export async function valueManualInventoryMovement(
     effectiveAt: movement.postedAt,
     sourceType: movement.referenceType,
     sourceId: movement.referenceId ?? movement.id,
+    // BUG-5 follow-up: carry the adjustment's document reference onto its valuation journal.
+    sourceNumber: movement.referenceId ?? undefined,
     inventoryLotId: movement.inventoryLotId ?? undefined,
     productionLotId: movement.productionLotId ?? undefined,
     notes: movement.reason,
@@ -1395,6 +1480,7 @@ async function batchCosting(client: Client, batchId: string) {
 
 type CostLineTransaction = {
   id: string;
+  reversalOfId?: string | null;
   lines: readonly {
     id: string;
     itemId: string;
@@ -1425,13 +1511,18 @@ function costLines(
           entry.sourceId === row.id &&
           entry.sourceKey === `PRODUCTION-CONSUMPTION-COST:${line.id}`,
       );
+      // A consumption leaves inventory (negative delta) and adds cost; a consumption reversal
+      // (BUG-31) comes back (positive delta) and removes the same cost from the batch.
+      const reversal = Boolean(row.reversalOfId);
       return {
         itemCode: line.item.code,
-        itemName: line.item.name,
-        quantity: line.normalizedQuantity.toString(),
+        itemName: reversal ? `${line.item.name} (reversal)` : line.item.name,
+        quantity: reversal
+          ? new Decimal(line.normalizedQuantity.toString()).negated().toFixed()
+          : line.normalizedQuantity.toString(),
         unitCost: valuation?.unitCost?.toString() ?? null,
         totalCost: valuation?.valueDelta
-          ? new Decimal(valuation.valueDelta.toString()).abs().toFixed(6)
+          ? new Decimal(valuation.valueDelta.toString()).negated().toFixed(6)
           : null,
         plannedQuantity: planned.find((entry) => entry.itemId === line.itemId)?.planned ?? null,
       };

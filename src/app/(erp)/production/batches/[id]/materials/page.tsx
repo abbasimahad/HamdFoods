@@ -1,9 +1,11 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MaterialTransactionForm } from "@/components/production/material-transaction-form";
 import {
   CancelMaterialTransactionForm,
   PostMaterialTransactionForm,
+  ReverseMaterialTransactionForm,
 } from "@/components/production/material-transaction-actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -18,6 +20,7 @@ import { PrismaProductionMaterialRepository } from "@/server/production/prisma-p
 import {
   cancelMaterialTransactionAction,
   postMaterialTransactionAction,
+  reverseMaterialTransactionAction,
   saveMaterialTransactionAction,
 } from "./actions";
 
@@ -142,7 +145,8 @@ export default async function BatchMaterialsPage({
         <div className="border-b p-5">
           <h2 className="font-semibold">Material transaction history</h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Posted rows are immutable views of central Inventory Ledger events.
+            Posted rows are immutable views of central Inventory Ledger events. A wrong posted issue
+            or consumption is corrected with a reversal while the batch is still open.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -164,7 +168,7 @@ export default async function BatchMaterialsPage({
               {view.transactions.map((transaction) => (
                 <tr key={transaction.id}>
                   <td className="p-3 font-mono font-semibold">{transaction.transactionNumber}</td>
-                  <td className="p-3">{transaction.transactionDate.toLocaleString()}</td>
+                  <td className="p-3">{formatFactoryDateTime(transaction.transactionDate)}</td>
                   <td className="p-3">{transaction.transactionType}</td>
                   <td className="p-3">
                     {transaction.line.itemCode} - {transaction.line.itemName}
@@ -188,12 +192,32 @@ export default async function BatchMaterialsPage({
                     )}
                   </td>
                   <td className="p-3">
-                    {transaction.status}
+                    {transaction.reversedByNumber
+                      ? `REVERSED (${transaction.reversedByNumber})`
+                      : transaction.status}
+                    {transaction.reversalOfNumber && (
+                      <span className="block text-xs font-semibold text-amber-800">
+                        Reversal of {transaction.reversalOfNumber}
+                      </span>
+                    )}
                     <span className="block text-xs">
                       {transaction.postedByName ?? transaction.createdByName}
                     </span>
                   </td>
                   <td className="p-3">
+                    {canManage &&
+                      transaction.status === "POSTED" &&
+                      transaction.transactionType !== "RETURN" &&
+                      !transaction.reversalOfNumber &&
+                      !transaction.reversedByNumber &&
+                      (transaction.transactionType === "ISSUE" ? canIssue : canResolve) && (
+                        <ReverseMaterialTransactionForm
+                          action={reverseMaterialTransactionAction}
+                          productionBatchId={id}
+                          transactionId={transaction.id}
+                          transactionNumber={transaction.transactionNumber}
+                        />
+                      )}
                     {canManage && transaction.status === "DRAFT" && (
                       <div className="space-y-2">
                         <Link

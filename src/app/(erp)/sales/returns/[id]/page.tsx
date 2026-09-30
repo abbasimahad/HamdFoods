@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
@@ -21,6 +22,7 @@ export default async function SalesReturnDetailPage({
   const salesReturn = await new PrismaSalesReturnRepository().getSalesReturn((await params).id);
   if (!salesReturn) notFound();
   const manage = hasPermission(principal, "sales.manage");
+  const canPostCredit = hasPermission(principal, "sales_invoices.post");
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -57,7 +59,7 @@ export default async function SalesReturnDetailPage({
             Inspect return
           </Link>
         )}
-        {manage && salesReturn.status === "INSPECTED" && (
+        {canPostCredit && salesReturn.status === "INSPECTED" && (
           <SalesReturnAction
             action={completeSalesReturnAction}
             id={salesReturn.id}
@@ -81,7 +83,7 @@ export default async function SalesReturnDetailPage({
             <strong>Warehouse:</strong> {salesReturn.receivingWarehouseName}
           </p>
           <p>
-            <strong>Date:</strong> {salesReturn.returnAt.toLocaleDateString()}
+            <strong>Date:</strong> {formatFactoryDate(salesReturn.returnAt)}
           </p>
           <p>
             <strong>Created by:</strong> {salesReturn.createdByName}

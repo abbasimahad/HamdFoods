@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -50,11 +51,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </p>
       <Card className="mb-4 p-4 text-sm">
         <p>
-          Payment: {payment.totalAmount.toString()} via {payment.treasuryAccount.name}
+          Payment: {formatMoney(payment.totalAmount, "")} via {payment.treasuryAccount.name}
         </p>
         <p>
-          Allocated: {allocated.toFixed(6)}; supplier advance:{" "}
-          {new Decimal(payment.totalAmount.toString()).sub(allocated).toFixed(6)}
+          Allocated: {formatMoney(allocated, "")}; supplier advance:{" "}
+          {formatMoney(new Decimal(payment.totalAmount.toString()).sub(allocated), "")}
         </p>
         <p>Reference: {payment.referenceNumber ?? "—"}</p>
         {payment.reversalOf ? <p>Reversal of: {payment.reversalOf.number}</p> : null}
@@ -81,7 +82,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   {allocation.payableLedgerEntry.sourceNumber ??
                     allocation.payableLedgerEntry.sourceId}
                 </td>
-                <td className="p-3">{allocation.allocatedAmount.toString()}</td>
+                <td className="p-3">{formatMoney(allocation.allocatedAmount, "")}</td>
               </tr>
             ))}
           </tbody>

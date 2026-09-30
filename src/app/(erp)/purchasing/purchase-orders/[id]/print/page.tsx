@@ -1,3 +1,4 @@
+import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { formatMoney } from "@/modules/purchasing/domain/purchasing";
@@ -38,7 +39,7 @@ export default async function PrintPurchaseOrderPage({
         </div>
         <div className="text-right">
           <strong className="text-xl">{order.number}</strong>
-          <p>{order.orderDate.toLocaleDateString()}</p>
+          <p>{formatFactoryDate(order.orderDate)}</p>
           <p>{order.status.replaceAll("_", " ")}</p>
         </div>
       </header>
@@ -49,9 +50,7 @@ export default async function PrintPurchaseOrderPage({
             {order.supplierCode} - {order.supplierName}
           </p>
           <p>{order.supplierContactPerson}</p>
-          <p>
-            {order.supplierPhone} / {order.supplierEmail}
-          </p>
+          <p>{[order.supplierPhone, order.supplierEmail].filter(Boolean).join(" / ")}</p>
           <p>
             {order.supplierAddress}, {order.supplierCity}
           </p>
@@ -59,7 +58,7 @@ export default async function PrintPurchaseOrderPage({
         <div>
           <p>
             <strong>Expected delivery:</strong>{" "}
-            {order.expectedDeliveryDate?.toLocaleDateString() ?? "-"}
+            {formatFactoryDate(order.expectedDeliveryDate) ?? "-"}
           </p>
           <p>
             <strong>Supplier reference:</strong> {order.supplierReference ?? "-"}
@@ -121,7 +120,7 @@ export default async function PrintPurchaseOrderPage({
         <p className="whitespace-pre-wrap">{order.notes ?? "-"}</p>
         {order.approvedAt && (
           <p className="mt-6">
-            Approved by {order.approvedByName} on {order.approvedAt.toLocaleString()}
+            Approved by {order.approvedByName} on {formatFactoryDateTime(order.approvedAt)}
           </p>
         )}
       </section>

@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -151,7 +152,7 @@ export default async function SalesReturnsPage({
                       {salesReturn.number}
                     </Link>
                   </td>
-                  <td className="p-3">{salesReturn.returnAt.toLocaleDateString()}</td>
+                  <td className="p-3">{formatFactoryDate(salesReturn.returnAt)}</td>
                   <td className="p-3">{salesReturn.customerName}</td>
                   <td className="p-3">
                     {salesReturn.salesInvoiceNumber ?? "No invoice"} /{" "}

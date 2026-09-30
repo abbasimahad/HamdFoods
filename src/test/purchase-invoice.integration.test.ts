@@ -695,6 +695,16 @@ describe("purchase invoice: closed period", () => {
     await repo.postPurchaseInvoice(id, fixture.actorUserId);
     expect((await repo.getPurchaseInvoice(id))?.status).toBe("POSTED");
 
+    // March 2027 is covered by a CLOSED period: a missing month would now be opened on first
+    // use (INST-6), but a closed month must still refuse the reversal.
+    const closed = await prisma.accountingPeriod.create({
+      data: {
+        name: "Closed March 2027 (test)",
+        startDate: new Date("2027-03-01T00:00:00.000Z"),
+        endDate: new Date("2027-03-31T00:00:00.000Z"),
+        status: "CLOSED",
+      },
+    });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2027-03-01T00:00:00.000Z"));
     try {
@@ -703,6 +713,7 @@ describe("purchase invoice: closed period", () => {
       ).rejects.toThrow(/OPEN accounting period/);
     } finally {
       vi.useRealTimers();
+      await prisma.accountingPeriod.delete({ where: { id: closed.id } });
     }
     expect((await repo.getPurchaseInvoice(id))?.status).toBe("POSTED");
   });

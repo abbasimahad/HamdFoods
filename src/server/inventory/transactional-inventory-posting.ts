@@ -70,6 +70,8 @@ export type ProductionMaterialInventoryCommand = {
   inventoryLotId: string;
   reason: string;
   actorUserId: string;
+  /** BUG-31: post the mirror image of a posted ISSUE or CONSUMPTION (a reversal document). */
+  reversal?: boolean | undefined;
 };
 
 export type ProductionOutputInventoryCommand = {
@@ -1187,6 +1189,51 @@ export async function postProductionMaterialInventory(
     reason: command.reason,
     createdByUserId: command.actorUserId,
   };
+  if (command.reversal) {
+    if (command.operation === "ISSUE") {
+      // Issue reversal: the batch still holds the lot, so custody goes back to AVAILABLE.
+      await requireProductionLotBalance(transaction, command, "IN_PRODUCTION", quantity, true);
+      await transaction.inventoryMovement.createMany({
+        data: [
+          {
+            ...common,
+            warehouseId: command.custodyWarehouseId,
+            status: "IN_PRODUCTION",
+            quantity: new Decimal(quantity).negated().toFixed(),
+            movementType: movementTypes.issue,
+            sourceKey: `PMT:${command.transactionLineId}:ISSUE:CUSTODY`,
+          },
+          {
+            ...common,
+            warehouseId: command.custodyWarehouseId,
+            status: "AVAILABLE",
+            quantity,
+            movementType: movementTypes.issue,
+            sourceKey: `PMT:${command.transactionLineId}:ISSUE:AVAILABLE`,
+          },
+        ],
+      });
+      return;
+    }
+    if (command.operation === "CONSUMPTION") {
+      // Consumption reversal: the consumed quantity returns to batch custody.
+      await transaction.inventoryMovement.create({
+        data: {
+          ...common,
+          warehouseId: command.custodyWarehouseId,
+          status: "IN_PRODUCTION",
+          quantity,
+          movementType: movementTypes.consumption,
+          sourceKey: `PMT:${command.transactionLineId}:CONSUMPTION`,
+        },
+      });
+      return;
+    }
+    throw new InventoryRepositoryError(
+      "reference",
+      "Only material issues and consumptions can be reversed.",
+    );
+  }
   if (command.operation === "ISSUE") {
     await requireProductionLotBalance(transaction, command, "AVAILABLE", quantity, false);
     await transaction.inventoryMovement.createMany({

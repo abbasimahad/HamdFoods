@@ -53,7 +53,7 @@ function SupplierFields() {
       <TextField label="Contact person" name="contactPerson" required />
       <TextField label="Phone" name="phone" required />
       <TextField label="Secondary phone" name="secondaryPhone" />
-      <TextField label="Email" name="email" required type="email" />
+      <TextField label="Email" name="email" type="email" />
       <TextField className="sm:col-span-2" label="Address" name="address" required />
       <TextField label="City" name="city" required />
       <TextField label="Tax registration" name="taxRegistrationNo" />

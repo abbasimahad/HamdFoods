@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -31,7 +32,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <p>Date: {transfer.transferDate.toISOString().slice(0, 10)}</p>
         <p>From: {transfer.sourceTreasuryAccount.name}</p>
         <p>To: {transfer.destinationTreasuryAccount.name}</p>
-        <p>Amount: {transfer.amount.toString()}</p>
+        <p>Amount: {formatMoney(transfer.amount, "")}</p>
         <p>Reference: {transfer.referenceNumber ?? "—"}</p>
         <p>Notes: {transfer.notes ?? "—"}</p>
         <p>

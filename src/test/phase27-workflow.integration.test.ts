@@ -58,10 +58,26 @@ describe("Phase 27 database-backed golden workflow", () => {
       },
       _sum: { quantity: true },
     });
+    // Other integration files (e.g. the D5 replacement regression) receive more of the same raw
+    // item into this warehouse before this file runs; only this workflow's own flow is asserted.
+    const otherReceiptsAccepted = await prisma.inventoryMovement.aggregate({
+      where: {
+        itemId: state.rawItemId,
+        warehouseId: state.sourceWarehouseId,
+        status: "AVAILABLE",
+        movementType: "STATUS_IN",
+        referenceType: "GOODS_RECEIPT_QC",
+        referenceId: { not: state.goodsReceiptId },
+      },
+      _sum: { quantity: true },
+    });
     await expect(
       inventoryBalance(state.rawItemId, state.sourceWarehouseId, "AVAILABLE"),
     ).resolves.toBe(
-      new Decimal(7000).add(laterReprocessRawIssue._sum.quantity?.toString() ?? "0").toFixed(),
+      new Decimal(7000)
+        .add(laterReprocessRawIssue._sum.quantity?.toString() ?? "0")
+        .add(otherReceiptsAccepted._sum.quantity?.toString() ?? "0")
+        .toFixed(),
     );
     await expect(
       inventoryBalance(state.rawItemId, state.destinationWarehouseId, "AVAILABLE"),

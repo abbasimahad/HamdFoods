@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -77,17 +78,14 @@ export default async function ReprocessDetailPage({ params }: { params: Promise<
         />
         <Info
           label="Source expiry snapshot"
-          value={document.sourceExpirySnapshot.toLocaleDateString()}
+          value={formatFactoryDate(document.sourceExpirySnapshot)}
         />
         <Info label="Shelf-life snapshot" value={`${document.shelfLifeDaysSnapshot} days`} />
         <Info
           label="Completion date"
-          value={document.completionDate?.toLocaleDateString() ?? "Pending"}
+          value={formatFactoryDate(document.completionDate) ?? "Pending"}
         />
-        <Info
-          label="Child expiry"
-          value={document.childExpiry?.toLocaleDateString() ?? "Pending"}
-        />
+        <Info label="Child expiry" value={formatFactoryDate(document.childExpiry) ?? "Pending"} />
         <Info label="Initiated by" value={document.initiatedBy.name} />
         <Info label="Completed by" value={document.completedBy?.name ?? "Pending"} />
         <Info

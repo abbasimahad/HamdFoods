@@ -19,6 +19,7 @@ import {
   valueWasteWriteOffReversal,
 } from "@/server/costing/prisma-inventory-valuation-repository";
 import { prisma } from "@/server/db/prisma";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import {
   postWasteDispositionInventory,
   postWasteDispositionReversalInventory,
@@ -415,7 +416,7 @@ export class PrismaWasteDispositionRepository implements WasteDispositionReposit
           originalUnitCost: line.originalUnitCost?.toString(),
         });
       }
-      const reversalDate = utcDate(new Date().toISOString().slice(0, 10));
+      const reversalDate = utcDate(todayInFactoryTimeZone());
       const documentNumber = await nextDocumentNumber(tx, reversalDate.getUTCFullYear());
       const reversal = await tx.wasteDisposition.create({
         data: {

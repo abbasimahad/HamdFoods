@@ -1,4 +1,30 @@
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
 import type { NextConfig } from "next";
+
+// INST-3: stamp the build so the running app shows which version and source commit it is.
+function buildCommit() {
+  if (process.env.HAMDFOODS_BUILD_COMMIT) return process.env.HAMDFOODS_BUILD_COMMIT;
+  try {
+    const commit = execSync("git rev-parse --short=7 HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+    const dirty = execSync("git status --porcelain --untracked-files=no", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return dirty ? `${commit}-modified` : commit;
+  } catch {
+    return "unknown";
+  }
+}
+const packageVersion = (
+  JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
+    version: string;
+  }
+).version;
 
 // Phase 35 M3: this app never uses next/image (confirmed: no `next/image`
 // import and no `images` config existed anywhere in src/) -- disabling the
@@ -55,6 +81,11 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   images: { unoptimized: true },
+  env: {
+    HAMDFOODS_APP_VERSION: packageVersion,
+    HAMDFOODS_BUILD_COMMIT: buildCommit(),
+    HAMDFOODS_BUILD_TIME: new Date().toISOString(),
+  },
   // esbuild ships platform-specific native binaries (@esbuild/win32-x64/
   // esbuild.exe) that the bundler cannot trace. It is only ever invoked by
   // src/server/updates/verify-update-package-file.ts's dev/test-only

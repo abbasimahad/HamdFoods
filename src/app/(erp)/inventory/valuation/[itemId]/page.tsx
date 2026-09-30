@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -61,7 +62,7 @@ export default async function ItemValuationHistoryPage({
             <tbody className="divide-y">
               {record.history.map((row) => (
                 <tr key={row.id}>
-                  <td className="p-3">{row.effectiveAt.toLocaleString()}</td>
+                  <td className="p-3">{formatFactoryDateTime(row.effectiveAt)}</td>
                   <td className="p-3">{row.sourceNumber ?? row.sourceType}</td>
                   <td className="p-3">
                     {row.entryType} / {row.state}

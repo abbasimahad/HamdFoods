@@ -1,5 +1,6 @@
 "use client";
 
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import Decimal from "decimal.js";
 import { useActionState, useState } from "react";
 import {
@@ -96,7 +97,13 @@ export function SupplierPaymentForm({
             </option>
           ))}
         </select>
-        <input className="rounded border px-3 py-2" name="paymentDate" type="date" required />
+        <input
+          className="rounded border px-3 py-2"
+          defaultValue={todayInFactoryTimeZone()}
+          name="paymentDate"
+          type="date"
+          required
+        />
         <select className="rounded border px-3 py-2" name="treasuryAccountId" required>
           <option value="">Treasury account</option>
           {treasuries.map((account) => (
@@ -300,7 +307,13 @@ export function DocumentReversalForm({
   return (
     <form action={action} className="mt-3 grid gap-2 md:grid-cols-3">
       <input name="id" type="hidden" value={id} />
-      <input className="rounded border px-3 py-2" name="reversalDate" type="date" required />
+      <input
+        className="rounded border px-3 py-2"
+        defaultValue={todayInFactoryTimeZone()}
+        name="reversalDate"
+        type="date"
+        required
+      />
       <input
         className="rounded border px-3 py-2 md:col-span-2"
         name="reason"
@@ -422,7 +435,13 @@ export function TreasuryTransferForm({
           </option>
         ))}
       </select>
-      <input className="rounded border px-3 py-2" name="transferDate" type="date" required />
+      <input
+        className="rounded border px-3 py-2"
+        defaultValue={todayInFactoryTimeZone()}
+        name="transferDate"
+        type="date"
+        required
+      />
       <input className="rounded border px-3 py-2" name="amount" placeholder="Amount" required />
       <input className="rounded border px-3 py-2" name="referenceNumber" placeholder="Reference" />
       <input className="rounded border px-3 py-2" name="notes" placeholder="Notes" />

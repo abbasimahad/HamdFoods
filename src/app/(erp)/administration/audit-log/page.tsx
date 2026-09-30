@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -83,7 +84,7 @@ export default async function Page({
         <ul className="divide-y text-sm">
           {controls.map((event) => (
             <li className="p-3" key={event.id}>
-              {event.occurredAt.toLocaleString()} · {event.action} ·{" "}
+              {formatFactoryDateTime(event.occurredAt)} · {event.action} ·{" "}
               {event.entityReference ?? event.entityType} · {event.actor.name}
             </li>
           ))}
@@ -104,7 +105,7 @@ export default async function Page({
           <tbody className="divide-y">
             {result.events.map((event) => (
               <tr key={event.id}>
-                <td className="p-3">{event.occurredAt.toLocaleString()}</td>
+                <td className="p-3">{formatFactoryDateTime(event.occurredAt)}</td>
                 <td className="p-3">{event.actor.name}</td>
                 <td className="p-3">{event.module}</td>
                 <td className="p-3">{event.action}</td>

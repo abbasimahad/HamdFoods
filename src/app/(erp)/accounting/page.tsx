@@ -1,3 +1,4 @@
+import { displayAmounts, formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import { endOfFactoryLocalDay } from "@/server/shared/factory-local-time";
 import { AccountingBackfillForm } from "@/components/accounting/accounting-management-forms";
@@ -10,10 +11,9 @@ import { accountingDashboard } from "@/server/accounting/prisma-accounting-repos
 import { financeDashboard } from "@/server/accounting/financial-reporting";
 export default async function Page() {
   const principal = await requirePermission("accounting.view");
-  const [dashboard, finance] = await Promise.all([
-    accountingDashboard(),
-    financeDashboard(endOfFactoryLocalDay()),
-  ]);
+  const [dashboard, finance] = displayAmounts(
+    await Promise.all([accountingDashboard(), financeDashboard(endOfFactoryLocalDay())]),
+  );
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -39,11 +39,11 @@ export default async function Page() {
         </Card>
         <Card className="p-4">
           <p className="text-sm text-[var(--muted)]">Posted expense vouchers</p>
-          <p className="text-2xl font-semibold">{dashboard.postedExpenseTotal}</p>
+          <p className="text-2xl font-semibold">{formatMoney(dashboard.postedExpenseTotal, "")}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-[var(--muted)]">Inventory carrying value</p>
-          <p className="text-2xl font-semibold">{dashboard.inventoryValue}</p>
+          <p className="text-2xl font-semibold">{formatMoney(dashboard.inventoryValue, "")}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-[var(--muted)]">Current open period</p>

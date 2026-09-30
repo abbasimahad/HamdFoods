@@ -2,6 +2,7 @@ import { FinancialReportControls } from "@/components/accounting/financial-repor
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { Card } from "@/components/ui/card";
+import { displayAmounts } from "@/components/ui/format-money";
 import { reportRange, salesProfitability } from "@/server/accounting/financial-reporting";
 import { requirePermission } from "@/server/auth/server-guards";
 export default async function Page({
@@ -12,7 +13,7 @@ export default async function Page({
   await requirePermission("accounting.view");
   const q = await searchParams;
   const range = reportRange(q.from, q.to);
-  const rows = await salesProfitability(range);
+  const rows = displayAmounts(await salesProfitability(range));
   return (
     <ResponsiveContainer>
       <PageHeader

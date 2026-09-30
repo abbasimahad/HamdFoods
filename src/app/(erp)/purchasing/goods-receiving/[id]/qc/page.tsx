@@ -7,7 +7,7 @@ import { requireAnyPermission } from "@/server/auth/server-guards";
 import { PrismaGoodsReceiptRepository } from "@/server/purchasing/prisma-goods-receipt-repository";
 import { completeGoodsReceiptQcAction } from "../../actions";
 export default async function GoodsReceiptQcPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  await requireAnyPermission(["receiving.manage", "quality.manage"]);
   const receipt = await new PrismaGoodsReceiptRepository().getGoodsReceipt((await params).id);
   if (!receipt) notFound();
   if (receipt.status !== "POSTED") redirect(`/purchasing/goods-receiving/${receipt.id}`);

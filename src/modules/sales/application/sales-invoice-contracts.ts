@@ -77,7 +77,7 @@ export type SalesInvoiceLineRecord = {
   taxAmount: string;
   netAmount: string;
   notes: string | null;
-  allocations: readonly { lotNumber: string; quantity: string }[];
+  allocations: readonly { lotNumber: string; expiryDate: Date | null; quantity: string }[];
 };
 export type SalesInvoiceRecord = {
   id: string;

@@ -77,8 +77,9 @@ export async function approvePurchaseOrder(
   id: string,
   repository: PurchasingRepository,
 ): Promise<PurchasingMutationResult> {
-  const denied = requirePurchasingManager(actor);
-  if (denied) return denied;
+  // ROLE-2: approval is a separate permission, so the purchaser cannot approve its own order.
+  if (!actor.active || !actor.permissions.includes("purchase_orders.approve"))
+    return { ok: false, message: "Purchase order approval permission is required." };
   if (!z.string().uuid().safeParse(id).success)
     return { ok: false, message: "Invalid purchase order." };
   try {

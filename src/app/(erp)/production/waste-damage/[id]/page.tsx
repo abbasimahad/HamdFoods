@@ -1,3 +1,5 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { formatMoney } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -12,6 +14,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasPermission } from "@/modules/access/domain/principal";
 import { requireAnyPermission } from "@/server/auth/server-guards";
+import { prisma } from "@/server/db/prisma";
 import { PrismaWasteDispositionRepository } from "@/server/inventory/prisma-waste-disposition-repository";
 import {
   cancelWasteDispositionAction,
@@ -27,6 +30,20 @@ export default async function WasteDispositionDetailPage({
   const principal = await requireAnyPermission(["inventory.view", "production.view"]);
   const document = await new PrismaWasteDispositionRepository().getDocument((await params).id);
   if (!document) notFound();
+  // UX-9: show write-off journals by number with a link, not by internal id.
+  const journalIds = document.lines.flatMap((line) =>
+    line.originalAccountingJournalId ? [line.originalAccountingJournalId] : [],
+  );
+  const journals = new Map(
+    (journalIds.length
+      ? await prisma.accountingJournal.findMany({
+          where: { id: { in: journalIds } },
+          select: { id: true, journalNumber: true },
+        })
+      : []
+    ).map((journal) => [journal.id, journal.journalNumber]),
+  );
+  const canViewJournals = hasPermission(principal, "accounting.view");
   const canManage =
     hasPermission(principal, "inventory.manage") || hasPermission(principal, "waste.manage");
   const first = document.lines[0];
@@ -71,7 +88,7 @@ export default async function WasteDispositionDetailPage({
         </Card>
       )}
       <Card className="mb-5 grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-        <Info label="Date" value={document.dispositionDate.toLocaleDateString()} />
+        <Info label="Date" value={formatFactoryDate(document.dispositionDate)} />
         <Info label="Warehouse" value={`${document.warehouse.code} · ${document.warehouse.name}`} />
         <Info label="Created by" value={document.createdBy.name} />
         <Info label="Posted by" value={document.postedBy?.name ?? "Pending"} />
@@ -131,11 +148,24 @@ export default async function WasteDispositionDetailPage({
                     </td>
                     <td className="p-4">{line.inventoryMovements.length}</td>
                     <td className="p-4">
-                      {line.originalValue?.toString() ?? "Retained"}
+                      {line.originalValue ? formatMoney(line.originalValue, "") : "Retained"}
                       <br />
-                      <span className="font-mono text-xs">
-                        {line.originalAccountingJournalId ?? "No journal"}
-                      </span>
+                      {line.originalAccountingJournalId ? (
+                        canViewJournals ? (
+                          <Link
+                            className="font-mono text-xs text-[var(--accent)]"
+                            href={`/accounting/journals/${line.originalAccountingJournalId}`}
+                          >
+                            {journals.get(line.originalAccountingJournalId) ?? "Journal"}
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-xs">
+                            {journals.get(line.originalAccountingJournalId) ?? "Journal"}
+                          </span>
+                        )
+                      ) : (
+                        <span className="font-mono text-xs">No journal</span>
+                      )}
                     </td>
                     <td className="p-4">
                       {claim ? (

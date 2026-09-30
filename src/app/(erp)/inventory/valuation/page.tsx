@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import {
   LandedCostForm,
@@ -141,7 +142,9 @@ export default async function InventoryValuationPage({
                   <td className="p-3">{formatCost(row.averageUnitCost, 6)}</td>
                   <td className="p-3">{formatCost(row.inventoryValue)}</td>
                   <td className="p-3">{row.missingBasisCount || "—"}</td>
-                  <td className="p-3">{row.lastValuationAt?.toLocaleString() ?? "Not valued"}</td>
+                  <td className="p-3">
+                    {formatFactoryDateTime(row.lastValuationAt) ?? "Not valued"}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -10,7 +10,7 @@ export default async function NewGoodsReceiptPage({
 }: {
   searchParams: Promise<{ po?: string }>;
 }) {
-  await requireAnyPermission(["purchasing.manage", "receiving.manage"]);
+  await requireAnyPermission(["receiving.manage"]);
   const repository = new PrismaGoodsReceiptRepository();
   const [ordersRaw, warehouses, units, replacementTargets] = await Promise.all([
     repository.listReceivablePurchaseOrders(),

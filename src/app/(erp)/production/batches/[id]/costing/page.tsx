@@ -1,3 +1,4 @@
+import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import {
   AddProductionCostForm,
@@ -94,7 +95,7 @@ export default async function BatchCostingPage({ params }: { params: Promise<{ i
       {costing.finalizedAt ? (
         <Card className="mt-5 p-5 text-sm">
           Finalized by <strong>{costing.finalizedByName}</strong> on{" "}
-          {costing.finalizedAt.toLocaleString()}.
+          {formatFactoryDateTime(costing.finalizedAt)}.
         </Card>
       ) : (
         canManage && (

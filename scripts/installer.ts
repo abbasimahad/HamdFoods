@@ -134,7 +134,11 @@ function runPreflight() {
 
 async function preparePayload() {
   assertBuildHost();
-  const standaloneRoot = path.join(repositoryRoot, ".next", "standalone");
+  const standaloneRoot = path.join(
+    repositoryRoot,
+    process.env.NEXT_VERIFY_DIST_DIR || ".next",
+    "standalone",
+  );
   if (!existsSync(path.join(standaloneRoot, "server.js")))
     throw new Error(
       "Prepared Next standalone output is missing. Use the elevated maintenance window and run production:build first.",
@@ -231,6 +235,7 @@ function compileInstaller(drill: boolean) {
     "--quiet",
     "--messages-jsonl",
     `/DAppVersion=${version}`,
+    `/DBuildId=${readBuildCommit()}`,
     `/DPayloadRoot=${payloadRoot}`,
     ...(!drill && process.env.HAMDFOODS_INSTALLER_PORT
       ? [`/DAppPort=${readProductionInstallerPort()}`]
@@ -433,8 +438,18 @@ async function verifyDrillAuthentication(email: string, password: string) {
 function assertBuildHost() {
   if (process.platform !== "win32" || process.arch !== "x64")
     throw new Error("Phase 32 packaging requires 64-bit Windows.");
+  // INST-1: the installed application always runs the pinned, checksum-verified node.exe that is
+  // downloaded into the payload, never the build machine's Node. The build host therefore only
+  // needs the same major line (Node 24) to compile and bundle; any 24.x works.
+  const hostMajor = process.versions.node.split(".")[0];
+  if (hostMajor !== PINNED_NODE_VERSION.split(".")[0])
+    throw new Error(
+      `Packaging needs Node ${PINNED_NODE_VERSION.split(".")[0]}.x on the build machine (found ${process.versions.node}).`,
+    );
   if (process.versions.node !== PINNED_NODE_VERSION)
-    throw new Error(`Packaging must run on the tested Node ${PINNED_NODE_VERSION} runtime.`);
+    console.warn(
+      `Building with Node ${process.versions.node}; the installer still bundles the pinned Node ${PINNED_NODE_VERSION} runtime.`,
+    );
 }
 
 async function ensurePinnedNodeArchive() {
@@ -629,6 +644,9 @@ function writePayloadMetadata() {
   const metadata = {
     product: "Hamd Foods ERP",
     applicationVersion: readApplicationVersion(),
+    // INST-3: exactly which source build this payload is.
+    buildCommit: readBuildCommit(),
+    builtAt: new Date().toISOString(),
     nodeVersion: PINNED_NODE_VERSION,
     nodeArchive: PINNED_NODE_ARCHIVE,
     nodeSha256: PINNED_NODE_SHA256,
@@ -824,6 +842,28 @@ function readApplicationVersion() {
   if (typeof pkg.version !== "string" || !/^\d+\.\d+\.\d+$/.test(pkg.version))
     throw new Error("package.json must provide one numeric installer application version.");
   return pkg.version;
+}
+
+/**
+ * INST-3: the short git commit of the source tree being packaged ("-modified" when it has
+ * uncommitted changes), so installer files and the running app can be traced to their source.
+ * HAMDFOODS_BUILD_COMMIT overrides it (e.g. for builds from an exported source archive).
+ */
+function readBuildCommit() {
+  const configured = process.env.HAMDFOODS_BUILD_COMMIT;
+  if (configured) {
+    if (!/^[A-Za-z0-9._-]{1,40}$/.test(configured))
+      throw new Error("HAMDFOODS_BUILD_COMMIT may contain only letters, digits, '.', '_' or '-'.");
+    return configured;
+  }
+  try {
+    const commit = run("git", ["rev-parse", "--short=7", "HEAD"], repositoryRoot);
+    if (commit.status !== 0 || !/^[0-9a-f]{7,40}$/.test(commit.stdout.trim())) return "nogit";
+    const dirty = run("git", ["status", "--porcelain", "--untracked-files=no"], repositoryRoot);
+    return `${commit.stdout.trim()}${dirty.stdout.trim() ? "-modified" : ""}`;
+  } catch {
+    return "nogit";
+  }
 }
 
 function newestInstaller(marker: string) {

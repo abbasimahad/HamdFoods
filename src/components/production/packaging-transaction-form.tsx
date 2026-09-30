@@ -1,5 +1,7 @@
 "use client";
 
+import { factoryLocalDateTimeValue } from "@/server/shared/factory-local-time";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useMemo, useState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
@@ -198,8 +200,8 @@ export function PackagingTransactionForm({
         <p className="text-sm">
           Selected lot: {lot.supplierName}; supplier lot {lot.supplierLotNumber ?? "not supplied"};
           GRN {lot.goodsReceiptNumber}; eligible {lot.availableQuantity} {lot.canonicalUnitSymbol};
-          manufacture {lot.manufacturingDate?.toLocaleDateString() ?? "not recorded"}; expiry{" "}
-          {lot.expiryDate?.toLocaleDateString() ?? "not recorded"}.
+          manufacture {formatFactoryDate(lot.manufacturingDate) ?? "not recorded"}; expiry{" "}
+          {formatFactoryDate(lot.expiryDate) ?? "not recorded"}.
         </p>
       )}
       <label className="block text-sm font-medium">
@@ -236,6 +238,5 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 function dateTimeLocal(value?: Date) {
-  const date = value ?? new Date();
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  return factoryLocalDateTimeValue(value ?? new Date());
 }

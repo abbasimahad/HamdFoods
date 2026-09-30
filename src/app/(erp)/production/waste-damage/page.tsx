@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -107,7 +108,7 @@ export default async function WasteDamagePage({
                         {record.documentNumber}
                       </Link>
                     </td>
-                    <td className="p-4">{record.dispositionDate.toLocaleDateString()}</td>
+                    <td className="p-4">{formatFactoryDate(record.dispositionDate)}</td>
                     <td className="p-4">{record.warehouse.code}</td>
                     <td className="p-4">
                       {[...new Set(record.lines.map((line) => line.action))].join(", ")}

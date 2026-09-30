@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CustomerForm } from "@/components/sales/customer-form";
@@ -130,8 +131,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                         {invoice.number}
                       </Link>
                     </td>
-                    <td>{invoice.invoiceDate.toLocaleDateString()}</td>
-                    <td>{invoice.dueDate.toLocaleDateString()}</td>
+                    <td>{formatFactoryDate(invoice.invoiceDate)}</td>
+                    <td>{formatFactoryDate(invoice.dueDate)}</td>
                     <td>{invoice.amount}</td>
                     <td>{invoice.outstanding}</td>
                     <td>{invoice.daysDue}</td>
@@ -163,7 +164,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                       {payment.number}
                     </Link>
                   </td>
-                  <td>{payment.paymentDate.toLocaleDateString()}</td>
+                  <td>{formatFactoryDate(payment.paymentDate)}</td>
                   <td>{payment.amount}</td>
                   <td>{payment.unallocatedAmount}</td>
                 </tr>
@@ -196,7 +197,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                       {salesReturn.number}
                     </Link>
                   </td>
-                  <td>{salesReturn.returnDate.toLocaleDateString()}</td>
+                  <td>{formatFactoryDate(salesReturn.returnDate)}</td>
                   <td>{salesReturn.amount}</td>
                 </tr>
               ))}

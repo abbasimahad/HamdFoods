@@ -72,6 +72,10 @@ export type PackagingTransactionRecord = {
   createdByName: string;
   postedByName: string | null;
   postedAt: Date | null;
+  /** Set on a reversal document: the posted transaction it reverses (BUG-31). */
+  reversalOfNumber: string | null;
+  /** Set on a reversed original: the reversal document that cancelled it. */
+  reversedByNumber: string | null;
   line: {
     id: string;
     packagingRequirementId: string;
@@ -118,6 +122,7 @@ export interface ProductionPackagingRepository {
   updateTransaction(input: PackagingTransactionInput & { id: string }): Promise<string>;
   postTransaction(id: string, actorUserId: string): Promise<void>;
   cancelTransaction(id: string, actorUserId: string, reason: string): Promise<void>;
+  reverseTransaction(id: string, actorUserId: string, reason: string): Promise<string>;
 }
 
 export function requirePackagingManager(

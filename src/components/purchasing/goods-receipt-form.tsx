@@ -446,7 +446,5 @@ function dateOnly(value: Date | null) {
   return value ? new Date(value).toISOString().slice(0, 10) : "";
 }
 function dateTimeLocal(value: Date) {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return factoryLocalDateTimeValue(value);
 }

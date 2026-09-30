@@ -1,3 +1,4 @@
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { notFound, redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -31,10 +32,7 @@ export default async function ReprocessQualityPage({
           value={`${document.finishedGood.code} / ${document.finishedGood.name}`}
         />
         <Fact label="Child lot" value={document.childProductionLot?.lotNumber ?? "Missing"} />
-        <Fact
-          label="Child expiry"
-          value={document.childExpiry?.toLocaleDateString() ?? "Missing"}
-        />
+        <Fact label="Child expiry" value={formatFactoryDate(document.childExpiry) ?? "Missing"} />
         <Fact
           label="GOOD / scrap / loss"
           value={`${document.goodContentOutput ?? "-"} / ${document.scrapContentOutput ?? "-"} / ${document.processLossContent ?? "-"}`}
