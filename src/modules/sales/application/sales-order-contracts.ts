@@ -96,6 +96,7 @@ export type SalesOrderRecord = {
   createdByName: string;
   approvedByName: string | null;
   approvedAt: Date | null;
+  creditOverrideReason?: string | null;
   cancelledByName: string | null;
   cancelledAt: Date | null;
   cancellationReason: string | null;
@@ -123,7 +124,7 @@ export interface SalesOrderRepository {
   listSalesOrderItems(warehouseId: string): Promise<readonly SalesOrderCatalogItem[]>;
   createSalesOrder(input: SalesOrderInput): Promise<string>;
   updateSalesOrder(input: SalesOrderInput & { id: string }): Promise<string>;
-  approveSalesOrder(id: string, actorUserId: string): Promise<void>;
+  approveSalesOrder(id: string, actorUserId: string, creditOverrideReason?: string): Promise<void>;
   reserveRedeliveryStock(id: string, actorUserId: string): Promise<void>;
   cancelSalesOrder(id: string, reason: string, actorUserId: string): Promise<void>;
   getSalesOrder(id: string): Promise<SalesOrderRecord | null>;

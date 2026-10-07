@@ -30,7 +30,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
 > = {
   SUPER_ADMIN: PERMISSIONS,
   ADMIN: PERMISSIONS,
-  // Receives goods against approved POs and runs receiving QC; keeps stock and records damage.
+  // Receives goods against approved POs and runs receiving QC; keeps stock and records damage;
+  // loads approved orders onto vehicles -- dispatches and gate passes (ROLE-3). Orders, prices
+  // and customers stay with Sales.
   STORE_KEEPER: [
     "dashboard.view",
     "inventory.view",
@@ -38,6 +40,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
     "purchasing.view",
     "receiving.manage",
     "waste.manage",
+    "sales.view",
+    "dispatches.manage",
   ],
   // Raises purchase orders and manages suppliers and returns. Approval (Accounts), receiving
   // (Store Keeper) and receiving QC (Store Keeper / Quality Control) sit with other people, so a
@@ -50,18 +54,20 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<
     "production.manage",
     "waste.manage",
   ],
-  // The independent second person who records receiving QC and releases reprocessed goods.
+  // The independent second person who records receiving QC, releases reprocessed goods and
+  // inspects customer returns (ROLE-3: Sales books the return, Quality classifies it).
   QUALITY_CONTROL: [
     "dashboard.view",
     "inventory.view",
     "production.view",
     "purchasing.view",
+    "sales.view",
     "quality.manage",
   ],
   // Books orders, dispatches and draft invoices/returns. Order approval, posting invoices and
   // credit notes, and cash handling sit with Accounts (maker/checker), so Sales cannot approve
   // its own orders, post receivables or credits, or take receipts.
-  SALES: ["dashboard.view", "sales.view", "sales.manage", "inventory.view"],
+  SALES: ["dashboard.view", "sales.view", "sales.manage", "dispatches.manage", "inventory.view"],
   ACCOUNTS: [
     "dashboard.view",
     "accounting.view",

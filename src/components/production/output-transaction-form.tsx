@@ -61,15 +61,25 @@ export function OutputTransactionForm({
             type="date"
           />
         </label>
-        <label className="text-sm font-medium">
-          Expiry date
-          <input
-            className="mt-1 min-h-11 w-full rounded-lg border px-3"
-            defaultValue={dateOnly(initial?.expiryDate)}
-            name="expiryDate"
-            type="date"
-          />
-        </label>
+        {view.batchType === "REPROCESS" ? (
+          // UX-11: a reprocess child lot's expiry is calculated from the source lot and shelf life.
+          <p className="text-sm">
+            <span className="font-medium">Expiry date</span>
+            <span className="mt-1 block text-[var(--muted)]">
+              Calculated automatically from the source lot and reprocess shelf life.
+            </span>
+          </p>
+        ) : (
+          <label className="text-sm font-medium">
+            Expiry date
+            <input
+              className="mt-1 min-h-11 w-full rounded-lg border px-3"
+              defaultValue={dateOnly(initial?.expiryDate)}
+              name="expiryDate"
+              type="date"
+            />
+          </label>
+        )}
         {type === "GOOD" ? (
           <>
             <label className="text-sm font-medium">

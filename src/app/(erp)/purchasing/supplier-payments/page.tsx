@@ -8,6 +8,7 @@ import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { supplierPaymentPage } from "@/server/accounting/prisma-phase23-repository";
 import { PageActions, primaryPageActionClass } from "@/components/ui/page-actions";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page() {
   const principal = await requirePermission("accounting.view");
   const page = await supplierPaymentPage();
@@ -51,7 +52,7 @@ export default async function Page() {
                     {payment.number}
                   </Link>
                 </td>
-                <td className="p-3">{payment.paymentDate.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(payment.paymentDate)}</td>
                 <td className="p-3">{payment.supplier.name}</td>
                 <td className="p-3">{payment.treasuryAccount.name}</td>
                 <td className="p-3">{formatMoney(payment.totalAmount, "")}</td>

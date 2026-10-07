@@ -12,7 +12,7 @@ import { saveAreaAction, setAreaStatusAction } from "../actions";
 export default async function AreasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string; edit?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; edit?: string; created?: string }>;
 }) {
   const principal = await requirePermission("sales.view");
   const params = await searchParams;
@@ -29,6 +29,14 @@ export default async function AreasPage({
         title="Sales Areas"
         description="Maintain sales territories; referenced areas are retained historically."
       />
+      {params.created ? (
+        <p
+          className="mb-4 rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-sm text-[var(--success-ink)]"
+          role="status"
+        >
+          Created {params.created}.
+        </p>
+      ) : null}
       {canManage && (
         <Card className="mb-5 p-5">
           <details open={Boolean(selected)}>

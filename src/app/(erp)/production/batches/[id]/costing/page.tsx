@@ -1,4 +1,5 @@
 import { formatFactoryDateTime } from "@/components/ui/format-datetime";
+import { formatQuantity, formatUnitCost } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import {
   AddProductionCostForm,
@@ -83,14 +84,14 @@ export default async function BatchCostingPage({ params }: { params: Promise<{ i
         <Info label="Additional cost" value={formatCost(costing.additionalCost)} />
         <Info label="Cost credits" value={formatCost(costing.costCredits)} />
         <Info label="FG cost pool" value={formatCost(costing.finishedGoodsCostPool)} />
-        <Info label="Actual pieces" value={costing.actualGoodPieces} />
-        <Info label="Cost per piece" value={formatCost(costing.costPerPiece, 6)} />
-        <Info label="Cost per carton" value={formatCost(costing.costPerCarton, 6)} />
+        <Info label="Actual pieces" value={formatQuantity(costing.actualGoodPieces)} />
+        <Info label="Cost per piece" value={formatUnitCost(costing.costPerPiece, 2)} />
+        <Info label="Cost per carton" value={formatUnitCost(costing.costPerCarton, 2)} />
         <Info
           label="Damaged packaging exposure"
           value={formatCost(costing.damagedPackagingExposure)}
         />
-        <Info label="Abnormal loss quantity" value={costing.abnormalLossQuantity} />
+        <Info label="Abnormal loss quantity" value={formatQuantity(costing.abnormalLossQuantity)} />
       </Card>
       {costing.finalizedAt ? (
         <Card className="mt-5 p-5 text-sm">
@@ -149,9 +150,11 @@ function CostTable({
                 <td className="p-3">
                   {line.itemCode} — {line.itemName}
                 </td>
-                <td className="p-3">{line.plannedQuantity ?? "—"}</td>
-                <td className="p-3">{line.quantity}</td>
-                <td className="p-3">{formatCost(line.unitCost, 6)}</td>
+                <td className="p-3">{formatQuantity(line.plannedQuantity)}</td>
+                <td className="p-3">{formatQuantity(line.quantity)}</td>
+                <td className="p-3">
+                  {line.unitCost === null ? "Missing" : formatUnitCost(line.unitCost)}
+                </td>
                 <td className="p-3">{formatCost(line.totalCost)}</td>
               </tr>
             ))}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatMoney } from "@/components/ui/format-money";
 import { CustomerForm } from "@/components/sales/customer-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -92,15 +93,25 @@ export default async function CustomersPage({
                   </td>
                   <td className="p-4">{customer.salespersonName ?? "-"}</td>
                   <td className="p-4">{customer.phone}</td>
-                  <td className="p-4">{customer.creditLimit ?? "-"}</td>
+                  <td className="p-4">
+                    {customer.creditLimit ? formatMoney(customer.creditLimit, "") : "-"}
+                  </td>
                   <td className="p-4">{customer.active ? "Active" : "Inactive"}</td>
                   <td className="p-4">
                     {canManage && (
-                      <SalesStatusForm
-                        action={setCustomerStatusAction}
-                        id={customer.id}
-                        active={customer.active}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          className="inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-semibold"
+                          href={`/sales/customers/${customer.id}#edit`}
+                        >
+                          Edit
+                        </Link>
+                        <SalesStatusForm
+                          action={setCustomerStatusAction}
+                          id={customer.id}
+                          active={customer.active}
+                        />
+                      </div>
                     )}
                   </td>
                 </tr>

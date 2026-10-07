@@ -143,6 +143,12 @@ export class PrismaRecipeRepository implements RecipeRepository {
       const row = await transaction.recipe.findUnique({ where: { id }, include: recipeInclude });
       if (!row || row.status !== "DRAFT")
         throw new RecipeRepositoryError("invalid-state", "Only a draft recipe can be approved.");
+      // ROLE-3: maker/checker -- the person who wrote a recipe version cannot also approve it.
+      if (row.createdByUserId === actorUserId)
+        throw new RecipeRepositoryError(
+          "invalid-state",
+          "A recipe must be approved by someone other than the person who created it.",
+        );
       await validateApproval(transaction, row);
       const priorApproved = await transaction.recipe.findMany({
         where: { finishedGoodId: row.finishedGoodId, status: "APPROVED", id: { not: row.id } },
@@ -672,6 +678,7 @@ function mapBase(row: RecipeRow) {
     notes: row.notes,
     effectiveDate: row.effectiveDate,
     createdByName: row.createdBy.name,
+    createdByUserId: row.createdByUserId,
     approvedByName: row.approvedBy?.name ?? null,
     approvedAt: row.approvedAt,
     createdAt: row.createdAt,

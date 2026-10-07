@@ -47,7 +47,7 @@ export async function inspectSalesReturnAction(
 ) {
   const id = String(form.get("id") ?? "");
   const result = await inspectSalesReturn(
-    await requirePermission("sales.manage"),
+    await requirePermission("quality.manage"),
     id,
     Object.fromEntries(form),
     repository,

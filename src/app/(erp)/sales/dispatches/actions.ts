@@ -8,7 +8,8 @@ import {
   postSalesDispatch,
   saveSalesDispatch,
 } from "@/modules/sales/application/manage-sales-dispatches";
-import { requirePermission } from "@/server/auth/licensed-guards";
+import { requireAnyPermission } from "@/server/auth/licensed-guards";
+import { DISPATCH_PERMISSIONS } from "@/modules/sales/application/sales-dispatch-contracts";
 import { PrismaSalesDispatchRepository } from "@/server/sales/prisma-sales-dispatch-repository";
 const repository = new PrismaSalesDispatchRepository();
 function refresh(id?: string) {
@@ -24,7 +25,7 @@ export async function saveSalesDispatchAction(
   _: SalesDispatchActionState,
   formData: FormData,
 ): Promise<SalesDispatchActionState> {
-  const actor = await requirePermission("sales.manage");
+  const actor = await requireAnyPermission(DISPATCH_PERMISSIONS);
   const result = await saveSalesDispatch(actor, Object.fromEntries(formData), repository);
   if (result.ok && result.id) {
     refresh(result.id);
@@ -36,7 +37,7 @@ export async function postSalesDispatchAction(
   _: SalesDispatchActionState,
   formData: FormData,
 ): Promise<SalesDispatchActionState> {
-  const actor = await requirePermission("sales.manage");
+  const actor = await requireAnyPermission(DISPATCH_PERMISSIONS);
   const id = String(formData.get("id") ?? "");
   const result = await postSalesDispatch(actor, id, repository);
   if (result.ok) refresh(id);
@@ -49,7 +50,7 @@ export async function confirmSalesDispatchDeliveryAction(
   _: SalesDispatchActionState,
   formData: FormData,
 ): Promise<SalesDispatchActionState> {
-  const actor = await requirePermission("sales.manage");
+  const actor = await requireAnyPermission(DISPATCH_PERMISSIONS);
   const id = String(formData.get("id") ?? "");
   const result = await confirmSalesDispatchDelivery(
     actor,
@@ -70,7 +71,7 @@ export async function cancelSalesDispatchAction(
   _: SalesDispatchActionState,
   formData: FormData,
 ): Promise<SalesDispatchActionState> {
-  const actor = await requirePermission("sales.manage");
+  const actor = await requireAnyPermission(DISPATCH_PERMISSIONS);
   const id = String(formData.get("id") ?? "");
   const result = await cancelSalesDispatch(
     actor,

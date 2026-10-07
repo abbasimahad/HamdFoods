@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaCustomerPaymentRepository } from "@/server/sales/prisma-customer-payment-repository";
+import { formatMoney } from "@/components/ui/format-money";
 type Params = { from?: string; to?: string };
 export default async function CustomerStatementPage({
   params,
@@ -71,22 +72,24 @@ export default async function CustomerStatementPage({
                 <td className="p-3" colSpan={5}>
                   Opening balance
                 </td>
-                <td className="p-3">{statement.openingBalance}</td>
+                <td className="p-3">{formatMoney(statement.openingBalance, "")}</td>
               </tr>
               {statement.rows.map((row, index) => (
                 <tr key={`${row.reference}-${index}`}>
                   <td className="p-3">{formatFactoryDate(row.date)}</td>
                   <td className="p-3">{row.reference}</td>
                   <td className="p-3">{row.type}</td>
-                  <td className="p-3">{row.debit}</td>
-                  <td className="p-3">{row.credit}</td>
-                  <td className="p-3">{row.runningBalance}</td>
+                  <td className="p-3">{formatMoney(row.debit, "")}</td>
+                  <td className="p-3">{formatMoney(row.credit, "")}</td>
+                  <td className="p-3">{formatMoney(row.runningBalance, "")}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="p-4 text-right font-semibold">Closing balance: {statement.closingBalance}</p>
+        <p className="p-4 text-right font-semibold">
+          Closing balance: {formatMoney(statement.closingBalance, "")}
+        </p>
       </Card>
     </ResponsiveContainer>
   );

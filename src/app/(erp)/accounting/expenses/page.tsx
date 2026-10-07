@@ -16,6 +16,7 @@ import {
 } from "@/server/accounting/prisma-phase23-repository";
 import { prisma } from "@/server/db/prisma";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page({
   searchParams,
 }: {
@@ -130,8 +131,19 @@ export default async function Page({
                     {expense.number}
                   </Link>
                 </td>
-                <td className="p-3">{expense.expenseDate.toISOString().slice(0, 10)}</td>
-                <td className="p-3">{expense.payee ?? expense.description}</td>
+                <td className="p-3">{formatFactoryDate(expense.expenseDate)}</td>
+                <td className="p-3">
+                  {expense.payee ? (
+                    <>
+                      <span className="font-medium">{expense.payee}</span>
+                      <span className="block text-xs text-[var(--muted)]">
+                        {expense.description}
+                      </span>
+                    </>
+                  ) : (
+                    expense.description
+                  )}
+                </td>
                 <td className="p-3">
                   {expense.lines.map((line) => line.expenseAccount.code).join(", ")}
                 </td>

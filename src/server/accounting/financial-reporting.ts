@@ -591,16 +591,20 @@ function agingResult<T>(
     items,
   };
 }
-function cashCategory(sourceType: string) {
-  return sourceType === "MANUAL_JOURNAL" || sourceType === "MANUAL_REVERSAL"
-    ? "Other"
-    : sourceType === "CUSTOMER_PAYMENT" ||
-        sourceType === "SUPPLIER_PAYMENT" ||
-        sourceType === "EXPENSE_VOUCHER" ||
-        sourceType === "EXPENSE_REVERSAL" ||
-        sourceType === "TREASURY_TRANSFER"
-      ? "Operating"
-      : "Other";
+// A reversal (bounced cheque, voided payment, reversed expense) is classified with the document it
+// reverses, so the original and its reversal net to zero inside the same cash-flow section.
+const OPERATING_CASH_SOURCE_TYPES = new Set([
+  "CUSTOMER_PAYMENT",
+  "CUSTOMER_PAYMENT_REVERSAL",
+  "SUPPLIER_PAYMENT",
+  "SUPPLIER_PAYMENT_REVERSAL",
+  "EXPENSE_VOUCHER",
+  "EXPENSE_REVERSAL",
+  "TREASURY_TRANSFER",
+]);
+
+export function cashCategory(sourceType: string) {
+  return OPERATING_CASH_SOURCE_TYPES.has(sourceType) ? "Operating" : "Other";
 }
 
 /**

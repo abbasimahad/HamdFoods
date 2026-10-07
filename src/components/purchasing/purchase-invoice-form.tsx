@@ -38,6 +38,15 @@ function toDecimal(value: string) {
     return null;
   }
 }
+function lineOverMatched(line: DraftLine) {
+  const invoiced = toDecimal(line.invoicedQuantity) ?? new Decimal(0);
+  const matched = line.matches.reduce(
+    (total, match) => total.plus(toDecimal(match.matchedQuantity) ?? 0),
+    new Decimal(0),
+  );
+  return invoiced.gt(0) && matched.gt(invoiced);
+}
+
 function scaled(
   value: string,
   factor: Decimal,
@@ -127,6 +136,8 @@ export function PurchaseInvoiceForm({
           : line,
       ),
     );
+  // UX-12: matching more than the invoiced quantity is refused on posting; show it while typing.
+  const overMatchedLines = lines.filter((line) => lineOverMatched(line)).length;
   return (
     <form action={formAction} className="space-y-5">
       {initial && <input name="id" type="hidden" value={initial.id} />}
@@ -203,6 +214,7 @@ export function PurchaseInvoiceForm({
           );
           const invoicedQuantity = toDecimal(line.invoicedQuantity) ?? new Decimal(0);
           const complete = line.matches.length > 0 && matchedTotal.equals(invoicedQuantity);
+          const overMatched = lineOverMatched(line);
           return (
             <div className="rounded-xl border p-4" key={index}>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -293,11 +305,16 @@ export function PurchaseInvoiceForm({
                     Goods receipt matching
                   </span>
                   <span
-                    className={`text-xs font-semibold ${complete ? "text-green-700" : "text-amber-700"}`}
+                    className={`text-xs font-semibold ${complete ? "text-green-700" : overMatched ? "text-red-700" : "text-amber-700"}`}
+                    role={overMatched ? "alert" : undefined}
                   >
                     Matched {matchedTotal.toString()} of{" "}
                     {invoicedQuantity.isZero() ? "?" : invoicedQuantity.toString()} {unitSymbol}{" "}
-                    {complete ? "(complete)" : "(incomplete)"}
+                    {complete
+                      ? "(complete)"
+                      : overMatched
+                        ? `(over-matched by ${matchedTotal.minus(invoicedQuantity).toString()} -- reduce a match)`
+                        : "(incomplete)"}
                   </span>
                 </div>
                 {line.matches.length === 0 && (
@@ -317,6 +334,12 @@ export function PurchaseInvoiceForm({
                       ? (toDecimal(grnLine.grnDerivedUnitCost) ?? new Decimal(0))
                       : new Decimal(0);
                     const displayQty = toDecimal(match.matchedQuantity) ?? new Decimal(0);
+                    const remaining = grnLine
+                      ? toDecimal(
+                          scaled(grnLine.remainingToInvoice, factor, "toDisplay", "quantity"),
+                        )
+                      : null;
+                    const exceedsRemaining = !initial && remaining && displayQty.gt(remaining);
                     const qty = displayQty.toNumber();
                     const variance = rate.minus(cost).mul(displayQty.mul(factor)).toNumber();
                     return (
@@ -360,6 +383,11 @@ export function PurchaseInvoiceForm({
                           type="number"
                           value={match.matchedQuantity}
                         />
+                        {exceedsRemaining && (
+                          <span className="text-xs font-semibold text-red-700" role="alert">
+                            more than the {remaining.toString()} {unitSymbol} left on this GRN line
+                          </span>
+                        )}
                         {grnLine && qty > 0 && (
                           <span
                             className={`text-xs ${variance === 0 ? "text-[var(--muted)]" : variance > 0 ? "text-red-700" : "text-green-700"}`}
@@ -423,11 +451,16 @@ export function PurchaseInvoiceForm({
         </button>
         <button
           className="min-h-11 rounded-lg bg-[var(--accent)] px-5 font-semibold text-white disabled:opacity-60"
-          disabled={pending}
+          disabled={pending || overMatchedLines > 0}
           type="submit"
         >
           {pending ? "Saving..." : initial ? "Save draft" : "Create draft invoice"}
         </button>
+        {overMatchedLines > 0 && (
+          <p className="text-sm text-red-700" role="alert">
+            {overMatchedLines} line(s) match more goods-receipt quantity than invoiced.
+          </p>
+        )}
         {state.message && (
           <p className="text-sm" role="status">
             {state.message}

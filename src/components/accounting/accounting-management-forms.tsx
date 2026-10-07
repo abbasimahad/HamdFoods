@@ -16,6 +16,7 @@ import {
   postManualJournalAction,
   reverseManualJournalAction,
   setAccountingAccountActiveAction,
+  decideAccountingPeriodReopenAction,
   setAccountingPeriodStatusAction,
   updateAccountMappingAction,
   updateAccountingSettingsAction,
@@ -161,12 +162,33 @@ export function AccountingSettingsForm({
 export function AccountingPeriodStatusForm({
   periodId,
   status,
+  pendingRequest,
+  canDecide = false,
 }: {
   periodId: string;
   status: "OPEN" | "CLOSED";
+  /** ROLE-3: an open reopen request awaiting a second person's decision. */
+  pendingRequest?: { requestedBy: string; reason: string } | null;
+  canDecide?: boolean;
 }) {
   const [state, action, pending] = useActionState(setAccountingPeriodStatusAction, undefined);
   const next = status === "OPEN" ? "CLOSED" : "OPEN";
+  if (status === "CLOSED" && pendingRequest)
+    return (
+      <div className="space-y-2 text-xs">
+        <p>
+          Reopen requested by <strong>{pendingRequest.requestedBy}</strong>: {pendingRequest.reason}
+        </p>
+        {canDecide ? (
+          <AccountingPeriodReopenDecisionForm periodId={periodId} />
+        ) : (
+          <p className="text-amber-700">
+            Awaiting approval by another user with reopen-approval permission (for example an
+            administrator).
+          </p>
+        )}
+      </div>
+    );
   return (
     <form action={action} className="flex flex-wrap items-center gap-2">
       <input name="periodId" type="hidden" value={periodId} />
@@ -180,11 +202,43 @@ export function AccountingPeriodStatusForm({
         />
       ) : null}
       <button className="text-[var(--accent)]" disabled={pending}>
-        {next === "CLOSED" ? "Run close checklist & close" : "Reopen"}
+        {next === "CLOSED" ? "Run close checklist & close" : "Request reopen"}
       </button>
       {state && !state.ok ? (
         <span className="ml-2 text-xs text-red-700">{state.message}</span>
       ) : null}
+    </form>
+  );
+}
+
+function AccountingPeriodReopenDecisionForm({ periodId }: { periodId: string }) {
+  const [state, action, pending] = useActionState(decideAccountingPeriodReopenAction, undefined);
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2">
+      <input name="periodId" type="hidden" value={periodId} />
+      <input
+        className="rounded border px-2 py-1 text-xs"
+        maxLength={500}
+        name="note"
+        placeholder="Note (required to reject)"
+      />
+      <button
+        className="rounded bg-[var(--accent)] px-2 py-1 text-white"
+        disabled={pending}
+        name="decision"
+        value="APPROVE"
+      >
+        Approve reopen
+      </button>
+      <button
+        className="rounded border px-2 py-1 text-red-700"
+        disabled={pending}
+        name="decision"
+        value="REJECT"
+      >
+        Reject
+      </button>
+      {state && !state.ok ? <span className="text-red-700">{state.message}</span> : null}
     </form>
   );
 }

@@ -12,7 +12,13 @@ import { saveRouteAction, setRouteStatusAction } from "../actions";
 export default async function RoutesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string; areaId?: string; edit?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+    areaId?: string;
+    edit?: string;
+    created?: string;
+  }>;
 }) {
   const principal = await requirePermission("sales.view");
   const params = await searchParams;
@@ -30,6 +36,14 @@ export default async function RoutesPage({
         title="Sales Routes"
         description="Routes belong to one sales area and are retained for historical customers."
       />
+      {params.created ? (
+        <p
+          className="mb-4 rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-sm text-[var(--success-ink)]"
+          role="status"
+        >
+          Created {params.created}.
+        </p>
+      ) : null}
       {canManage && (
         <Card className="mb-5 p-5">
           <details open={Boolean(selected)}>

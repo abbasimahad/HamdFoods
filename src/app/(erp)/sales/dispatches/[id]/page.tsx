@@ -26,7 +26,8 @@ export default async function SalesDispatchDetailPage({
   const principal = await requirePermission("sales.view");
   const dispatch = await new PrismaSalesDispatchRepository().getSalesDispatch((await params).id);
   if (!dispatch) notFound();
-  const canManage = hasPermission(principal, "sales.manage");
+  const canManage =
+    hasPermission(principal, "sales.manage") || hasPermission(principal, "dispatches.manage");
   return (
     <ResponsiveContainer>
       <PageHeader

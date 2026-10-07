@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { requirePermission } from "@/server/auth/server-guards";
 import { supplierStatement } from "@/server/accounting/prisma-phase23-repository";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function Page({
   params,
   searchParams,
@@ -38,12 +40,13 @@ export default async function Page({
           <button className="rounded bg-[var(--accent)] px-3 py-2 text-white">Apply</button>
         </form>
         <p className="mt-3 text-sm">
-          Opening: {report.openingBalance}; Closing: {report.closingBalance}
+          Opening: {formatMoney(report.openingBalance, "")}; Closing:{" "}
+          {formatMoney(report.closingBalance, "")}
         </p>
         <div className="mt-3 grid gap-2 text-sm md:grid-cols-4">
-          <p>0–30 days: {report.aging.current}</p>
-          <p>31–60 days: {report.aging.days31To60}</p>
-          <p>61–90 days: {report.aging.days61To90}</p>
+          <p>0–30 days: {formatMoney(report.aging.current, "")}</p>
+          <p>31–60 days: {formatMoney(report.aging.days31To60, "")}</p>
+          <p>61–90 days: {formatMoney(report.aging.days61To90, "")}</p>
           <p>Over 90 days: {report.aging.over90}</p>
         </div>
       </Card>
@@ -62,12 +65,12 @@ export default async function Page({
           <tbody className="divide-y">
             {report.rows.map((row) => (
               <tr key={row.id}>
-                <td className="p-3">{row.entryDate.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(row.entryDate)}</td>
                 <td className="p-3">{row.sourceNumber ?? row.sourceId}</td>
                 <td className="p-3">{row.entryType}</td>
-                <td className="p-3">{row.debit}</td>
-                <td className="p-3">{row.credit}</td>
-                <td className="p-3">{row.runningBalance}</td>
+                <td className="p-3">{formatMoney(row.debit, "")}</td>
+                <td className="p-3">{formatMoney(row.credit, "")}</td>
+                <td className="p-3">{formatMoney(row.runningBalance, "")}</td>
               </tr>
             ))}
           </tbody>

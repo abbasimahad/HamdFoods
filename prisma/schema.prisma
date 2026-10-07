@@ -427,6 +427,8 @@ enum AccountingPeriodStatus {
 enum AccountingPeriodEventAction {
   CLOSED
   REOPENED
+  REOPEN_REQUESTED
+  REOPEN_REJECTED
 }
 
 enum AuditActionType {
@@ -661,6 +663,7 @@ model User {
   salesOrdersCreated           SalesOrder[]                    @relation("SalesOrderCreatedBy")
   salesOrdersApproved          SalesOrder[]                    @relation("SalesOrderApprovedBy")
   salesOrdersCancelled         SalesOrder[]                    @relation("SalesOrderCancelledBy")
+  salesOrdersCreditOverridden  SalesOrder[]                    @relation("SalesOrderCreditOverrideBy")
   salesDispatchesCreated       SalesDispatch[]                 @relation("SalesDispatchCreatedBy")
   salesDispatchesPosted        SalesDispatch[]                 @relation("SalesDispatchPostedBy")
   salesDispatchesDelivered     SalesDispatch[]                 @relation("SalesDispatchDeliveredBy")
@@ -1226,48 +1229,52 @@ model Customer {
 }
 
 model SalesOrder {
-  id                  String              @id @default(uuid())
-  number              String              @unique
-  orderDate           DateTime            @db.Date
-  customerId          String
-  salespersonId       String?
-  salespersonName     String?
-  areaId              String
-  areaName            String
-  routeId             String?
-  routeName           String?
-  warehouseId         String
-  status              SalesOrderStatus    @default(DRAFT)
-  customerReference   String?
-  deliveryDate        DateTime?           @db.Date
-  notes               String?
-  paymentTermsDays    Int?
-  customerCreditLimit Decimal?            @db.Decimal(24, 6)
-  subtotal            Decimal             @db.Decimal(24, 6)
-  discountTotal       Decimal             @db.Decimal(24, 6)
-  taxTotal            Decimal             @db.Decimal(24, 6)
-  grandTotal          Decimal             @db.Decimal(24, 6)
-  createdByUserId     String
-  approvedByUserId    String?
-  approvedAt          DateTime?
-  cancelledByUserId   String?
-  cancelledAt         DateTime?
-  cancellationReason  String?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  customer            Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  salesperson         Salesperson?        @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
-  area                SalesArea           @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  route               SalesRoute?         @relation(fields: [routeId], references: [id], onDelete: Restrict)
-  warehouse           Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  createdBy           User                @relation("SalesOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  approvedBy          User?               @relation("SalesOrderApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
-  cancelledBy         User?               @relation("SalesOrderCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
-  lines               SalesOrderLine[]
-  inventoryMovements  InventoryMovement[]
-  dispatches          SalesDispatch[]
-  invoices            SalesInvoice[]
-  salesReturns        SalesReturn[]
+  id                     String              @id @default(uuid())
+  number                 String              @unique
+  orderDate              DateTime            @db.Date
+  customerId             String
+  salespersonId          String?
+  salespersonName        String?
+  areaId                 String
+  areaName               String
+  routeId                String?
+  routeName              String?
+  warehouseId            String
+  status                 SalesOrderStatus    @default(DRAFT)
+  customerReference      String?
+  deliveryDate           DateTime?           @db.Date
+  notes                  String?
+  paymentTermsDays       Int?
+  customerCreditLimit    Decimal?            @db.Decimal(24, 6)
+  subtotal               Decimal             @db.Decimal(24, 6)
+  discountTotal          Decimal             @db.Decimal(24, 6)
+  taxTotal               Decimal             @db.Decimal(24, 6)
+  grandTotal             Decimal             @db.Decimal(24, 6)
+  createdByUserId        String
+  approvedByUserId       String?
+  approvedAt             DateTime?
+  cancelledByUserId      String?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  creditOverrideReason   String?
+  creditOverrideByUserId String?
+  creditOverrideAt       DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  customer               Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  salesperson            Salesperson?        @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  area                   SalesArea           @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  route                  SalesRoute?         @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  warehouse              Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy              User                @relation("SalesOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy             User?               @relation("SalesOrderApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy            User?               @relation("SalesOrderCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  creditOverrideBy       User?               @relation("SalesOrderCreditOverrideBy", fields: [creditOverrideByUserId], references: [id], onDelete: Restrict)
+  lines                  SalesOrderLine[]
+  inventoryMovements     InventoryMovement[]
+  dispatches             SalesDispatch[]
+  invoices               SalesInvoice[]
+  salesReturns           SalesReturn[]
 
   @@index([customerId, orderDate])
   @@index([salespersonId, orderDate])

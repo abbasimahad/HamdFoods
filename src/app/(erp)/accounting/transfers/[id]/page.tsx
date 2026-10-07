@@ -12,6 +12,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const principal = await requirePermission("accounting.view");
@@ -29,7 +30,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <ResponsiveContainer>
       <PageHeader title={transfer.number} description={`${transfer.status} treasury transfer.`} />
       <Card className="p-4 text-sm">
-        <p>Date: {transfer.transferDate.toISOString().slice(0, 10)}</p>
+        <p>Date: {formatFactoryDate(transfer.transferDate)}</p>
         <p>From: {transfer.sourceTreasuryAccount.name}</p>
         <p>To: {transfer.destinationTreasuryAccount.name}</p>
         <p>Amount: {formatMoney(transfer.amount, "")}</p>

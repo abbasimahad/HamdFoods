@@ -3,6 +3,7 @@ import { effectiveCustomerPaymentWhere } from "@/server/accounting/payment-effec
 import { customerInvoiceSettlement } from "./customer-invoice-settlement";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
+import { formatMoney } from "@/components/ui/format-money";
 
 export class CreditExposureError extends Error {}
 
@@ -62,7 +63,7 @@ export async function assertCreditAvailable(
   const projected = outstanding.add(commitments).add(currentTransaction);
   if (projected.gt(customer.creditLimit.toString()))
     throw new CreditExposureError(
-      `Credit limit exceeded: projected exposure ${projected.toFixed(6)} exceeds the configured limit ${customer.creditLimit.toString()}.`,
+      `Credit limit exceeded: projected exposure Rs ${formatMoney(projected, "")} exceeds the configured limit Rs ${formatMoney(customer.creditLimit, "")}.`,
     );
 }
 

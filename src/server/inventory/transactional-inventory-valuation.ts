@@ -39,7 +39,7 @@ export async function postValuedInbound(
   if (await exists(tx, command.sourceKey)) return;
   const quantity = positive(command.quantity, "Inbound valuation quantity");
   const unitCost = nonNegative(command.unitCost, "Inbound unit cost");
-  const valueDelta = money(quantity.mul(unitCost));
+  const valueDelta = valuationAmount(quantity, unitCost);
   const balance = await lockedBalance(tx, command.itemId);
   const runningQuantity = quantity6(balance.ownedQuantity.add(quantity));
   const runningValue = money(balance.inventoryValue.add(valueDelta));
@@ -103,7 +103,7 @@ export async function postValuedOutbound(
     );
   const unitCost = balance.averageUnitCost;
   const runningQuantity = quantity6(balance.ownedQuantity.sub(quantity));
-  const calculated = money(quantity.mul(unitCost));
+  const calculated = valuationAmount(quantity, unitCost);
   const valueDelta = runningQuantity.isZero()
     ? balance.inventoryValue.negated()
     : calculated.negated();
@@ -357,6 +357,15 @@ function invalid(label: string) {
 }
 function money(value: Decimal) {
   return new Decimal(value.toDecimalPlaces(6, Decimal.ROUND_HALF_UP));
+}
+/**
+ * BUG-34: the value of a quantity moving in or out at a unit cost is a currency amount, so it is
+ * rounded to the paisa (HALF_UP) where it is calculated. The unit cost keeps its full precision and
+ * running balances stay exact, so the GL journal posted from each entry carries exactly the same
+ * 2-decimal amount the valuation ledger does.
+ */
+export function valuationAmount(quantity: Decimal.Value, unitCost: Decimal.Value) {
+  return new Decimal(quantity).mul(unitCost).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 function quantity6(value: Decimal) {
   return new Decimal(value.toDecimalPlaces(6, Decimal.ROUND_HALF_UP));

@@ -1,7 +1,7 @@
 "use client";
 
 import { formatFactoryDate } from "@/components/ui/format-datetime";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormActions } from "@/components/ui/form-actions";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
@@ -13,6 +13,7 @@ import type {
   CustomerPaymentReferences,
   OpenInvoice,
 } from "@/modules/sales/application/customer-payment-contracts";
+import { formatMoney } from "@/components/ui/format-money";
 type State = { ok: boolean; message: string };
 type Action = (state: State, form: FormData) => Promise<State>;
 type Allocation = { salesInvoiceId: string; allocatedAmount: string };
@@ -78,7 +79,16 @@ export function CustomerPaymentForm({
     );
   };
   return (
-    <form action={formAction} className="space-y-4">
+    <form
+      className="space-y-4"
+      // UX-12: submit without React's automatic form reset, so a refused receipt (for example a
+      // duplicate cheque number) keeps the customer, amounts and references the user entered.
+      onSubmit={(event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        startTransition(() => formAction(data));
+      }}
+    >
       {initial && <input name="id" type="hidden" value={initial.id} />}
       <input name="customerId" type="hidden" value={selectedCustomerId} />
       <input name="allocationsJson" type="hidden" value={JSON.stringify(selected)} />
@@ -265,9 +275,9 @@ export function CustomerPaymentForm({
                   <tr key={invoice.id}>
                     <td className="p-3">{invoice.number}</td>
                     <td className="p-3">{formatFactoryDate(invoice.dueDate)}</td>
-                    <td className="p-3">{invoice.originalAmount}</td>
+                    <td className="p-3">{formatMoney(invoice.originalAmount, "")}</td>
                     <td className="p-3">{invoice.alreadyPaid}</td>
-                    <td className="p-3">{invoice.outstandingAmount}</td>
+                    <td className="p-3">{formatMoney(invoice.outstandingAmount, "")}</td>
                     <td className="p-3">
                       <input
                         aria-label={`Allocate to ${invoice.number}`}

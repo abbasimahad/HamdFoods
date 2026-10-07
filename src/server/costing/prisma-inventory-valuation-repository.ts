@@ -12,8 +12,8 @@ import { CostingRepositoryError } from "@/modules/costing/application/contracts"
 import {
   allocateByWeights,
   calculateProductionCostTotals,
-  exactCost,
-  exactSignedCost,
+  currencyAmount,
+  signedCurrencyAmount,
 } from "@/modules/costing/domain/costing";
 import { prisma } from "@/server/db/prisma";
 import { factoryEffectiveInstant } from "@/server/shared/factory-local-time";
@@ -26,6 +26,7 @@ import {
   postValuedOutbound,
   postValueAdjustment,
   resolveExhaustedValuationIssue,
+  valuationAmount,
 } from "@/server/inventory/transactional-inventory-valuation";
 import {
   postFinalizedProductionAccounting,
@@ -162,7 +163,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         where: { itemId: issue.itemId },
       });
       if (balance?.ownedQuantity.isZero()) {
-        const value = exactCost(totalValue, "Initialization value", true);
+        const value = currencyAmount(totalValue, "Initialization value", true);
         if (!value.isZero())
           throw new CostingRepositoryError(
             "An exhausted historical quantity must be resolved with zero current inventory value.",
@@ -193,7 +194,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         });
         return issue.id;
       }
-      const value = exactCost(totalValue, "Initialization value");
+      const value = currencyAmount(totalValue, "Initialization value");
       const year = new Date().getUTCFullYear();
       const number = await adjustmentNumber(tx, year);
       const adjustment = await tx.inventoryValuationAdjustment.create({
@@ -265,7 +266,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
     return serializable(async (tx) => {
       const item = await tx.item.findUnique({ where: { id: itemId }, select: { id: true } });
       if (!item) throw new CostingRepositoryError("Inventory item no longer exists.");
-      const value = exactSignedCost(valueDelta, "Valuation adjustment");
+      const value = signedCurrencyAmount(valueDelta, "Valuation adjustment");
       const year = new Date().getUTCFullYear();
       const number = await adjustmentNumber(tx, year);
       const adjustment = await tx.inventoryValuationAdjustment.create({
@@ -345,7 +346,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
       });
       if (!receipt || !["POSTED", "QC_COMPLETED"].includes(receipt.status))
         throw new CostingRepositoryError("Select a posted goods receipt.");
-      const total = exactCost(input.totalAmount, "Landed cost total");
+      const total = currencyAmount(input.totalAmount, "Landed cost total");
       const submitted = new Map(
         input.allocations.map((line) => [line.goodsReceiptLineId, line.allocatedAmount]),
       );
@@ -381,7 +382,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
         );
       } else
         allocations = receipt.lines.map((line) =>
-          exactCost(submitted.get(line.id)!, "Manual allocation", true).toFixed(6),
+          currencyAmount(submitted.get(line.id)!, "Manual allocation", true).toFixed(6),
         );
       if (!sum(allocations).eq(total))
         throw new CostingRepositoryError("Allocated landed cost must equal the document total.");
@@ -460,7 +461,7 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
       });
       if (!batch || batch.productionCostSnapshot)
         throw new CostingRepositoryError("Finalized or missing batch cost cannot be changed.");
-      const amount = exactCost(input.amount, "Production cost amount");
+      const amount = currencyAmount(input.amount, "Production cost amount");
       const entry = await tx.productionCostEntry.create({
         data: {
           productionBatchId: batch.id,
@@ -570,13 +571,19 @@ export class PrismaInventoryValuationRepository implements InventoryValuationRep
           unitCost: calculation.costPerPiece,
         });
       }
+      // Each output was valued exactly as postValuedInbound values it (paisa-rounded), so the
+      // residual brings finished-goods value back to the cost pool credited out of WIP.
       const outputValue = money(
         sum(
-          batch.outputTransactions.map((output) =>
-            money(
-              new Decimal(output.totalPieces?.toString() ?? "0").mul(calculation.costPerPiece!),
-            ).toFixed(6),
-          ),
+          batch.outputTransactions.map((output) => {
+            const movement = output.inventoryMovements.find(
+              (row) => row.movementType === "PRODUCTION_OUTPUT" && row.quantity.gt(0),
+            );
+            return valuationAmount(
+              movement?.quantity.toString() ?? "0",
+              calculation.costPerPiece!,
+            ).toFixed(6);
+          }),
         ),
       );
       const roundingResidual = money(
@@ -1367,7 +1374,7 @@ async function batchCosting(client: Client, batchId: string) {
           quantity: line.normalizedQuantity.toString(),
           unitCost: unit,
           totalCost: unit
-            ? money(new Decimal(unit).mul(line.normalizedQuantity.toString())).toFixed(6)
+            ? valuationAmount(line.normalizedQuantity.toString(), unit).toFixed(6)
             : null,
           plannedQuantity: null,
         };

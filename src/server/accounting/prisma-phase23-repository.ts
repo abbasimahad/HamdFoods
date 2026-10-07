@@ -91,7 +91,7 @@ export async function saveSupplierPayment(
   },
 ) {
   return serializable(async (tx) => {
-    const amount = exactPositive(input.totalAmount, "Payment amount");
+    const amount = currencyPositive(input.totalAmount, "Payment amount");
     await validateTreasury(tx, input.treasuryAccountId);
     const supplier = await tx.supplier.findUnique({ where: { id: input.supplierId } });
     if (!supplier?.active) throw new Phase23AccountingError("Select an active supplier.");
@@ -821,7 +821,7 @@ export async function saveTreasuryTransfer(
       throw new Phase23AccountingError("Transfer source and destination must be different.");
     await validateTreasury(tx, input.sourceTreasuryAccountId);
     await validateTreasury(tx, input.destinationTreasuryAccountId);
-    const amount = exactPositive(input.amount, "Transfer amount");
+    const amount = currencyPositive(input.amount, "Transfer amount");
     const number = await nextNumber(tx.treasuryTransferSequence, input.transferDate, "TRF");
     return (
       await tx.treasuryTransfer.create({
@@ -1064,7 +1064,7 @@ async function validateExpenseLines(tx: Tx, input: readonly ExpenseLineInput[]) 
   return input.map((line) => ({
     expenseAccountId: line.expenseAccountId,
     description: line.description,
-    amount: exactPositive(line.amount, "Expense amount"),
+    amount: currencyPositive(line.amount, "Expense amount"),
   }));
 }
 async function validateTreasury(tx: Tx, treasuryAccountId: string) {
@@ -1158,6 +1158,13 @@ function exactPositive(value: string, label: string) {
   const amount = new Decimal(value);
   if (!amount.isFinite() || amount.lte(0) || amount.decimalPlaces() > 6)
     throw new Phase23AccountingError(`${label} must be a positive amount with up to six decimals.`);
+  return amount;
+}
+/** BUG-34: a typed payment, transfer or expense amount becomes a journal line, so whole paisa. */
+function currencyPositive(value: string, label: string) {
+  const amount = exactPositive(value, label);
+  if (amount.decimalPlaces() > 2)
+    throw new Phase23AccountingError(`${label} can have at most 2 decimal places.`);
   return amount;
 }
 function requiredReason(value: string, label: string) {

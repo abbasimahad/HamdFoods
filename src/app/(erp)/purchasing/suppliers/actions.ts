@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import type { PurchasingActionState } from "@/components/purchasing/action-state";
 import { saveSupplier, setSupplierActive } from "@/modules/purchasing/application/manage-suppliers";
@@ -18,6 +19,8 @@ export async function saveSupplierAction(
   if (result.ok) {
     revalidatePath("/purchasing/suppliers");
     if (result.id) revalidatePath(`/purchasing/suppliers/${result.id}`);
+    // UX-12: a new supplier opens on its own page with a clear confirmation (and its edit form).
+    if (result.id && !formData.get("id")) redirect(`/purchasing/suppliers/${result.id}?created=1`);
   }
   return { ok: result.ok, message: result.ok ? "Supplier saved." : result.message };
 }

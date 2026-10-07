@@ -125,6 +125,7 @@ export type RecipeRecord = {
   notes: string | null;
   effectiveDate: Date | null;
   createdByName: string;
+  createdByUserId?: string;
   approvedByName: string | null;
   approvedAt: Date | null;
   createdAt: Date;

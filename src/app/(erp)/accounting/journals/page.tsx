@@ -4,6 +4,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { Card } from "@/components/ui/card";
 import { requirePermission } from "@/server/auth/server-guards";
 import { journalPage } from "@/server/accounting/prisma-accounting-repository";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page({
   searchParams,
 }: {
@@ -105,7 +106,7 @@ export default async function Page({
                     {journal.journalNumber}
                   </Link>
                 </td>
-                <td className="p-3">{journal.accountingDate.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(journal.accountingDate)}</td>
                 <td className="p-3">
                   {journal.sourceType} {journal.sourceNumber ?? ""}
                 </td>

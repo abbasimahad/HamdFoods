@@ -459,6 +459,8 @@ async function savePayment(
   const paymentDate = parseDate(input.paymentDate);
   const chequeDate = input.chequeDate ? parseDate(input.chequeDate) : null;
   const totalAmount = exactPositive(input.totalAmount, "Payment amount");
+  if (totalAmount.decimalPlaces() > 2)
+    throw problem("invalid-reference", "Payment amount can have at most 2 decimal places.");
   const allocations = await preparedAllocations(transaction, input.customerId, input.allocations);
   const allocatedAmount = sum(allocations.map((allocation) => allocation.allocatedAmount));
   if (allocatedAmount.gt(totalAmount))

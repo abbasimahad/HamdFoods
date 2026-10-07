@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ProductionTransactionSummary } from "@/modules/production/application/transaction-workbench-contracts";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export function TransactionWorkbenchList({
   rows,
   base,
@@ -41,7 +42,7 @@ export function TransactionWorkbenchList({
                 <Link href={`/production/batches/${row.batchId}`}>{row.batchNumber}</Link>
               </td>
               <td className="p-3">{row.product}</td>
-              <td className="p-3">{row.date.toISOString().slice(0, 10)}</td>
+              <td className="p-3">{formatFactoryDate(row.date)}</td>
               <td className="p-3">{row.type}</td>
               <td className="p-3">{row.status}</td>
             </tr>

@@ -80,11 +80,19 @@ export default async function SuppliersPage({
                   <td className="p-4">{supplier.active ? "Active" : "Inactive"}</td>
                   <td className="p-4">
                     {canManage && (
-                      <SupplierStatusForm
-                        action={setSupplierStatusAction}
-                        id={supplier.id}
-                        active={supplier.active}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          className="inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-semibold"
+                          href={`/purchasing/suppliers/${supplier.id}#edit`}
+                        >
+                          Edit
+                        </Link>
+                        <SupplierStatusForm
+                          action={setSupplierStatusAction}
+                          id={supplier.id}
+                          active={supplier.active}
+                        />
+                      </div>
                     )}
                   </td>
                 </tr>

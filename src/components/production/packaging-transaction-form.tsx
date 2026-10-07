@@ -6,6 +6,7 @@ import { useActionState, useMemo, useState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 import type { ProductionActionState } from "./action-state";
+import { sortFefo } from "./fefo";
 import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import type { RecipeUnit } from "@/modules/production/application/contracts";
 import {
@@ -37,20 +38,41 @@ export function PackagingTransactionForm({
   const requirement = view.requirements.find(
     (candidate) => candidate.requirementId === requirementId,
   );
+  // UX-10: first-expiry-first-out -- the lot that expires soonest is offered first and preselected.
   const lots = useMemo(
     () =>
-      (type === "ISSUE" ? view.availableLots : view.heldLots).filter(
-        (lot) => lot.itemId === requirement?.itemId,
+      sortFefo(
+        (type === "ISSUE" ? view.availableLots : view.heldLots).filter(
+          (lot) => lot.itemId === requirement?.itemId,
+        ),
       ),
     [type, view.availableLots, view.heldLots, requirement?.itemId],
   );
-  const [lotId, setLotId] = useState(initial?.line.inventoryLotId ?? lots[0]?.id ?? "");
+  const [chosenLotId, setLotId] = useState(initial?.line.inventoryLotId ?? "");
+  const lotId = lots.some((candidate) => candidate.id === chosenLotId)
+    ? chosenLotId
+    : (lots[0]?.id ?? "");
   const lot = lots.find((candidate) => candidate.id === lotId);
+  const [damageReason, setDamageReason] = useState(initial?.damageReason ?? "");
+  const [clientError, setClientError] = useState("");
   const compatibleUnits = units.filter(
     (unit) => unit.dimension === requirement?.canonicalUnitDimension,
   );
   return (
-    <form action={formAction} className="space-y-5">
+    <form
+      action={formAction}
+      className="space-y-5"
+      onSubmit={(event) => {
+        const message =
+          type === "DAMAGE" && !damageReason
+            ? "Select a damage reason before saving."
+            : !lotId
+              ? "Select an eligible inventory lot before saving."
+              : "";
+        setClientError(message);
+        if (message) event.preventDefault();
+      }}
+    >
       {initial && <input name="id" type="hidden" value={initial.id} />}
       <input name="productionBatchId" type="hidden" value={view.productionBatchId} />
       <input name="transactionType" type="hidden" value={type} />
@@ -155,9 +177,13 @@ export function PackagingTransactionForm({
             Damage reason
             <select
               className="mt-1 min-h-11 w-full rounded-lg border bg-white px-3"
-              defaultValue={initial?.damageReason ?? ""}
               name="damageReason"
+              onChange={(event) => {
+                setDamageReason(event.target.value);
+                setClientError("");
+              }}
               required
+              value={damageReason}
             >
               <option value="">Select reason</option>
               {PACKAGING_DAMAGE_REASONS.map((reason) => (
@@ -216,11 +242,11 @@ export function PackagingTransactionForm({
       </label>
       <FormActions
         cancelHref={`/production/batches/${view.productionBatchId}/packaging`}
-        disabled={pending || !lotId}
+        disabled={pending}
         pendingLabel="Saving…"
         submitLabel="Save draft"
       />
-      <ActionFeedback message={state.message} ok={state.ok} />
+      <ActionFeedback message={clientError || state.message} ok={!clientError && state.ok} />
       <p className="text-xs text-[var(--muted)]">
         DRAFT creates no stock movement. Exact lot stock and batch custody are rechecked when
         posted.

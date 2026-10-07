@@ -151,8 +151,11 @@ export class SalesDispatchRepositoryError extends Error {
     super(message);
   }
 }
+/** ROLE-3: dispatching is done by Sales or by the store (Store Keeper, `dispatches.manage`). */
+export const DISPATCH_PERMISSIONS = ["sales.manage", "dispatches.manage"] as const;
 export function requireSalesDispatchManager(actor: ApplicationPrincipal) {
-  return actor.active && actor.permissions.includes("sales.manage")
+  return actor.active &&
+    DISPATCH_PERMISSIONS.some((permission) => actor.permissions.includes(permission))
     ? null
-    : ({ ok: false, message: "Sales management permission is required." } as const);
+    : ({ ok: false, message: "Dispatch permission is required." } as const);
 }

@@ -12,8 +12,16 @@ import { PrismaPurchasingRepository } from "@/server/purchasing/prisma-purchasin
 import { PrismaPurchaseReturnRepository } from "@/server/purchasing/prisma-purchase-return-repository";
 import { prisma } from "@/server/db/prisma";
 import { saveSupplierAction, setSupplierStatusAction } from "../actions";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
-export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SupplierDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string }>;
+}) {
+  const created = (await searchParams).created === "1";
   const principal = await requirePermission("purchasing.view");
   const id = (await params).id;
   const canViewAccounting = hasPermission(principal, "accounting.view");
@@ -40,6 +48,15 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
         title={`${supplier.code} - ${supplier.name}`}
         description={`${supplier.active ? "Active" : "Inactive"} supplier details`}
       />
+      {created ? (
+        <p
+          className="mb-4 rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-sm text-[var(--success-ink)]"
+          role="status"
+        >
+          Supplier created. Review the details below; use Edit supplier at the bottom to change
+          them.
+        </p>
+      ) : null}
       <Card className="mb-5 grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         <Info label="Contact" value={supplier.contactPerson} />
         <Info
@@ -93,7 +110,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             <tbody className="divide-y">
               {payableEntries.map((entry) => (
                 <tr key={entry.id}>
-                  <td className="p-3">{entry.entryDate.toISOString().slice(0, 10)}</td>
+                  <td className="p-3">{formatFactoryDate(entry.entryDate)}</td>
                   <td className="p-3">{entry.sourceNumber ?? entry.sourceId}</td>
                   <td className="p-3">{entry.entryType.replaceAll("_", " ")}</td>
                   <td className="p-3">{formatMoney(entry.signedAmount, "")}</td>
@@ -143,7 +160,9 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
       </Card>
       {canManage && (
         <Card className="p-5">
-          <h2 className="mb-4 font-semibold">Edit supplier</h2>
+          <h2 className="mb-4 scroll-mt-20 font-semibold" id="edit">
+            Edit supplier
+          </h2>
           <SupplierForm action={saveSupplierAction} initial={supplier} />
         </Card>
       )}

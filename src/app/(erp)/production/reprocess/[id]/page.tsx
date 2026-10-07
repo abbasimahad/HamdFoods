@@ -1,5 +1,6 @@
 import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
+import { reprocessOutputSummary } from "@/components/production/reprocess-output-summary";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -88,10 +89,7 @@ export default async function ReprocessDetailPage({ params }: { params: Promise<
         <Info label="Child expiry" value={formatFactoryDate(document.childExpiry) ?? "Pending"} />
         <Info label="Initiated by" value={document.initiatedBy.name} />
         <Info label="Completed by" value={document.completedBy?.name ?? "Pending"} />
-        <Info
-          label="GOOD / scrap / loss"
-          value={`${document.goodContentOutput ?? "-"} / ${document.scrapContentOutput ?? "-"} / ${document.processLossContent ?? "-"}`}
-        />
+        <Info label="Reprocess output" value={reprocessOutputSummary(document)} />
         <Info label="QC inspector" value={document.qcDecision?.inspectedBy.name ?? "Pending"} />
         <Info
           label="Source disposition"

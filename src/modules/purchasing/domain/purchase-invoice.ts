@@ -103,7 +103,7 @@ export function calculateGrnDerivedTax(input: {
   const derivedTax = purchaseBase.isZero()
     ? new Decimal(0)
     : matchedBase.mul(tax).div(purchaseBase);
-  return derivedTax.toDecimalPlaces(6).toFixed(6);
+  return derivedTax.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(6);
 }
 
 /** Signed: positive means the supplier billed more than the GRN-derived cost. */
@@ -120,7 +120,7 @@ export function calculatePriceVariance(input: {
       "QUANTITY",
       "Price variance inputs must be valid non-negative amounts.",
     );
-  return rate.sub(cost).mul(quantity).toDecimalPlaces(6).toFixed(6);
+  return rate.sub(cost).mul(quantity).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(6);
 }
 
 /** Signed: positive means the invoice attributes more tax to this match than the GRN basis. */
@@ -146,7 +146,7 @@ export function calculateMatchTaxVariance(input: {
   )
     throw new PurchaseInvoiceDomainError("QUANTITY", "Tax variance inputs must be valid.");
   const invoicedTaxForMatch = lineTax.mul(matched).div(lineQuantity);
-  return invoicedTaxForMatch.sub(grnTax).toDecimalPlaces(6).toFixed(6);
+  return invoicedTaxForMatch.sub(grnTax).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(6);
 }
 
 function decimal(value: string) {

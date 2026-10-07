@@ -74,7 +74,12 @@ export function RecipeCalculators({
         {scale.result && (
           <div className="mt-4 overflow-x-auto">
             <p className="mb-2 text-sm">
-              Scale factor: <strong>{scale.result.scaleFactor}</strong>
+              Scale factor:{" "}
+              <strong>
+                {Number(scale.result.scaleFactor)
+                  .toFixed(6)
+                  .replace(/\.?0+$/, "")}
+              </strong>
             </p>
             <table className="w-full min-w-[38rem] text-left text-sm">
               <thead>

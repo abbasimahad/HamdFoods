@@ -8,6 +8,7 @@ import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesInvoiceRepository } from "@/server/sales/prisma-sales-invoice-repository";
 import { postInvoiceFormAction, cancelInvoiceFormAction } from "../actions";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const principal = await requirePermission("sales.view");
   const x = await new PrismaSalesInvoiceRepository().getSalesInvoice((await params).id);
@@ -45,7 +46,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           Salesperson / area / route:{" "}
           {[x.salespersonName, x.areaName, x.routeName].filter(Boolean).join(" / ")}
         </p>
-        <p>Outstanding: {x.outstandingAmount}</p>
+        <p>Outstanding: {formatMoney(x.outstandingAmount, "")}</p>
         <p>Created by: {x.createdByName}</p>
         <p>
           Posted:{" "}
@@ -79,20 +80,20 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <td>{l.loosePieces}</td>
                 <td>{l.totalPieces}</td>
                 <td>
-                  {l.cartonRate} / {l.pieceRate}
+                  {formatMoney(l.cartonRate, "")} / {formatMoney(l.pieceRate, "")}
                 </td>
                 <td>
                   {l.discount1Percent}% + {l.discount2Percent}% / {l.taxPercent}%
                 </td>
-                <td>{l.netAmount}</td>
+                <td>{formatMoney(l.netAmount, "")}</td>
                 <td>{l.allocations.map((a) => `${a.lotNumber}: ${a.quantity}`).join(", ")}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <p className="p-4">
-          Subtotal {x.subtotal} · Discount {x.discountTotal} · Tax {x.taxTotal} · Grand total{" "}
-          {x.grandTotal}
+          Subtotal {formatMoney(x.subtotal, "")} · Discount {formatMoney(x.discountTotal, "")} · Tax{" "}
+          {formatMoney(x.taxTotal, "")} · Grand total {formatMoney(x.grandTotal, "")}
         </p>
       </Card>
       {(canManage || canPost) && x.status === "DRAFT" && (

@@ -82,12 +82,35 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
   }
 
   async listActiveWarehouses() {
-    return prisma.warehouse.findMany({
-      where: { active: true },
-      select: { id: true, code: true, name: true, active: true },
-      orderBy: { name: "asc" },
-      take: 500,
-    });
+    const [warehouses, stocked] = await Promise.all([
+      prisma.warehouse.findMany({
+        where: { active: true },
+        select: { id: true, code: true, name: true, active: true },
+        orderBy: { name: "asc" },
+        take: 500,
+      }),
+      // UX-9: where each kind of material is actually kept, so the batch form defaults the
+      // raw-material and packaging warehouses to the store that holds them.
+      prisma.$queryRaw<{ warehouseId: string; itemType: string; lines: bigint }[]>`
+        SELECT b."warehouseId", b."itemType", COUNT(*) AS "lines"
+        FROM (
+          SELECT m."warehouseId", i."itemType", m."itemId"
+          FROM "inventory_movement" m
+          JOIN "item" i ON i."id" = m."itemId"
+          WHERE m."status" = 'AVAILABLE'
+          GROUP BY m."warehouseId", i."itemType", m."itemId"
+          HAVING SUM(m."quantity") > 0
+        ) b
+        GROUP BY b."warehouseId", b."itemType"`,
+    ]);
+    return warehouses.map((warehouse) => ({
+      ...warehouse,
+      stockedItemCounts: Object.fromEntries(
+        stocked
+          .filter((row) => row.warehouseId === warehouse.id)
+          .map((row) => [row.itemType, Number(row.lines)]),
+      ),
+    }));
   }
 
   async createBatch(input: ProductionBatchInput) {
@@ -576,8 +599,10 @@ async function mapBatch(row: BatchRow): Promise<ProductionBatchRecord> {
     plannedBatchCanonicalCode: row.plannedBatchCanonicalUnit.code,
     plannedBatchCanonicalSymbol: row.plannedBatchCanonicalUnit.symbol,
     plannedBatchDimension: row.plannedBatchCanonicalDimension,
+    // UX-11: display value; a repeating ratio (1/12) is shown to 6 decimals, not ~130 digits.
     scaleFactor: new Decimal(row.plannedBatchNormalizedQuantity)
       .div(row.recipe.standardBatchNormalizedQuantity)
+      .toDecimalPlaces(6)
       .toFixed(),
     plannedExpectedOutputNormalizedQuantity:
       row.plannedExpectedOutputNormalizedQuantity?.toString() ?? null,

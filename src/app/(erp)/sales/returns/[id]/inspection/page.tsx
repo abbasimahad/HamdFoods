@@ -11,7 +11,7 @@ export default async function SalesReturnInspectionPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("sales.manage");
+  await requirePermission("quality.manage");
   const salesReturn = await new PrismaSalesReturnRepository().getSalesReturn((await params).id);
   if (!salesReturn) notFound();
   if (salesReturn.status !== "RECEIVED") redirect(`/sales/returns/${salesReturn.id}`);

@@ -94,10 +94,24 @@ describe("Phase 27 database-backed golden workflow", () => {
       },
       _sum: { quantity: true },
     });
+    // Other integration files share this workflow state and may run first; their manual stock
+    // adjustments (BUG-5 regression) are not part of the golden workflow's own custody.
+    const laterManualPackagingAdjustments = await prisma.inventoryMovement.aggregate({
+      where: {
+        itemId: state.packagingItemId,
+        warehouseId: state.sourceWarehouseId,
+        status: "AVAILABLE",
+        referenceType: "MANUAL_ADJUSTMENT",
+      },
+      _sum: { quantity: true },
+    });
     await expect(
       inventoryBalance(state.packagingItemId, state.sourceWarehouseId, "AVAILABLE"),
     ).resolves.toBe(
-      new Decimal(98).add(laterReprocessPackagingIssue._sum.quantity?.toString() ?? "0").toFixed(),
+      new Decimal(98)
+        .add(laterReprocessPackagingIssue._sum.quantity?.toString() ?? "0")
+        .add(laterManualPackagingAdjustments._sum.quantity?.toString() ?? "0")
+        .toFixed(),
     );
     const [laterAvailableMovements, availableAfterControlledFlows] = await prisma.$transaction(
       async (tx) =>

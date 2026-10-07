@@ -31,6 +31,7 @@ describe("seedAccessControl", () => {
       "dashboard.view",
       "sales.view",
       "sales.manage",
+      "dispatches.manage",
       "inventory.view",
     ]);
     expect(store.mappings.get("SUPER_ADMIN")?.length).toBe(PERMISSIONS.length);

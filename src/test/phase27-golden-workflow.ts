@@ -231,7 +231,18 @@ async function executePhase27GoldenWorkflowOnce() {
       },
     ],
   });
-  await recipeRepository.approveRecipe(recipeId, actor.id);
+  // ROLE-3: recipes are approved by someone other than their author.
+  const recipeReviewer = await prisma.user.upsert({
+    where: { email: "p27.recipe.reviewer@example.test" },
+    create: {
+      id: "00000000-0000-4000-8000-000000000272",
+      name: "Phase 27 Recipe Reviewer",
+      email: "p27.recipe.reviewer@example.test",
+      emailVerified: true,
+    },
+    update: { active: true },
+  });
+  await recipeRepository.approveRecipe(recipeId, recipeReviewer.id);
   const batchId = await batches.createBatch({
     recipeId,
     plannedBatchQuantity: "1000",

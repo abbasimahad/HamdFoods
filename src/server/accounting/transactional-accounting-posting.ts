@@ -678,13 +678,13 @@ export async function postGoodsReceiptAcceptanceAccounting(
         `Goods receipt valuation is missing for line ${line.position}.`,
       );
     const ratio = acceptedQuantity.div(line.normalizedQuantity);
-    const base = new Decimal(valuation?.valueDelta?.toString() ?? "0").mul(ratio);
+    const base = paisa(new Decimal(valuation?.valueDelta?.toString() ?? "0").mul(ratio));
     const purchaseBase = new Decimal(line.purchaseOrderLine.netAmount.toString()).sub(
       line.purchaseOrderLine.taxAmount.toString(),
     );
     const tax = purchaseBase.isZero()
       ? new Decimal(0)
-      : base.mul(line.purchaseOrderLine.taxAmount.toString()).div(purchaseBase);
+      : paisa(base.mul(line.purchaseOrderLine.taxAmount.toString()).div(purchaseBase));
     return { base, tax };
   });
   const accepted = sum(acceptedDetails.map((line) => line.base));
@@ -1102,10 +1102,12 @@ export async function postPurchaseReturnAccounting(
         `Original goods receipt valuation is missing for purchase-return line ${line.position}.`,
       );
     return total.add(
-      new Decimal(originalValue.valueDelta?.toString() ?? "0")
-        .abs()
-        .mul(line.normalizedQuantity)
-        .div(line.originalGoodsReceiptLine.normalizedQuantity),
+      paisa(
+        new Decimal(originalValue.valueDelta?.toString() ?? "0")
+          .abs()
+          .mul(line.normalizedQuantity)
+          .div(line.originalGoodsReceiptLine.normalizedQuantity),
+      ),
     );
   }, new Decimal(0));
   const tax = purchaseReturn.lines.reduce((total, line) => {
@@ -1114,14 +1116,18 @@ export async function postPurchaseReturnAccounting(
     ).sub(line.originalGoodsReceiptLine.purchaseOrderLine.taxAmount.toString());
     if (purchaseBase.isZero()) return total;
     const originalValue = receiptBasis.get(line.originalGoodsReceiptLineId)!;
-    const returnedBase = new Decimal(originalValue.valueDelta?.toString() ?? "0")
-      .abs()
-      .mul(line.normalizedQuantity)
-      .div(line.originalGoodsReceiptLine.normalizedQuantity);
+    const returnedBase = paisa(
+      new Decimal(originalValue.valueDelta?.toString() ?? "0")
+        .abs()
+        .mul(line.normalizedQuantity)
+        .div(line.originalGoodsReceiptLine.normalizedQuantity),
+    );
     return total.add(
-      returnedBase
-        .mul(line.originalGoodsReceiptLine.purchaseOrderLine.taxAmount.toString())
-        .div(purchaseBase),
+      paisa(
+        returnedBase
+          .mul(line.originalGoodsReceiptLine.purchaseOrderLine.taxAmount.toString())
+          .div(purchaseBase),
+      ),
     );
   }, new Decimal(0));
   const awaitingReplacement = purchaseReturn.replacementExpected;
@@ -1589,6 +1595,10 @@ export function accountingSourceAuditEntityType(sourceType: AccountingSourceType
 function amount(value: string | undefined) {
   return new Decimal(value ?? "0");
 }
+/** BUG-34: a share of a document amount (accepted part, returned part, its tax) is whole paisa. */
+function paisa(value: Decimal) {
+  return value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+}
 function sum(values: readonly Decimal[]) {
   return values.reduce((total, value) => total.add(value), new Decimal(0));
 }
@@ -1625,6 +1635,8 @@ async function prepareManualLines(tx: Client, lines: readonly ManualJournalLineI
     debit: amount(line.debit),
     credit: amount(line.credit),
   }));
+  if (prepared.some((line) => line.debit.decimalPlaces() > 2 || line.credit.decimalPlaces() > 2))
+    throw new AccountingPostingError("Journal amounts can have at most 2 decimal places.");
   validateLines(prepared);
   return prepared;
 }

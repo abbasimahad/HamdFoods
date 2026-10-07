@@ -12,7 +12,15 @@ import { PrismaSalesRepository } from "@/server/sales/prisma-sales-repository";
 import { PrismaCustomerPaymentRepository } from "@/server/sales/prisma-customer-payment-repository";
 import { getCustomerReceivableSnapshot } from "@/server/sales/credit-exposure";
 import { saveCustomerAction, setCustomerStatusAction } from "../../actions";
-export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+import { formatMoney } from "@/components/ui/format-money";
+export default async function CustomerDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string }>;
+}) {
+  const created = (await searchParams).created === "1";
   const principal = await requirePermission("sales.view");
   const repository = new PrismaSalesRepository();
   const paymentRepository = new PrismaCustomerPaymentRepository();
@@ -33,6 +41,15 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         title={`${customer.code} — ${customer.name}`}
         description={`${customer.active ? "Active" : "Inactive"} customer details`}
       />
+      {created ? (
+        <p
+          className="mb-4 rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-sm text-[var(--success-ink)]"
+          role="status"
+        >
+          Customer created. Review the details below; use Edit customer at the bottom to change
+          them.
+        </p>
+      ) : null}
       <div className="mb-4 flex flex-wrap gap-3">
         <Link
           className="rounded-lg border px-4 py-2 text-sm"
@@ -85,7 +102,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           value={[customer.areaName, customer.routeName].filter(Boolean).join(" / ")}
         />
         <Info label="Salesperson" value={customer.salespersonName ?? "-"} />
-        <Info label="Credit limit" value={customer.creditLimit ?? "-"} />
+        <Info
+          label="Credit limit"
+          value={customer.creditLimit ? formatMoney(customer.creditLimit, "") : "-"}
+        />
         <Info label="Current balance" value={receivables.outstanding} />
         <Info label="Available credit" value={receivables.availableCredit ?? "No configured cap"} />
         <Info label="Unallocated credit" value={receivables.unallocatedCredit} />
@@ -106,8 +126,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       <Card className="mb-5 overflow-x-auto p-5">
         <h2 className="font-semibold">Open invoices and aging</h2>
         <p className="mt-2 text-sm">
-          Current {aging.current} · 1–30 {aging.days1To30} · 31–60 {aging.days31To60} · 61–90{" "}
-          {aging.days61To90} · 90+ {aging.days90Plus}
+          Current {formatMoney(aging.current, "")} · 1–30 {formatMoney(aging.days1To30, "")} · 31–60{" "}
+          {formatMoney(aging.days31To60, "")} · 61–90 {formatMoney(aging.days61To90, "")} · 90+{" "}
+          {formatMoney(aging.days90Plus, "")}
         </p>
         {receivables.invoices.length ? (
           <table className="mt-3 w-full min-w-[45rem] text-sm">
@@ -133,8 +154,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     </td>
                     <td>{formatFactoryDate(invoice.invoiceDate)}</td>
                     <td>{formatFactoryDate(invoice.dueDate)}</td>
-                    <td>{invoice.amount}</td>
-                    <td>{invoice.outstanding}</td>
+                    <td>{formatMoney(invoice.amount, "")}</td>
+                    <td>{formatMoney(invoice.outstanding, "")}</td>
                     <td>{invoice.daysDue}</td>
                   </tr>
                 ))}
@@ -165,8 +186,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     </Link>
                   </td>
                   <td>{formatFactoryDate(payment.paymentDate)}</td>
-                  <td>{payment.amount}</td>
-                  <td>{payment.unallocatedAmount}</td>
+                  <td>{formatMoney(payment.amount, "")}</td>
+                  <td>{formatMoney(payment.unallocatedAmount, "")}</td>
                 </tr>
               ))}
             </tbody>
@@ -198,7 +219,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     </Link>
                   </td>
                   <td>{formatFactoryDate(salesReturn.returnDate)}</td>
-                  <td>{salesReturn.amount}</td>
+                  <td>{formatMoney(salesReturn.amount, "")}</td>
                 </tr>
               ))}
             </tbody>
@@ -209,7 +230,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </Card>
       {canManage && (
         <Card className="p-5">
-          <h2 className="mb-4 font-semibold">Edit customer</h2>
+          <h2 className="mb-4 scroll-mt-20 font-semibold" id="edit">
+            Edit customer
+          </h2>
           <CustomerForm action={saveCustomerAction} initial={customer} references={references} />
         </Card>
       )}

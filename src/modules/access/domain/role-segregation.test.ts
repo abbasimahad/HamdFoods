@@ -11,7 +11,12 @@ import {
 } from "@/modules/purchasing/application/manage-goods-receipts";
 import { approvePurchaseOrder } from "@/modules/purchasing/application/manage-purchase-orders";
 import { postSalesInvoice } from "@/modules/sales/application/manage-sales-invoices";
-import { completeSalesReturn } from "@/modules/sales/application/manage-sales-returns";
+import {
+  completeSalesReturn,
+  inspectSalesReturn,
+} from "@/modules/sales/application/manage-sales-returns";
+import { postSalesDispatch } from "@/modules/sales/application/manage-sales-dispatches";
+import { approveSalesOrder } from "@/modules/sales/application/manage-sales-orders";
 
 function principal(role: DefaultRoleCode): ApplicationPrincipal {
   return {
@@ -93,5 +98,64 @@ describe("ROLE-2: segregation of duties in the seeded roles", () => {
       expect(permissions).not.toContain("receiving.manage");
       expect(permissions).not.toContain("quality.manage");
     }
+  });
+});
+
+describe("ROLE-3: role decisions confirmed with management", () => {
+  it("only Quality Control (not Sales) inspects customer returns", async () => {
+    expect(await inspectSalesReturn(principal("SALES"), "not-a-uuid", {}, unreachable)).toEqual({
+      ok: false,
+      message: "Quality inspection permission is required.",
+    });
+    const quality = await inspectSalesReturn(
+      principal("QUALITY_CONTROL"),
+      "not-a-uuid",
+      {},
+      unreachable,
+    );
+    expect(quality.ok).toBe(false);
+    expect(quality).not.toEqual({
+      ok: false,
+      message: "Quality inspection permission is required.",
+    });
+  });
+
+  it("the Store Keeper can dispatch without being able to manage orders", async () => {
+    const storeKeeper = principal("STORE_KEEPER");
+    expect(await postSalesDispatch(storeKeeper, "not-a-uuid", unreachable)).toEqual({
+      ok: false,
+      message: "Dispatch is invalid.",
+    });
+    expect(DEFAULT_ROLE_PERMISSIONS.STORE_KEEPER).not.toContain("sales.manage");
+  });
+
+  it("approving over the credit limit needs the override permission and a real reason", async () => {
+    const reason = "Owner approved: post-dated cheque received for the balance.";
+    expect(
+      await approveSalesOrder(
+        principal("ACCOUNTS"),
+        "00000000-0000-4000-8000-000000000001",
+        unreachable,
+        reason,
+      ),
+    ).toEqual({ ok: false, message: "Credit-limit override permission is required." });
+    expect(
+      await approveSalesOrder(
+        principal("ADMIN"),
+        "00000000-0000-4000-8000-000000000001",
+        unreachable,
+        "ok",
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Explain the credit-limit override (at least 15 characters).",
+    });
+  });
+
+  it("period reopen approval and credit override are not part of the Accounts role", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.ACCOUNTS).not.toContain("accounting_periods.reopen_approve");
+    expect(DEFAULT_ROLE_PERMISSIONS.ACCOUNTS).not.toContain("sales.credit_override");
+    expect(DEFAULT_ROLE_PERMISSIONS.ADMIN).toContain("accounting_periods.reopen_approve");
+    expect(DEFAULT_ROLE_PERMISSIONS.ADMIN).toContain("sales.credit_override");
   });
 });

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { SalesActionState } from "@/components/sales/action-state";
 import {
   saveArea,
@@ -38,23 +39,33 @@ async function run(
   ) => Promise<{ ok: boolean; id?: string; message?: string }>,
   formData: FormData,
   success: string,
+  createdRoute?: (id: string) => string,
 ) {
   const actor = await requirePermission("sales.manage");
   const value = await operation(actor, Object.fromEntries(formData), repository);
   if (value.ok) refresh(value.id);
+  // UX-12: a create lands on a page that confirms it, instead of a message inside a collapsed form.
+  if (value.ok && value.id && createdRoute && !formData.get("id")) redirect(createdRoute(value.id));
   return result(value, success);
 }
+const createdIn = (route: string, formData: FormData) => () =>
+  `${route}?created=${encodeURIComponent(String(formData.get("name") ?? formData.get("code") ?? ""))}`;
 export async function saveCustomerAction(_: SalesActionState, formData: FormData) {
-  return run(saveCustomer, formData, "Customer saved.");
+  return run(saveCustomer, formData, "Customer saved.", (id) => `/sales/customers/${id}?created=1`);
 }
 export async function saveCustomerGroupAction(_: SalesActionState, formData: FormData) {
-  return run(saveCustomerGroup, formData, "Customer group saved.");
+  return run(
+    saveCustomerGroup,
+    formData,
+    "Customer group saved.",
+    createdIn("/sales/customer-groups", formData),
+  );
 }
 export async function saveAreaAction(_: SalesActionState, formData: FormData) {
-  return run(saveArea, formData, "Area saved.");
+  return run(saveArea, formData, "Area saved.", createdIn("/sales/areas", formData));
 }
 export async function saveRouteAction(_: SalesActionState, formData: FormData) {
-  return run(saveRoute, formData, "Route saved.");
+  return run(saveRoute, formData, "Route saved.", createdIn("/sales/routes", formData));
 }
 export async function saveSalespersonAction(_: SalesActionState, formData: FormData) {
   const actor = await requirePermission("sales.manage");
@@ -65,6 +76,8 @@ export async function saveSalespersonAction(_: SalesActionState, formData: FormD
   };
   const value = await saveSalesperson(actor, data, repository);
   if (value.ok) refresh(value.id);
+  if (value.ok && value.id && !formData.get("id"))
+    redirect(createdIn("/sales/salespersons", formData)());
   return result(value, "Salesperson saved.");
 }
 async function setStatus(

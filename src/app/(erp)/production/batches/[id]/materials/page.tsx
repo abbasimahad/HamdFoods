@@ -29,7 +29,7 @@ export default async function BatchMaterialsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; saved?: string }>;
 }) {
   const principal = await requirePermission("production.view");
   const id = (await params).id;
@@ -75,6 +75,15 @@ export default async function BatchMaterialsPage({
         {canManage && canResolve && (
           <Link className={tab(selectedType === "CONSUMPTION")} href={`?type=CONSUMPTION`}>
             Record consumption
+          </Link>
+        )}
+        {canManage && canResolve && (
+          <Link
+            className="rounded-lg border px-4 py-2 text-sm"
+            href="/production/waste-damage/new"
+            title="Spilled or spoiled raw material is written off as a Waste & Damage document."
+          >
+            Record damaged material →
           </Link>
         )}
       </div>
@@ -131,6 +140,12 @@ export default async function BatchMaterialsPage({
       </Card>
       {canManage && (canIssue || canResolve) && (
         <Card className="mb-5 p-5">
+          {query.saved === "1" ? (
+            <p className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+              Draft saved. Post it from the history below; this form stays on{" "}
+              {selectedType.toLowerCase()} for the next entry.
+            </p>
+          ) : null}
           <h2 className="mb-4 font-semibold">New {selectedType.toLowerCase()} draft</h2>
           <MaterialTransactionForm
             action={saveMaterialTransactionAction}

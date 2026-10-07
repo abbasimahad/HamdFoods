@@ -14,6 +14,7 @@ import {
   postCustomerPaymentFormAction,
   reverseCustomerPaymentFormAction,
 } from "../actions";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function CustomerPaymentDetailPage({
   params,
 }: {
@@ -67,7 +68,7 @@ export default async function CustomerPaymentDetailPage({
           {payment.treasuryAccountName ??
             `Default ${payment.method === "CASH" ? "cash" : "bank"} account`}
         </p>
-        <p>Amount: {payment.totalAmount}</p>
+        <p>Amount: {formatMoney(payment.totalAmount, "")}</p>
         <p>Reference: {payment.referenceNumber ?? "-"}</p>
         <p>
           Bank / cheque:{" "}
@@ -75,8 +76,8 @@ export default async function CustomerPaymentDetailPage({
             .filter(Boolean)
             .join(" / ") || "-"}
         </p>
-        <p>Allocated: {payment.allocatedAmount}</p>
-        <p>Unallocated customer credit: {payment.unallocatedAmount}</p>
+        <p>Allocated: {formatMoney(payment.allocatedAmount, "")}</p>
+        <p>Unallocated customer credit: {formatMoney(payment.unallocatedAmount, "")}</p>
         {payment.reversalOfNumber ? <p>Reversal of: {payment.reversalOfNumber}</p> : null}
         {payment.reversalPaymentNumber ? <p>Reversed by: {payment.reversalPaymentNumber}</p> : null}
         {payment.reversalReason ? <p>Reversal reason: {payment.reversalReason}</p> : null}
@@ -109,9 +110,9 @@ export default async function CustomerPaymentDetailPage({
                   </Link>
                 </td>
                 <td className="p-3">{formatFactoryDate(allocation.invoiceDate)}</td>
-                <td className="p-3">{allocation.originalAmount}</td>
-                <td className="p-3">{allocation.allocatedAmount}</td>
-                <td className="p-3">{allocation.outstandingAmount}</td>
+                <td className="p-3">{formatMoney(allocation.originalAmount, "")}</td>
+                <td className="p-3">{formatMoney(allocation.allocatedAmount, "")}</td>
+                <td className="p-3">{formatMoney(allocation.outstandingAmount, "")}</td>
               </tr>
             ))}
           </tbody>

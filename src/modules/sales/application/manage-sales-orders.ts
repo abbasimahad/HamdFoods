@@ -61,17 +61,28 @@ export async function saveSalesOrder(
     return failure(error, "Sales order could not be saved.");
   }
 }
+const MIN_CREDIT_OVERRIDE_REASON = 15;
 export async function approveSalesOrder(
   actor: ApplicationPrincipal,
   id: string,
   repository: SalesOrderRepository,
+  creditOverrideReason?: string,
 ): Promise<SalesOrderMutationResult> {
   if (!actor.active || !actor.permissions.includes("sales.approve"))
     return { ok: false, message: "Sales order approval permission is required." };
   if (!z.string().uuid().safeParse(id).success)
     return { ok: false, message: "Sales order is invalid." };
+  // ROLE-3: going over the customer's credit limit needs its own permission and a real reason.
+  const override = creditOverrideReason?.trim() || undefined;
+  if (override && !actor.permissions.includes("sales.credit_override"))
+    return { ok: false, message: "Credit-limit override permission is required." };
+  if (override && override.length < MIN_CREDIT_OVERRIDE_REASON)
+    return {
+      ok: false,
+      message: `Explain the credit-limit override (at least ${MIN_CREDIT_OVERRIDE_REASON} characters).`,
+    };
   try {
-    await repository.approveSalesOrder(id, actor.id);
+    await repository.approveSalesOrder(id, actor.id, override);
     return { ok: true, id };
   } catch (error) {
     return failure(error, "Sales order could not be approved.");

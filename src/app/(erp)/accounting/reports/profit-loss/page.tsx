@@ -5,6 +5,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { Card } from "@/components/ui/card";
 import { profitAndLoss, reportRange } from "@/server/accounting/financial-reporting";
 import { requirePermission } from "@/server/auth/server-guards";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
 export default async function Page({
   searchParams,
@@ -29,7 +30,7 @@ export default async function Page({
     <ResponsiveContainer>
       <PageHeader
         title="Profit & Loss"
-        description={`Posted journals only · ${range.from.toISOString().slice(0, 10)} to ${range.to.toISOString().slice(0, 10)}`}
+        description={`Posted journals only · ${formatFactoryDate(range.from)} to ${formatFactoryDate(range.to)}`}
       />
       <FinancialReportControls
         from={range.from.toISOString().slice(0, 10)}

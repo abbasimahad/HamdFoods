@@ -89,6 +89,9 @@ export default async function SalesOrderDetailPage({
               : "Pending"
           }
         />
+        {order.creditOverrideReason ? (
+          <Info label="Credit-limit override" value={order.creditOverrideReason} />
+        ) : null}
       </Card>
       <OrderLines order={order} />
       {order.notes && (
@@ -110,7 +113,11 @@ export default async function SalesOrderDetailPage({
           <Card className="mt-5 space-y-4 p-5">
             <h2 className="font-semibold">Lifecycle actions</h2>
             {canApprove && order.status === "DRAFT" && (
-              <ApproveSalesOrderForm action={approveSalesOrderAction} id={order.id} />
+              <ApproveSalesOrderForm
+                action={approveSalesOrderAction}
+                canOverrideCredit={hasPermission(principal, "sales.credit_override")}
+                id={order.id}
+              />
             )}
             {canManage && !canApprove && order.status === "DRAFT" && (
               <p className="text-sm text-[var(--muted)]">

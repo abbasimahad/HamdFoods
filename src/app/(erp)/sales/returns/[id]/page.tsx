@@ -13,6 +13,7 @@ import {
   completeSalesReturnAction,
   receiveSalesReturnAction,
 } from "../actions";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function SalesReturnDetailPage({
   params,
 }: {
@@ -23,6 +24,7 @@ export default async function SalesReturnDetailPage({
   if (!salesReturn) notFound();
   const manage = hasPermission(principal, "sales.manage");
   const canPostCredit = hasPermission(principal, "sales_invoices.post");
+  const canInspect = hasPermission(principal, "quality.manage");
   return (
     <ResponsiveContainer>
       <PageHeader
@@ -51,7 +53,7 @@ export default async function SalesReturnDetailPage({
             />
           </>
         )}
-        {manage && salesReturn.status === "RECEIVED" && (
+        {canInspect && salesReturn.status === "RECEIVED" && (
           <Link
             className="rounded border border-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--accent)]"
             href={`/sales/returns/${salesReturn.id}/inspection`}
@@ -135,10 +137,10 @@ export default async function SalesReturnDetailPage({
         <h2 className="mb-2 font-semibold">Financial effect</h2>
         {salesReturn.type === "INVOICED_RETURN" ? (
           <div className="grid gap-2 md:grid-cols-4">
-            <p>Gross: {salesReturn.grossAmount}</p>
-            <p>Discount reversal: {salesReturn.discountAmount}</p>
-            <p>Tax reversal: {salesReturn.taxAmount}</p>
-            <p>Customer credit: {salesReturn.creditAmount}</p>
+            <p>Gross: {formatMoney(salesReturn.grossAmount, "")}</p>
+            <p>Discount reversal: {formatMoney(salesReturn.discountAmount, "")}</p>
+            <p>Tax reversal: {formatMoney(salesReturn.taxAmount, "")}</p>
+            <p>Customer credit: {formatMoney(salesReturn.creditAmount, "")}</p>
           </div>
         ) : (
           <p>No financial credit — goods were not invoiced.</p>

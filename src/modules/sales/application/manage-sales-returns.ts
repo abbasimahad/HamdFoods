@@ -133,8 +133,10 @@ export async function inspectSalesReturn(
   form: Record<string, unknown>,
   repository: SalesReturnRepository,
 ): Promise<SalesReturnMutationResult> {
-  const denied = requireSalesReturnManager(actor);
-  if (denied) return denied;
+  // ROLE-3: classifying returned goods (resaleable, damaged, expired...) is a quality decision,
+  // so it belongs to Quality Control, not to the sales staff who booked the return.
+  if (!actor.active || !actor.permissions.includes("quality.manage"))
+    return { ok: false, message: "Quality inspection permission is required." };
   const parsed = z
     .object({ id: z.string().uuid(), inspections: z.array(inspection).min(1).max(1000) })
     .safeParse({ id, inspections: decode(form.inspectionsJson) });

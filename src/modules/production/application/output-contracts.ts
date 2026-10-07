@@ -91,6 +91,7 @@ export type ProductionOutputView = {
   productionBatchId: string;
   batchNumber: string;
   batchStatus: string;
+  batchType?: "NORMAL" | "REPROCESS";
   recipeCode: string;
   recipeVersion: number;
   finishedGoodCode: string;

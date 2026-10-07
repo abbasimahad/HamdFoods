@@ -59,7 +59,16 @@ export class PrismaReprocessRepository implements ReprocessRepository {
           orderBy: { position: "asc" },
         },
         childProductionLot: true,
-        linkedProductionBatch: { include: { productionCostSnapshot: true } },
+        linkedProductionBatch: {
+          include: {
+            productionCostSnapshot: true,
+            productContentCanonicalUnit: true,
+            outputTransactions: {
+              where: { status: "POSTED", outputType: "GOOD" },
+              select: { totalPieces: true },
+            },
+          },
+        },
         initiatedBy: true,
         completedBy: true,
         cancelledBy: true,

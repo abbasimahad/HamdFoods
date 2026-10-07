@@ -10,6 +10,7 @@ import {
 } from "@/modules/sales/application/manage-customer-payments";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaCustomerPaymentRepository } from "@/server/sales/prisma-customer-payment-repository";
+import { formatMoney } from "@/components/ui/format-money";
 type Params = {
   q?: string;
   customer?: string;
@@ -161,10 +162,12 @@ export default async function CustomerPaymentsPage({
                     {payment.reversalOfNumber ? " (reversal)" : ""}
                   </td>
                   <td className="p-3">
-                    {payment.reversalOfNumber ? `-${payment.totalAmount}` : payment.totalAmount}
+                    {payment.reversalOfNumber
+                      ? `-${formatMoney(payment.totalAmount, "")}`
+                      : formatMoney(payment.totalAmount, "")}
                   </td>
-                  <td className="p-3">{payment.allocatedAmount}</td>
-                  <td className="p-3">{payment.unallocatedAmount}</td>
+                  <td className="p-3">{formatMoney(payment.allocatedAmount, "")}</td>
+                  <td className="p-3">{formatMoney(payment.unallocatedAmount, "")}</td>
                   <td className="p-3">
                     {payment.reversalPaymentNumber ? (
                       <span className="font-semibold text-red-700">

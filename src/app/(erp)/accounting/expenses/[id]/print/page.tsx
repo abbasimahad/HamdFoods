@@ -5,6 +5,7 @@ import { PrintCompanyHeader } from "@/components/administration/print-company-he
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("accounting.view");
@@ -26,7 +27,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
       <PrintCompanyHeader profile={companyProfile} />
       <h1 className="text-2xl font-semibold">Expense Voucher {expense.number}</h1>
-      <p className="mt-2">Date: {expense.expenseDate.toISOString().slice(0, 10)}</p>
+      <p className="mt-2">Date: {formatFactoryDate(expense.expenseDate)}</p>
       <p>Paid from: {expense.treasuryAccount.name}</p>
       <p>Payee: {expense.payee ?? "—"}</p>
       <p>Description: {expense.description}</p>

@@ -5,6 +5,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
 import Decimal from "decimal.js";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("accounting.view");
   const account = await prisma.treasuryAccount.findUnique({
@@ -49,7 +50,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             {rows.map(({ line, runningBalance }) => {
               return (
                 <tr key={line.id}>
-                  <td className="p-3">{line.journal.accountingDate.toISOString().slice(0, 10)}</td>
+                  <td className="p-3">{formatFactoryDate(line.journal.accountingDate)}</td>
                   <td className="p-3">{line.journal.journalNumber}</td>
                   <td className="p-3">{line.journal.sourceType}</td>
                   <td className="p-3">{line.debit.toString()}</td>

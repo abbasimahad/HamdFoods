@@ -2,7 +2,7 @@
 
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import Decimal from "decimal.js";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import {
   emptyExpenseLine,
   ExpenseLinesEditor,
@@ -417,9 +417,40 @@ export function TreasuryTransferForm({
   treasuries: readonly { id: string; code: string; name: string }[];
 }) {
   const [state, action, pending] = useActionState(saveTreasuryTransferAction, undefined);
+  const [source, setSource] = useState("");
+  const [destination, setDestination] = useState("");
+  // UX-12: a transfer needs two different accounts -- say so before submitting, not after.
+  const sameAccount = source !== "" && source === destination;
+  // Submitted without React's automatic reset (a refused transfer keeps what was typed), so a
+  // saved draft clears the form explicitly: new controlled values and a remount for the rest.
+  const [seenState, setSeenState] = useState(state);
+  const [formKey, setFormKey] = useState(0);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state?.ok) {
+      setSource("");
+      setDestination("");
+      setFormKey((key) => key + 1);
+    }
+  }
   return (
-    <form action={action} className="grid gap-2 md:grid-cols-3">
-      <select className="rounded border px-3 py-2" name="sourceTreasuryAccountId" required>
+    <form
+      key={formKey}
+      className="grid gap-2 md:grid-cols-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (sameAccount) return;
+        const data = new FormData(event.currentTarget);
+        startTransition(() => action(data));
+      }}
+    >
+      <select
+        className="rounded border px-3 py-2"
+        name="sourceTreasuryAccountId"
+        onChange={(event) => setSource(event.target.value)}
+        required
+        value={source}
+      >
         <option value="">Source account</option>
         {treasuries.map((account) => (
           <option key={account.id} value={account.id}>
@@ -427,10 +458,16 @@ export function TreasuryTransferForm({
           </option>
         ))}
       </select>
-      <select className="rounded border px-3 py-2" name="destinationTreasuryAccountId" required>
+      <select
+        className="rounded border px-3 py-2"
+        name="destinationTreasuryAccountId"
+        onChange={(event) => setDestination(event.target.value)}
+        required
+        value={destination}
+      >
         <option value="">Destination account</option>
         {treasuries.map((account) => (
-          <option key={account.id} value={account.id}>
+          <option disabled={account.id === source} key={account.id} value={account.id}>
             {account.code} — {account.name}
           </option>
         ))}
@@ -445,9 +482,14 @@ export function TreasuryTransferForm({
       <input className="rounded border px-3 py-2" name="amount" placeholder="Amount" required />
       <input className="rounded border px-3 py-2" name="referenceNumber" placeholder="Reference" />
       <input className="rounded border px-3 py-2" name="notes" placeholder="Notes" />
-      <button className={button} disabled={pending}>
+      <button className={button} disabled={pending || sameAccount}>
         Save transfer draft
       </button>
+      {sameAccount ? (
+        <p className="text-sm text-red-700" role="alert">
+          Choose a destination account different from the source account.
+        </p>
+      ) : null}
       {state ? (
         <p className={state.ok ? "text-sm text-green-700" : "text-sm text-red-700"}>
           {state.message}

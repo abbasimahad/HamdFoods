@@ -629,9 +629,11 @@ async function buildView(
   const unexplainedShortfall =
     postedGoodPieces.lt(batch.plannedTotalPieces.toString()) &&
     !posted.some((row) => row.outputType !== "GOOD");
+  // UX-11: when inputs can't be compared with output content (a recipe mixing kg and L), the
+  // piece-based shortfall check above is the reconciliation; "not calculable" alone is no reason
+  // to demand an explanation from a batch that produced exactly what was planned.
   const needsExplanation =
     unexplainedShortfall ||
-    !reconciliation.compatible ||
     (reconciliation.unreconciledDifference !== null &&
       !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
     packaging.some((row) => row.consistencyWarning !== null);
@@ -639,6 +641,7 @@ async function buildView(
     productionBatchId: batch.id,
     batchNumber: batch.batchNumber,
     batchStatus: batch.status,
+    batchType: batch.batchType,
     recipeCode: batch.recipe.code,
     recipeVersion: batch.recipeVersion,
     finishedGoodCode: batch.finishedGood.code,
@@ -827,7 +830,6 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
     needsExplanation:
       batch.batchType === "NORMAL" &&
       (unexplainedShortfall ||
-        !reconciliation.compatible ||
         (reconciliation.unreconciledDifference !== null &&
           !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
         packagingMismatch),

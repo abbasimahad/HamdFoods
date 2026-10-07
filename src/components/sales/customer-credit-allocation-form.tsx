@@ -2,6 +2,7 @@
 import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useState } from "react";
 import type { OpenInvoice } from "@/modules/sales/application/customer-payment-contracts";
+import { formatMoney } from "@/components/ui/format-money";
 type State = { ok: boolean; message: string };
 type Action = (state: State, form: FormData) => Promise<State>;
 export function CustomerCreditAllocationForm({
@@ -62,7 +63,7 @@ export function CustomerCreditAllocationForm({
               <tr key={invoice.id}>
                 <td className="p-3">{invoice.number}</td>
                 <td className="p-3">{formatFactoryDate(invoice.dueDate)}</td>
-                <td className="p-3">{invoice.outstandingAmount}</td>
+                <td className="p-3">{formatMoney(invoice.outstandingAmount, "")}</td>
                 <td className="p-3">
                   <input
                     className="w-28 rounded border p-2"

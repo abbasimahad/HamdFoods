@@ -13,6 +13,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const principal = await requirePermission("accounting.view");
@@ -35,7 +36,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         description={`${expense.status} expense voucher — tax-inclusive amounts.`}
       />
       <Card className="mb-4 p-4 text-sm">
-        <p>Date: {expense.expenseDate.toISOString().slice(0, 10)}</p>
+        <p>Date: {formatFactoryDate(expense.expenseDate)}</p>
         <p>Paid from: {expense.treasuryAccount.name}</p>
         <p>Payee: {expense.payee ?? expense.supplier?.name ?? "—"}</p>
         <p>Description: {expense.description}</p>

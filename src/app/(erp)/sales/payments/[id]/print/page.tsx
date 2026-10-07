@@ -5,6 +5,7 @@ import { PrintCompanyHeader } from "@/components/administration/print-company-he
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaCustomerPaymentRepository } from "@/server/sales/prisma-customer-payment-repository";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function CustomerPaymentPrintPage({
   params,
 }: {
@@ -57,7 +58,7 @@ export default async function CustomerPaymentPrintPage({
           <p>
             {payment.method} ·{" "}
             {payment.reversalOfNumber
-              ? `-${payment.totalAmount} (refund / reversal)`
+              ? `-${formatMoney(payment.totalAmount, "")} (refund / reversal)`
               : payment.totalAmount}
           </p>
           <p>Reference: {payment.referenceNumber ?? "-"}</p>
@@ -76,15 +77,16 @@ export default async function CustomerPaymentPrintPage({
           {payment.allocations.map((allocation) => (
             <tr className="border-b" key={`${allocation.id}-${allocation.allocatedAmount}`}>
               <td>{allocation.number}</td>
-              <td>{allocation.originalAmount}</td>
-              <td>{allocation.allocatedAmount}</td>
-              <td>{allocation.outstandingAmount}</td>
+              <td>{formatMoney(allocation.originalAmount, "")}</td>
+              <td>{formatMoney(allocation.allocatedAmount, "")}</td>
+              <td>{formatMoney(allocation.outstandingAmount, "")}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="mt-5 text-right">
-        Allocated {payment.allocatedAmount} · Unallocated credit {payment.unallocatedAmount}
+        Allocated {formatMoney(payment.allocatedAmount, "")} · Unallocated credit{" "}
+        {formatMoney(payment.unallocatedAmount, "")}
       </p>
       {payment.notes && <p className="mt-6 text-sm">{payment.notes}</p>}
       <p className="mt-8 text-sm">Posted / authorized by: {payment.postedByName ?? "Draft"}</p>

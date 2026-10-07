@@ -7,6 +7,7 @@ import { hasPermission } from "@/modules/access/domain/principal";
 import { parseSalesInvoiceStatus } from "@/modules/sales/application/manage-sales-invoices";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesInvoiceRepository } from "@/server/sales/prisma-sales-invoice-repository";
+import { formatMoney } from "@/components/ui/format-money";
 
 type Params = {
   q?: string;
@@ -156,10 +157,10 @@ export default async function SalesInvoicesPage({
                   <td className="p-3">{formatFactoryDate(invoice.invoiceDate)}</td>
                   <td className="p-3">{invoice.customerName}</td>
                   <td className="p-3">{invoice.salesOrderNumber}</td>
-                  <td className="p-3">{invoice.grandTotal}</td>
+                  <td className="p-3">{formatMoney(invoice.grandTotal, "")}</td>
                   <td className="p-3">{formatFactoryDate(invoice.dueDate)}</td>
                   <td className="p-3">{invoice.status}</td>
-                  <td className="p-3">{invoice.outstandingAmount}</td>
+                  <td className="p-3">{formatMoney(invoice.outstandingAmount, "")}</td>
                   <td className="p-3">{invoice.postedByName ?? "-"}</td>
                 </tr>
               ))}

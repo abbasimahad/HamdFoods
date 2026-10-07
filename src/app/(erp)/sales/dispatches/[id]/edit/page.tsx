@@ -3,7 +3,8 @@ import { SalesDispatchForm } from "@/components/sales/sales-dispatch-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
+import { DISPATCH_PERMISSIONS } from "@/modules/sales/application/sales-dispatch-contracts";
 import { PrismaSalesDispatchRepository } from "@/server/sales/prisma-sales-dispatch-repository";
 import { saveSalesDispatchAction } from "../../actions";
 export default async function EditSalesDispatchPage({
@@ -11,7 +12,7 @@ export default async function EditSalesDispatchPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("sales.manage");
+  await requireAnyPermission(DISPATCH_PERMISSIONS);
   const repository = new PrismaSalesDispatchRepository();
   const dispatch = await repository.getSalesDispatch((await params).id);
   if (!dispatch) notFound();

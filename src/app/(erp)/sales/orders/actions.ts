@@ -39,7 +39,12 @@ export async function approveSalesOrderAction(
 ): Promise<SalesOrderActionState> {
   const actor = await requirePermission("sales.approve");
   const id = String(formData.get("id") ?? "");
-  const result = await approveSalesOrder(actor, id, repository);
+  const result = await approveSalesOrder(
+    actor,
+    id,
+    repository,
+    String(formData.get("creditOverrideReason") ?? ""),
+  );
   if (result.ok) refresh(id);
   return {
     ok: result.ok,

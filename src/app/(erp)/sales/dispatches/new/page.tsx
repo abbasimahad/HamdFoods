@@ -2,7 +2,8 @@ import { SalesDispatchForm } from "@/components/sales/sales-dispatch-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
-import { requirePermission } from "@/server/auth/server-guards";
+import { requireAnyPermission } from "@/server/auth/server-guards";
+import { DISPATCH_PERMISSIONS } from "@/modules/sales/application/sales-dispatch-contracts";
 import { PrismaSalesDispatchRepository } from "@/server/sales/prisma-sales-dispatch-repository";
 import { saveSalesDispatchAction } from "../actions";
 export default async function NewSalesDispatchPage({
@@ -10,7 +11,7 @@ export default async function NewSalesDispatchPage({
 }: {
   searchParams: Promise<{ order?: string }>;
 }) {
-  await requirePermission("sales.manage");
+  await requireAnyPermission(DISPATCH_PERMISSIONS);
   const repository = new PrismaSalesDispatchRepository();
   const orderId = (await searchParams).order;
   const [references, order] = await Promise.all([

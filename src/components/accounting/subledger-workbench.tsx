@@ -6,6 +6,8 @@ import type {
 } from "@/modules/accounting/application/subledger-workbench-contracts";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { formatMoney } from "@/components/ui/format-money";
 
 export function SubledgerList({
   rows,
@@ -48,14 +50,14 @@ export function SubledgerList({
                   {row.code} · {row.name}
                 </Link>
               </td>
-              <td className="p-3">{row.outstandingBalance}</td>
-              <td className="p-3">{row.creditsAvailable}</td>
-              <td className="p-3 font-semibold">{row.netBalance}</td>
-              <td className="p-3">{row.aging.current}</td>
-              <td className="p-3">{row.aging.days1To30}</td>
-              <td className="p-3">{row.aging.days31To60}</td>
-              <td className="p-3">{row.aging.days61To90}</td>
-              <td className="p-3">{row.aging.days90Plus}</td>
+              <td className="p-3">{formatMoney(row.outstandingBalance, "")}</td>
+              <td className="p-3">{formatMoney(row.creditsAvailable, "")}</td>
+              <td className="p-3 font-semibold">{formatMoney(row.netBalance, "")}</td>
+              <td className="p-3">{formatMoney(row.aging.current, "")}</td>
+              <td className="p-3">{formatMoney(row.aging.days1To30, "")}</td>
+              <td className="p-3">{formatMoney(row.aging.days31To60, "")}</td>
+              <td className="p-3">{formatMoney(row.aging.days61To90, "")}</td>
+              <td className="p-3">{formatMoney(row.aging.days90Plus, "")}</td>
             </tr>
           ))}
         </tbody>
@@ -96,12 +98,12 @@ export function SubledgerDetail({ detail }: { detail: SubledgerPartyDetail }) {
           <tbody className="divide-y">
             {detail.history.map((row) => (
               <tr key={`${row.type}-${row.id}`}>
-                <td className="p-3">{row.date.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(row.date)}</td>
                 <td className="p-3">{row.type}</td>
                 <td className="p-3">{historyLink(row.type, row.id, row.number)}</td>
                 <td className="p-3">{row.description}</td>
-                <td className="p-3">{row.debit}</td>
-                <td className="p-3">{row.credit}</td>
+                <td className="p-3">{formatMoney(row.debit, "")}</td>
+                <td className="p-3">{formatMoney(row.credit, "")}</td>
               </tr>
             ))}
           </tbody>

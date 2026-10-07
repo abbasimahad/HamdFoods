@@ -1,11 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import { allocateByWeights, calculateProductionCostTotals, derivedCartonCost } from "./costing";
+import {
+  allocateByWeights,
+  calculateProductionCostTotals,
+  currencyAmount,
+  derivedCartonCost,
+  signedCurrencyAmount,
+} from "./costing";
 
 describe("exact costing", () => {
   it("allocates the final rounding remainder without losing value", () => {
     const allocations = allocateByWeights("100", ["1", "1", "1"]);
-    expect(allocations).toEqual(["33.333333", "33.333333", "33.333334"]);
+    expect(allocations).toEqual(["33.330000", "33.330000", "33.340000"]);
+  });
+
+  it("refuses sub-paisa monetary inputs (BUG-34)", () => {
+    expect(currencyAmount("10.25", "Amount").toFixed()).toBe("10.25");
+    expect(() => currencyAmount("10.255", "Amount")).toThrow("at most 2 decimal places");
+    expect(signedCurrencyAmount("-4.5", "Adjustment").toFixed()).toBe("-4.5");
+    expect(() => signedCurrencyAmount("-4.501", "Adjustment")).toThrow("at most 2 decimal");
   });
 
   it("calculates the finished-goods pool and actual output costs", () => {

@@ -5,6 +5,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { Card } from "@/components/ui/card";
 import { balanceSheet, reportAsOf } from "@/server/accounting/financial-reporting";
 import { requirePermission } from "@/server/auth/server-guards";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ asOf?: string }> }) {
   await requirePermission("accounting.view");
@@ -35,7 +36,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
     <ResponsiveContainer>
       <PageHeader
         title="Balance Sheet"
-        description={`Posted journals only · As of ${asOf.toISOString().slice(0, 10)}`}
+        description={`Posted journals only · As of ${formatFactoryDate(asOf)}`}
       />
       <FinancialReportControls asOf={asOf.toISOString().slice(0, 10)} />
       <Card className="overflow-hidden">

@@ -4,6 +4,7 @@ import Decimal from "decimal.js";
 import { prisma } from "@/server/db/prisma";
 import { reconciliation } from "@/server/accounting/prisma-accounting-repository";
 import { recordAuditEvent } from "@/server/audit/audit-event";
+import { formatMoney } from "@/components/ui/format-money";
 
 export type CloseReadiness = {
   period: { id: string; name: string; startDate: Date; endDate: Date; status: "OPEN" | "CLOSED" };
@@ -52,7 +53,7 @@ export async function periodCloseReadiness(periodId: string): Promise<CloseReadi
     {
       label: "Posted trial balance",
       state: debits.eq(credits) ? ("pass" as const) : ("block" as const),
-      detail: `Debit ${debits.toFixed(6)}; credit ${credits.toFixed(6)}.`,
+      detail: `Debit ${formatMoney(debits, "")}; credit ${formatMoney(credits, "")}.`,
     },
     {
       label: "Unresolved posting blocks",
@@ -127,7 +128,23 @@ export async function closeAccountingPeriod(periodId: string, actorUserId: strin
   );
 }
 
-export async function reopenAccountingPeriod(
+/**
+ * ROLE-3: the open reopen request of a closed period, if any -- the latest request with no later
+ * close, reopen or rejection.
+ */
+export function pendingReopenRequest<
+  T extends { action: string; createdAt: Date; actorUserId: string; reason: string | null },
+>(events: readonly T[]) {
+  const latest = [...events]
+    .filter((event) =>
+      ["CLOSED", "REOPENED", "REOPEN_REQUESTED", "REOPEN_REJECTED"].includes(event.action),
+    )
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+  return latest?.action === "REOPEN_REQUESTED" ? latest : null;
+}
+
+/** Step 1 of reopening a closed period: Accounts records the request and its reason. */
+export async function requestAccountingPeriodReopen(
   periodId: string,
   actorUserId: string,
   reason: string,
@@ -137,26 +154,96 @@ export async function reopenAccountingPeriod(
     throw new PeriodCloseError("A reason is required to reopen an accounting period.");
   await prisma.$transaction(
     async (tx) => {
-      const updated = await tx.accountingPeriod.updateMany({
-        where: { id: periodId, status: "CLOSED" },
-        data: { status: "OPEN" },
+      const period = await tx.accountingPeriod.findUnique({
+        where: { id: periodId },
+        include: { events: true },
       });
-      if (updated.count !== 1)
+      if (!period || period.status !== "CLOSED")
         throw new PeriodCloseError("Only a CLOSED accounting period can be reopened.");
+      if (pendingReopenRequest(period.events))
+        throw new PeriodCloseError(
+          "A reopen request for this period is already awaiting approval.",
+        );
       await tx.accountingPeriodEvent.create({
-        data: { periodId, action: "REOPENED", reason: trimmedReason, actorUserId },
+        data: { periodId, action: "REOPEN_REQUESTED", reason: trimmedReason, actorUserId },
       });
       await recordAuditEvent(tx, {
         actorUserId,
-        action: "REOPEN",
+        action: "UPDATE",
         entityType: "ACCOUNTING_PERIOD",
         entityId: periodId,
-        entityReference: (await tx.accountingPeriod.findUniqueOrThrow({ where: { id: periodId } }))
-          .name,
+        entityReference: period.name,
         module: "accounting",
-        description: "Reopened an accounting period.",
+        description: "Requested reopening of a closed accounting period (awaiting approval).",
         reasonCode: "ACCOUNTING_CORRECTION",
         reason: trimmedReason,
+        controlEvent: true,
+      });
+    },
+    { isolationLevel: "Serializable" },
+  );
+}
+
+/**
+ * Step 2: a different user with accounting_periods.reopen_approve approves (the period becomes
+ * OPEN) or rejects the request. The requester can never decide their own request.
+ */
+export async function decideAccountingPeriodReopen(
+  periodId: string,
+  actorUserId: string,
+  decision: "APPROVE" | "REJECT",
+  note: string,
+) {
+  const trimmedNote = note.trim();
+  if (decision === "REJECT" && !trimmedNote)
+    throw new PeriodCloseError("A reason is required to reject a reopen request.");
+  await prisma.$transaction(
+    async (tx) => {
+      const period = await tx.accountingPeriod.findUnique({
+        where: { id: periodId },
+        include: { events: true },
+      });
+      const request = period ? pendingReopenRequest(period.events) : null;
+      if (!period || period.status !== "CLOSED" || !request)
+        throw new PeriodCloseError("There is no reopen request awaiting approval for this period.");
+      if (request.actorUserId === actorUserId)
+        throw new PeriodCloseError(
+          "A reopen request must be approved or rejected by someone other than the requester.",
+        );
+      const reason =
+        decision === "APPROVE"
+          ? `${request.reason ?? ""}${trimmedNote ? ` (approval note: ${trimmedNote})` : ""}`
+          : trimmedNote;
+      if (decision === "APPROVE") {
+        const updated = await tx.accountingPeriod.updateMany({
+          where: { id: periodId, status: "CLOSED" },
+          data: { status: "OPEN" },
+        });
+        if (updated.count !== 1)
+          throw new PeriodCloseError("Only a CLOSED accounting period can be reopened.");
+      }
+      await tx.accountingPeriodEvent.create({
+        data: {
+          periodId,
+          action: decision === "APPROVE" ? "REOPENED" : "REOPEN_REJECTED",
+          reason,
+          actorUserId,
+        },
+      });
+      await recordAuditEvent(tx, {
+        actorUserId,
+        action: decision === "APPROVE" ? "REOPEN" : "CANCEL",
+        entityType: "ACCOUNTING_PERIOD",
+        entityId: periodId,
+        entityReference: period.name,
+        module: "accounting",
+        description:
+          decision === "APPROVE"
+            ? "Approved a reopen request; the accounting period is OPEN."
+            : "Rejected a reopen request; the accounting period stays CLOSED.",
+        reasonCode: "ACCOUNTING_CORRECTION",
+        reason,
+        metadata: { requestedByUserId: request.actorUserId, requestReason: request.reason },
         controlEvent: true,
       });
     },

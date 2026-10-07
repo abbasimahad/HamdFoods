@@ -278,12 +278,19 @@ export class PrismaSalesInvoiceRepository implements SalesInvoiceRepository {
         throw fail("invalid-state", "Only draft invoices can be posted.");
       if (!invoice.lines.length)
         throw fail("invalid-reference", "Invoice needs at least one line.");
-      await assertCreditAvailable(
-        transaction,
-        invoice.customerId,
-        invoice.grandTotal.toString(),
-        invoice.salesOrderId,
-      );
+      // ROLE-3: an order approved over the limit by an authorised override is not blocked again
+      // when its own invoice is posted.
+      const overridden = await transaction.salesOrder.findFirst({
+        where: { id: invoice.salesOrderId, creditOverrideAt: { not: null } },
+        select: { id: true },
+      });
+      if (!overridden)
+        await assertCreditAvailable(
+          transaction,
+          invoice.customerId,
+          invoice.grandTotal.toString(),
+          invoice.salesOrderId,
+        );
       for (const line of invoice.lines) {
         if (
           !sum(line.allocations.map((allocation) => allocation.quantity)).eq(

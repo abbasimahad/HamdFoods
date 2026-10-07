@@ -12,6 +12,7 @@ import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { treasuryAccounts } from "@/server/accounting/prisma-phase23-repository";
 import { prisma } from "@/server/db/prisma";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page() {
   const principal = await requirePermission("accounting.view");
   const [treasuries, transfers] = await Promise.all([
@@ -57,7 +58,7 @@ export default async function Page() {
                     {transfer.number}
                   </Link>
                 </td>
-                <td className="p-3">{transfer.transferDate.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(transfer.transferDate)}</td>
                 <td className="p-3">{transfer.sourceTreasuryAccount.name}</td>
                 <td className="p-3">{transfer.destinationTreasuryAccount.name}</td>
                 <td className="p-3">{formatMoney(transfer.amount, "")}</td>

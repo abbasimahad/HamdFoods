@@ -52,8 +52,8 @@ export default async function ReceivablesPage({
   );
 }
 function parseDate(value?: string) {
-  const parsed = value ? new Date(`${value}T23:59:59.999Z`) : undefined;
-  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : endOfFactoryLocalDay();
+  // The whole factory-local (PKT) day, matching every other "as of" report.
+  return endOfFactoryLocalDay(value);
 }
 function Pagination({
   base,

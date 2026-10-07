@@ -9,9 +9,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
-import { periodCloseReadiness } from "@/server/accounting/period-close";
+import { pendingReopenRequest, periodCloseReadiness } from "@/server/accounting/period-close";
+import { hasPermission } from "@/modules/access/domain/principal";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page() {
-  await requirePermission("accounting.manage");
+  const principal = await requirePermission("accounting.manage");
+  const canApproveReopen = hasPermission(principal, "accounting_periods.reopen_approve");
   const [settings, periods, accounts] = await Promise.all([
     prisma.accountingSettings.findUnique({
       where: { id: "default" },
@@ -83,8 +86,8 @@ export default async function Page() {
             {periods.map((period) => (
               <tr key={period.id}>
                 <td className="p-3">{period.name}</td>
-                <td className="p-3">{period.startDate.toISOString().slice(0, 10)}</td>
-                <td className="p-3">{period.endDate.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(period.startDate)}</td>
+                <td className="p-3">{formatFactoryDate(period.endDate)}</td>
                 <td className="p-3">{period.status}</td>
                 <td className="p-3 text-xs">
                   <ul className="space-y-1">
@@ -104,15 +107,18 @@ export default async function Page() {
                     ))}
                     {period.events.map((event) => (
                       <li key={event.id}>
-                        {event.action} by {event.actor.name} on{" "}
-                        {event.createdAt.toISOString().slice(0, 10)}
+                        {event.action} by {event.actor.name} on {formatFactoryDate(event.createdAt)}
                         {event.reason ? `: ${event.reason}` : ""}
                       </li>
                     ))}
                   </ul>
                 </td>
                 <td className="p-3">
-                  <AccountingPeriodStatusForm periodId={period.id} status={period.status} />
+                  <PeriodAction
+                    canApproveReopen={canApproveReopen}
+                    period={period}
+                    viewerId={principal.id}
+                  />
                 </td>
               </tr>
             ))}
@@ -120,5 +126,37 @@ export default async function Page() {
         </table>
       </Card>
     </ResponsiveContainer>
+  );
+}
+
+function PeriodAction({
+  period,
+  viewerId,
+  canApproveReopen,
+}: {
+  period: {
+    id: string;
+    status: "OPEN" | "CLOSED";
+    events: readonly {
+      action: string;
+      createdAt: Date;
+      actorUserId: string;
+      reason: string | null;
+      actor: { name: string };
+    }[];
+  };
+  viewerId: string;
+  canApproveReopen: boolean;
+}) {
+  const request = pendingReopenRequest(period.events);
+  return (
+    <AccountingPeriodStatusForm
+      canDecide={Boolean(request) && canApproveReopen && request?.actorUserId !== viewerId}
+      pendingRequest={
+        request ? { requestedBy: request.actor.name, reason: request.reason ?? "" } : null
+      }
+      periodId={period.id}
+      status={period.status}
+    />
   );
 }

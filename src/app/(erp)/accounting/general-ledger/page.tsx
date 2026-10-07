@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { requirePermission } from "@/server/auth/server-guards";
 import { generalLedger } from "@/server/accounting/prisma-accounting-repository";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function Page({
   searchParams,
 }: {
@@ -59,11 +61,11 @@ export default async function Page({
           <tbody className="divide-y">
             {result.lines.map((line) => (
               <tr key={line.id}>
-                <td className="p-3">{line.journal.accountingDate.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(line.journal.accountingDate)}</td>
                 <td className="p-3">{line.journal.journalNumber}</td>
                 <td className="p-3">{line.debit.toString()}</td>
                 <td className="p-3">{line.credit.toString()}</td>
-                <td className="p-3">{line.runningBalance}</td>
+                <td className="p-3">{formatMoney(line.runningBalance, "")}</td>
               </tr>
             ))}
           </tbody>

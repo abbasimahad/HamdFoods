@@ -5,6 +5,7 @@ import { PrintCompanyHeader } from "@/components/administration/print-company-he
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaSalesReturnRepository } from "@/server/sales/prisma-sales-return-repository";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function PrintSalesReturnPage({
   params,
 }: {
@@ -62,7 +63,7 @@ export default async function PrintSalesReturnPage({
       </table>
       <p className="mt-6 font-semibold">
         {salesReturn.type === "INVOICED_RETURN"
-          ? `Customer credit: ${salesReturn.creditAmount}`
+          ? `Customer credit: ${formatMoney(salesReturn.creditAmount, "")}`
           : "No financial credit — goods were not invoiced."}
       </p>
     </main>

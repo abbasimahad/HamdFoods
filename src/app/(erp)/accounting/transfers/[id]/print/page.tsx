@@ -5,6 +5,7 @@ import { PrintCompanyHeader } from "@/components/administration/print-company-he
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { prisma } from "@/server/db/prisma";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("accounting.view");
@@ -25,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <h1 className="text-2xl font-semibold">Treasury Transfer {transfer.number}</h1>
       <dl className="mt-5 grid grid-cols-2 gap-3">
         <dt>Date</dt>
-        <dd>{transfer.transferDate.toISOString().slice(0, 10)}</dd>
+        <dd>{formatFactoryDate(transfer.transferDate)}</dd>
         <dt>Source</dt>
         <dd>{transfer.sourceTreasuryAccount.name}</dd>
         <dt>Destination</dt>

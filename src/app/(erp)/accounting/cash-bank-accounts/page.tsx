@@ -7,6 +7,8 @@ import { hasPermission } from "@/modules/access/domain/principal";
 import { requirePermission } from "@/server/auth/server-guards";
 import { treasuryAccounts } from "@/server/accounting/prisma-phase23-repository";
 import { prisma } from "@/server/db/prisma";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function Page() {
   const principal = await requirePermission("accounting.view");
   const [treasuries, accounts] = await Promise.all([
@@ -54,12 +56,13 @@ export default async function Page() {
                 <td className="p-3">
                   {account.glAccount.code} — {account.glAccount.name}
                 </td>
-                <td className="p-3">{account.balance}</td>
+                <td className="p-3">{formatMoney(account.balance, "")}</td>
                 <td className="p-3 text-xs">
                   {account.recentActivity.length
                     ? account.recentActivity.map((line) => (
                         <div key={`${line.journalNumber}-${line.date.toISOString()}`}>
-                          {line.date.toISOString().slice(0, 10)} {line.journalNumber}: {line.amount}
+                          {formatFactoryDate(line.date)} {line.journalNumber}:{" "}
+                          {formatMoney(line.amount, "")}
                         </div>
                       ))
                     : "No posted activity"}

@@ -21,10 +21,13 @@ const expectedPermissions = [
   "sales.view",
   "sales.manage",
   "sales.approve",
+  "sales.credit_override",
   "sales_invoices.post",
+  "dispatches.manage",
   "customer_payments.manage",
   "accounting.view",
   "accounting.manage",
+  "accounting_periods.reopen_approve",
   "reports.view",
   "users.view",
   "users.manage",
@@ -73,6 +76,7 @@ describe("access-control domain", () => {
       "dashboard.view",
       "sales.view",
       "sales.manage",
+      "dispatches.manage",
       "inventory.view",
     ]);
     expect(DEFAULT_ROLE_PERMISSIONS.PRODUCTION_MANAGER).not.toContain("quality.manage");

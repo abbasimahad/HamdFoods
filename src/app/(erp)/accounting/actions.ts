@@ -10,7 +10,8 @@ import { safeActionErrorMessage } from "@/server/shared/action-error";
 import {
   closeAccountingPeriod,
   PeriodCloseError,
-  reopenAccountingPeriod,
+  decideAccountingPeriodReopen,
+  requestAccountingPeriodReopen,
 } from "@/server/accounting/period-close";
 import {
   AccountingPostingError,
@@ -278,7 +279,9 @@ export async function setAccountingPeriodStatusAction(
   try {
     if (parsed.data.status === "CLOSED")
       await closeAccountingPeriod(parsed.data.periodId, actor.id);
-    else await reopenAccountingPeriod(parsed.data.periodId, actor.id, parsed.data.reason ?? "");
+    // ROLE-3: reopening is a request; another user with reopen approval decides it.
+    else
+      await requestAccountingPeriodReopen(parsed.data.periodId, actor.id, parsed.data.reason ?? "");
     revalidatePath("/accounting");
     revalidatePath("/accounting/settings");
     revalidatePath("/accounting/reports");
@@ -289,6 +292,45 @@ export async function setAccountingPeriodStatusAction(
       message: safeActionErrorMessage(
         error,
         "Period status could not be changed.",
+        PeriodCloseError,
+      ),
+    };
+  }
+}
+
+export async function decideAccountingPeriodReopenAction(
+  _: Result | undefined,
+  formData: FormData,
+): Promise<Result> {
+  const actor = await requirePermission("accounting_periods.reopen_approve");
+  const parsed = z
+    .object({
+      periodId: z.string().uuid(),
+      decision: z.enum(["APPROVE", "REJECT"]),
+      note: z.string().trim().max(500).optional(),
+    })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, message: "Reopen decision is invalid." };
+  try {
+    await decideAccountingPeriodReopen(
+      parsed.data.periodId,
+      actor.id,
+      parsed.data.decision,
+      parsed.data.note ?? "",
+    );
+    revalidatePath("/accounting");
+    revalidatePath("/accounting/settings");
+    revalidatePath("/accounting/reports");
+    return {
+      ok: true,
+      message: parsed.data.decision === "APPROVE" ? "Period reopened." : "Reopen request rejected.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: safeActionErrorMessage(
+        error,
+        "The reopen request could not be decided.",
         PeriodCloseError,
       ),
     };

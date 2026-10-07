@@ -199,9 +199,15 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
       {canManage && (
         <Card className="space-y-4 p-5">
           <h2 className="font-semibold">Lifecycle actions</h2>
-          {recipe.status === "DRAFT" && (
-            <ApproveRecipeForm action={approveRecipeAction} id={recipe.id} />
-          )}
+          {recipe.status === "DRAFT" &&
+            (recipe.createdByUserId === principal.id ? (
+              <p className="text-sm text-[var(--muted)]">
+                You created this version, so another production manager or an administrator must
+                approve it.
+              </p>
+            ) : (
+              <ApproveRecipeForm action={approveRecipeAction} id={recipe.id} />
+            ))}
           {recipe.status === "APPROVED" && (
             <InactivateRecipeForm action={inactivateRecipeAction} id={recipe.id} />
           )}

@@ -37,7 +37,8 @@ export default async function SalesDispatchesPage({
         description="Delivery notes allocate approved-order reservations to finished-good lots and move them from RESERVED to IN TRANSIT."
       />
       <div className="mb-4 flex justify-end">
-        {hasPermission(principal, "sales.manage") && (
+        {(hasPermission(principal, "sales.manage") ||
+          hasPermission(principal, "dispatches.manage")) && (
           <Link
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
             href="/sales/dispatches/new"

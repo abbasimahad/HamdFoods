@@ -23,7 +23,11 @@ export async function savePackagingTransactionAction(
   if (result.ok) {
     const batchId = String(formData.get("productionBatchId") ?? "");
     refresh(batchId);
-    redirect(`/production/batches/${batchId}/packaging`);
+    // UX-10: stay on the transaction type just used, so the next entry isn't silently an ISSUE.
+    const type = encodeURIComponent(String(formData.get("transactionType") ?? ""));
+    redirect(
+      `/production/batches/${batchId}/packaging${type ? `?type=${type}&saved=1` : "?saved=1"}`,
+    );
   }
   return { ok: false, message: result.message };
 }

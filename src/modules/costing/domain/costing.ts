@@ -43,8 +43,24 @@ export function exactSignedCost(value: string, label: string) {
   }
 }
 
+/**
+ * BUG-34: an amount a user types (landed cost, production cost, value adjustment) becomes a journal
+ * line as-is, so it must already be a currency amount -- whole paisa, at most 2 decimals.
+ */
+export function currencyAmount(value: string, label: string, allowZero = false) {
+  const amount = exactCost(value, label, allowZero);
+  if (amount.decimalPlaces() > 2) throw new Error(`${label} can have at most 2 decimal places.`);
+  return amount;
+}
+
+export function signedCurrencyAmount(value: string, label: string) {
+  const amount = exactSignedCost(value, label);
+  if (amount.decimalPlaces() > 2) throw new Error(`${label} can have at most 2 decimal places.`);
+  return amount;
+}
+
 export function allocateByWeights(total: string, weights: readonly string[]) {
-  const amount = exactCost(total, "Landed cost total");
+  const amount = currencyAmount(total, "Landed cost total");
   const parsed = weights.map((weight) => exactCost(weight, "Allocation weight"));
   const denominator = parsed.reduce((sum, weight) => sum.add(weight), new Decimal(0));
   if (denominator.lte(0)) throw new Error("Allocation weights must total more than zero.");
@@ -53,14 +69,21 @@ export function allocateByWeights(total: string, weights: readonly string[]) {
     const value =
       index === parsed.length - 1
         ? amount.sub(allocated)
-        : amount.mul(weight).div(denominator).toDecimalPlaces(6, Decimal.ROUND_HALF_UP);
+        : amount.mul(weight).div(denominator).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     allocated = allocated.add(value);
     return value.toFixed(6);
   });
 }
 
+/** Grouped for display ("1,291,106.32"); extra decimals beyond 2 are shown only when non-zero. */
 export function formatCost(value: string | null, digits = 2) {
-  return value === null ? "Missing" : new Decimal(value).toFixed(digits);
+  if (value === null) return "Missing";
+  return new Intl.NumberFormat("en-PK", {
+    minimumFractionDigits: Math.min(2, digits),
+    maximumFractionDigits: digits,
+  }).format(
+    Number(new Decimal(value).toDecimalPlaces(digits, Decimal.ROUND_HALF_UP).toFixed(digits)),
+  );
 }
 export function derivedCartonCost(unitCost: string, piecesPerCarton: number) {
   return new Decimal(unitCost).mul(piecesPerCarton).toFixed(6);

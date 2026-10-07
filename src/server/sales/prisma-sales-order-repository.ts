@@ -153,7 +153,7 @@ export class PrismaSalesOrderRepository implements SalesOrderRepository {
     });
   }
 
-  async approveSalesOrder(id: string, actorUserId: string) {
+  async approveSalesOrder(id: string, actorUserId: string, creditOverrideReason?: string) {
     await serializable(async (transaction) => {
       const order = await transaction.salesOrder.findUnique({
         where: { id },
@@ -166,7 +166,14 @@ export class PrismaSalesOrderRepository implements SalesOrderRepository {
           "Only a draft sales order can be approved.",
         );
       const prepared = await prepareApproval(transaction, order);
-      await assertCreditAvailable(transaction, order.customerId, prepared.totals.grandTotal);
+      let creditOverride: { reason: string; exceeded: string } | null = null;
+      try {
+        await assertCreditAvailable(transaction, order.customerId, prepared.totals.grandTotal);
+      } catch (error) {
+        // ROLE-3: an authorised manager may approve over the limit with a recorded reason.
+        if (!(error instanceof CreditExposureError) || !creditOverrideReason) throw error;
+        creditOverride = { reason: creditOverrideReason, exceeded: error.message };
+      }
       for (const [index, line] of prepared.lines.entries()) {
         await transaction.salesOrderLine.update({
           where: { salesOrderId_position: { salesOrderId: id, position: index + 1 } },
@@ -194,8 +201,32 @@ export class PrismaSalesOrderRepository implements SalesOrderRepository {
           status: "APPROVED",
           approvedByUserId: actorUserId,
           approvedAt: new Date(),
+          ...(creditOverride
+            ? {
+                creditOverrideReason: creditOverride.reason,
+                creditOverrideByUserId: actorUserId,
+                creditOverrideAt: new Date(),
+              }
+            : {}),
         },
       });
+      if (creditOverride)
+        await recordAuditEvent(transaction, {
+          actorUserId,
+          action: "OVERRIDE",
+          entityType: "SALES_ORDER",
+          entityId: order.id,
+          entityReference: order.number,
+          module: "sales",
+          description: `Approved sales order ${order.number} over the customer credit limit.`,
+          reasonCode: "MANAGEMENT_APPROVAL",
+          reason: creditOverride.reason,
+          metadata: {
+            grandTotal: prepared.totals.grandTotal,
+            creditCheck: creditOverride.exceeded,
+          },
+          controlEvent: true,
+        });
       await recordAuditEvent(transaction, {
         actorUserId,
         action: "APPROVE",
@@ -681,6 +712,7 @@ function mapOrder(
     createdByName: row.createdBy.name,
     approvedByName: row.approvedBy?.name ?? null,
     approvedAt: row.approvedAt,
+    creditOverrideReason: row.creditOverrideReason,
     cancelledByName: row.cancelledBy?.name ?? null,
     cancelledAt: row.cancelledAt,
     cancellationReason: row.cancellationReason,

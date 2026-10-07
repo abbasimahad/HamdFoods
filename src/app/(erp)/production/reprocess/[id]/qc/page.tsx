@@ -1,4 +1,5 @@
 import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { reprocessOutputSummary } from "@/components/production/reprocess-output-summary";
 import { notFound, redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -33,10 +34,7 @@ export default async function ReprocessQualityPage({
         />
         <Fact label="Child lot" value={document.childProductionLot?.lotNumber ?? "Missing"} />
         <Fact label="Child expiry" value={formatFactoryDate(document.childExpiry) ?? "Missing"} />
-        <Fact
-          label="GOOD / scrap / loss"
-          value={`${document.goodContentOutput ?? "-"} / ${document.scrapContentOutput ?? "-"} / ${document.processLossContent ?? "-"}`}
-        />
+        <Fact label="Reprocess output" value={reprocessOutputSummary(document)} />
       </Card>
       <Card className="p-5">
         {selfReview ? (

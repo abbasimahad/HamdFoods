@@ -9,6 +9,7 @@ import { parsePurchaseInvoiceStatus } from "@/modules/purchasing/application/pur
 import { PURCHASE_INVOICE_STATUSES } from "@/modules/purchasing/application/purchase-invoice-contracts";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaPurchaseInvoiceRepository } from "@/server/purchasing/prisma-purchase-invoice-repository";
+import { formatMoney } from "@/components/ui/format-money";
 
 type Params = {
   q?: string;
@@ -141,7 +142,7 @@ export default async function PurchaseInvoicesPage({
                   <td className="p-4">{record.supplierName}</td>
                   <td className="p-4">{record.supplierInvoiceNumber}</td>
                   <td className="p-4">{record.status}</td>
-                  <td className="p-4">{record.grandTotal}</td>
+                  <td className="p-4">{formatMoney(record.grandTotal, "")}</td>
                   <td className="p-4">
                     {(Number(record.priceVarianceTotal) + Number(record.taxVarianceTotal)).toFixed(
                       2,

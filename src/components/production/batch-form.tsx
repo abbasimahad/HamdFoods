@@ -70,14 +70,18 @@ export function ProductionBatchForm({
             label="Raw-material warehouse"
             name="rawMaterialWarehouseId"
             defaultValue={
-              initial?.rawMaterialWarehouseId ?? suggestWarehouse(warehouses, /raw|material|rm/i)
+              initial?.rawMaterialWarehouseId ??
+              suggestWarehouse(warehouses, "RAW_MATERIAL", /\braw\b|\brm\b/i)
             }
             options={warehouseOptions(warehouses)}
           />
           <Select
             label="Packaging warehouse"
             name="packagingWarehouseId"
-            defaultValue={initial?.packagingWarehouseId ?? suggestWarehouse(warehouses, /pack/i)}
+            defaultValue={
+              initial?.packagingWarehouseId ??
+              suggestWarehouse(warehouses, "PACKAGING_MATERIAL", /pack/i)
+            }
             options={warehouseOptions(warehouses)}
           />
           <Select
@@ -85,7 +89,7 @@ export function ProductionBatchForm({
             name="finishedGoodsDestinationWarehouseId"
             defaultValue={
               initial?.finishedGoodsDestinationWarehouseId ??
-              suggestWarehouse(warehouses, /finish|fg/i)
+              suggestWarehouse(warehouses, "FINISHED_GOOD", /finish|\bfg\b/i)
             }
             options={warehouseOptions(warehouses)}
           />
@@ -242,12 +246,26 @@ function Select({
 
 /**
  * UX-9: the first warehouse alphabetically is usually the finished-goods store, which is the
- * wrong default for raw materials and packaging. Prefer a warehouse whose code or name matches
- * its purpose, falling back to the first one.
+ * wrong default for raw materials and packaging. Prefer the warehouse that actually holds the
+ * most items of that kind, then one whose code or name matches its purpose, then one that holds
+ * no other kind of stock, and only then the first one.
  */
-function suggestWarehouse(warehouses: readonly BatchWarehouseOption[], pattern: RegExp) {
+function suggestWarehouse(
+  warehouses: readonly BatchWarehouseOption[],
+  itemType: "RAW_MATERIAL" | "PACKAGING_MATERIAL" | "FINISHED_GOOD",
+  pattern: RegExp,
+) {
+  const count = (warehouse: BatchWarehouseOption) => warehouse.stockedItemCounts?.[itemType] ?? 0;
+  const stocked = warehouses.filter((warehouse) => count(warehouse) > 0);
+  stocked.sort((a, b) => count(b) - count(a));
+  const holdsOtherStock = (warehouse: BatchWarehouseOption) =>
+    Object.entries(warehouse.stockedItemCounts ?? {}).some(
+      ([type, lines]) => type !== itemType && (lines ?? 0) > 0,
+    );
   return (
+    stocked[0]?.id ??
     warehouses.find((warehouse) => pattern.test(`${warehouse.code} ${warehouse.name}`))?.id ??
+    warehouses.find((warehouse) => !holdsOtherStock(warehouse))?.id ??
     warehouses[0]?.id ??
     ""
   );

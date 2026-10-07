@@ -17,6 +17,10 @@ export type BatchWarehouseOption = {
   code: string;
   name: string;
   active: boolean;
+  /** UX-9: how many distinct items of each type this warehouse holds available stock of. */
+  stockedItemCounts?: Partial<
+    Record<"RAW_MATERIAL" | "PACKAGING_MATERIAL" | "FINISHED_GOOD", number>
+  >;
 };
 
 export type BatchRecipeOption = {

@@ -34,6 +34,27 @@ export function formatQuantity(value: string | number | { toString(): string } |
   }
 }
 
+/**
+ * A per-unit cost (per gram, per ml, per piece) grouped like money but keeping up to 6 decimals
+ * without trailing zeros, so a tiny per-gram cost stays visible ("0.3105") and a per-piece cost
+ * stays readable ("272.69") instead of a raw "272.692308000000" string.
+ */
+export function formatUnitCost(
+  value: string | number | { toString(): string } | null | undefined,
+  decimals = 6,
+) {
+  if (value === null || value === undefined || value === "") return "—";
+  try {
+    const amount = new Decimal(value.toString()).toDecimalPlaces(decimals);
+    return new Intl.NumberFormat("en-PK", {
+      minimumFractionDigits: Math.min(2, decimals),
+      maximumFractionDigits: decimals,
+    }).format(Number(amount.toFixed(decimals)));
+  } catch {
+    return String(value);
+  }
+}
+
 /** Date as DD/MM/YYYY, the format used on printed documents in Pakistan. */
 export function formatDocumentDate(value: Date | null | undefined) {
   if (!value) return "—";

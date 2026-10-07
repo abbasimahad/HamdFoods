@@ -29,7 +29,7 @@ export default async function BatchPackagingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; saved?: string }>;
 }) {
   const principal = await requirePermission("production.view");
   const id = (await params).id;
@@ -134,6 +134,12 @@ export default async function BatchPackagingPage({
       </Card>
       {canManage && (
         <Card className="mb-5 p-5">
+          {query.saved === "1" ? (
+            <p className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+              Draft saved. Post it from the history below; this form stays on{" "}
+              {selectedType.toLowerCase()} for the next entry.
+            </p>
+          ) : null}
           <h2 className="mb-4 font-semibold">New {selectedType.toLowerCase()} draft</h2>
           <PackagingTransactionForm
             action={savePackagingTransactionAction}

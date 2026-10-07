@@ -6,6 +6,7 @@ import { useActionState, useMemo, useState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 import type { ProductionActionState } from "./action-state";
+import { sortFefo } from "./fefo";
 import type {
   BatchMaterialView,
   MaterialTransactionRecord,
@@ -38,8 +39,10 @@ export function MaterialTransactionForm({
   );
   const lots = useMemo(
     () =>
-      (type === "ISSUE" ? view.availableLots : view.heldLots).filter(
-        (lot) => lot.itemId === requirement?.itemId,
+      sortFefo(
+        (type === "ISSUE" ? view.availableLots : view.heldLots).filter(
+          (lot) => lot.itemId === requirement?.itemId,
+        ),
       ),
     [type, view.availableLots, view.heldLots, requirement?.itemId],
   );
@@ -78,9 +81,11 @@ export function MaterialTransactionForm({
               // Preselect the first eligible lot of the newly chosen material so the lot list and
               // the selected lot never lag behind the material (BUG-32).
               setLotId(
-                (type === "ISSUE" ? view.availableLots : view.heldLots).find(
-                  (lot) => lot.itemId === next?.itemId,
-                )?.id ?? "",
+                sortFefo(
+                  (type === "ISSUE" ? view.availableLots : view.heldLots).filter(
+                    (lot) => lot.itemId === next?.itemId,
+                  ),
+                )[0]?.id ?? "",
               );
             }}
             required

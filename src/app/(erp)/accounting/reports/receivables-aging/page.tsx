@@ -5,6 +5,7 @@ import { ResponsiveContainer } from "@/components/ui/responsive-container";
 import { Card } from "@/components/ui/card";
 import { receivableAging, reportAsOf } from "@/server/accounting/financial-reporting";
 import { requirePermission } from "@/server/auth/server-guards";
+import { formatFactoryDate } from "@/components/ui/format-datetime";
 export default async function Page({ searchParams }: { searchParams: Promise<{ asOf?: string }> }) {
   await requirePermission("accounting.view");
   const q = await searchParams;
@@ -40,7 +41,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
               <tr key={row.id}>
                 <td className="p-3">{row.number}</td>
                 <td className="p-3">{row.party}</td>
-                <td className="p-3">{row.date.toISOString().slice(0, 10)}</td>
+                <td className="p-3">{formatFactoryDate(row.date)}</td>
                 <td className="p-3 text-right">{row.outstanding}</td>
               </tr>
             ))}
