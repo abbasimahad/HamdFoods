@@ -4,7 +4,21 @@ A production-oriented modular-monolith ERP for food manufacturing, with server-a
 
 ## Current status
 
-Phase 32 is complete, including the native Windows installer and factory-PC setup workflow. Phase 33 is ready but has not been specified or started; see [`docs/phases/current.md`](docs/phases/current.md) for the authoritative gate. Docker is not required. Keep [local development](#local-setup) distinct from the [production deployment runbook](docs/operations/production-deployment.md).
+All phases through 37 are complete, plus the round-1 to round-5 factory test bug logs (version 0.3.0). See [`docs/phases/current.md`](docs/phases/current.md) for the authoritative gate and [`progress.md`](progress.md) for the latest fixes. Docker is not required. Keep [local development](#local-setup) distinct from [installing on a factory PC](#install-on-a-factory-pc) and the [production deployment runbook](docs/operations/production-deployment.md).
+
+## Install on a factory PC
+
+A factory PC does not need Git, Node, pnpm or this source code -- only the Windows installer committed in [`installer/output`](installer/output) (`HamdFoodsERP-<version>-<commit>-Setup-DEVELOPMENT-UNSIGNED.exe`; use the highest version).
+
+1. Install **PostgreSQL 16** (64-bit, from the [official EDB download](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)) with its default port 5432, and keep the `postgres` administrator password you set.
+2. Copy the Setup `.exe` to a local drive (not a network share or USB stick) and run it as Administrator. Windows SmartScreen may warn because the build is unsigned; choose _More info -> Run anyway_.
+3. Enter the PostgreSQL administrator password when asked, then create the first Super Administrator (name, email, password). Setup creates the database, starts the ERP as a Windows scheduled task and takes a first backup.
+4. Open **Hamd Foods ERP** from the desktop or Start Menu (`http://127.0.0.1:3100`) and sign in.
+5. Before real use: fill in _Administration -> Settings_ (company name, NTN, address), activate the licence in _Administration -> License_ (14-day grace until then), and create users for each role.
+
+**Updating to a newer build:** run the newer Setup over the existing installation **without uninstalling**. It switches to repair mode, backs up the database, applies only new migrations and keeps all data and logins. If you ever uninstall, answer **Yes** to "Keep the ERP database and business data?" unless you really want to delete everything (a final backup is taken first).
+
+Full details: [`docs/operations/windows-installer.md`](docs/operations/windows-installer.md) and [`docs/operations/backup-and-recovery.md`](docs/operations/backup-and-recovery.md).
 
 ## Prerequisites
 
