@@ -4,7 +4,7 @@ A production-oriented modular-monolith ERP for food manufacturing, with server-a
 
 ## Current status
 
-All phases through 37 are complete, plus the round-1 to round-6 factory test bug logs (version 0.4.0). See [`docs/phases/current.md`](docs/phases/current.md) for the authoritative gate and [`progress.md`](progress.md) for the latest fixes. Docker is not required. Keep [local development](#local-setup) distinct from [installing on a factory PC](#install-on-a-factory-pc) and the [production deployment runbook](docs/operations/production-deployment.md).
+All phases through 37 are complete, plus the round-1 to round-7 factory test bug logs (version 0.4.1). See [`docs/phases/current.md`](docs/phases/current.md) for the authoritative gate and [`progress.md`](progress.md) for the latest fixes. Docker is not required. Keep [local development](#local-setup) distinct from [installing on a factory PC](#install-on-a-factory-pc) and the [production deployment runbook](docs/operations/production-deployment.md).
 
 ## Install on a factory PC
 
