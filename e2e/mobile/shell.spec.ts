@@ -68,7 +68,8 @@ test("phone login, nested navigation, table, form, and safety action remain usab
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/accounting/manual-journals");
   await expect(page.getByRole("heading", { name: "Manual Journal" })).toBeVisible();
-  await expectControlInsideViewport(page, "Journal lines JSON");
+  await expectControlInsideViewport(page, "Journal memo");
+  await expect(page.getByRole("combobox", { name: /^Account/ }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Post manual journal" })).toBeVisible();
   await expectNoDocumentOverflow(page);
   await page.screenshot({

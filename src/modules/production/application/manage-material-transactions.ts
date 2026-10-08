@@ -1,3 +1,4 @@
+import { factoryLocalDateTimeOrNow } from "@/server/shared/factory-local-time";
 import { optionalUuid } from "@/server/shared/zod-form-helpers";
 import { describeValidationIssue } from "@/server/shared/validation-message";
 import { z } from "zod";
@@ -32,6 +33,7 @@ export async function saveMaterialTransaction(
   if (denied) return denied;
   const parsed = transactionSchema.safeParse({
     ...form,
+    transactionDate: factoryLocalDateTimeOrNow(form.transactionDate),
     id: text(form.id),
     destinationWarehouseId: text(form.destinationWarehouseId),
     notes: text(form.notes),

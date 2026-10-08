@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { requirePermission } from "@/server/auth/server-guards";
 import { journalPage } from "@/server/accounting/prisma-accounting-repository";
 import { formatFactoryDate } from "@/components/ui/format-datetime";
+import { formatMoney } from "@/components/ui/format-money";
 export default async function Page({
   searchParams,
 }: {
@@ -111,7 +112,7 @@ export default async function Page({
                   {journal.sourceType} {journal.sourceNumber ?? ""}
                 </td>
                 <td className="p-3">
-                  {journal.totalDebit.toString()} / {journal.totalCredit.toString()}
+                  {formatMoney(journal.totalDebit, "")} / {formatMoney(journal.totalCredit, "")}
                 </td>
                 <td className="p-3">
                   {journal.reversalJournal

@@ -59,12 +59,21 @@ export default async function Page({
             </tr>
           </thead>
           <tbody className="divide-y">
+            {result.openingBalance !== null && (
+              <tr>
+                <td className="p-3">{params.from ? formatFactoryDate(params.from) : ""}</td>
+                <td className="p-3 font-semibold">Opening balance</td>
+                <td className="p-3" />
+                <td className="p-3" />
+                <td className="p-3">{formatMoney(result.openingBalance, "")}</td>
+              </tr>
+            )}
             {result.lines.map((line) => (
               <tr key={line.id}>
                 <td className="p-3">{formatFactoryDate(line.journal.accountingDate)}</td>
                 <td className="p-3">{line.journal.journalNumber}</td>
-                <td className="p-3">{line.debit.toString()}</td>
-                <td className="p-3">{line.credit.toString()}</td>
+                <td className="p-3">{formatMoney(line.debit, "")}</td>
+                <td className="p-3">{formatMoney(line.credit, "")}</td>
                 <td className="p-3">{formatMoney(line.runningBalance, "")}</td>
               </tr>
             ))}

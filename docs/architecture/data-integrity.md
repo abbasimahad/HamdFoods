@@ -22,6 +22,8 @@ Goods receipt posting uses the inventory-owned transactional writer and atomical
 
 Purchase returns can remove only server-derived purchased-lot stock from QUARANTINE. QC-rejected source entitlement and post-acceptance defect-quarantine entitlement are recorded separately so rejected goods are not subtracted twice from PO fulfilment. Posting rechecks exact lot/status stock and source entitlement within the same Serializable transaction that freezes the return and creates the negative PURCHASE_RETURN movement.
 
+Returned QC-rejected stock clears GRNI at its share of the original receipt value (whole paisa; the shares of all returns of one receipt line telescope so GRNI reaches exactly zero), never at the item's moving-average carrying cost; the carrying-cost difference goes to `PURCHASE_RETURN_VARIANCE`. One purchase return carries either QC-rejected stock (clears GRNI) or stock held after acceptance (credits the payable), never both. Control-account reconciliation and the period-close checklist compare GRNI with the receipts still awaiting QC plus rejected stock not yet returned, each at receipt cost. Returns posted before this rule are repaired by the accounting backfill with one dated-today `grni-correction:<returnId>` journal (BUG-35).
+
 Supplier replacements are linked to purchase-return lines and reuse GRN QUALITY_HOLD posting plus QC classification. Only accepted replacement QC quantity satisfies the supplier obligation. PostgreSQL guards keep posted return and GRN replacement provenance immutable and reject mismatched replacement return/header/PO-line/item links.
 
 ## Posted transactions

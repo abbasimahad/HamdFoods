@@ -1,6 +1,6 @@
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Decimal from "decimal.js";
-import { formatMoney, formatQuantity } from "@/components/ui/format-money";
+import { formatMoney, formatQuantity, formatUnitCost } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -126,7 +126,7 @@ export default async function PurchaseInvoiceDetailPage({
                             {record.status !== "DRAFT" && (
                               <>
                                 {" "}
-                                (cost {match.grnDerivedUnitCost}, price var{" "}
+                                (cost {formatUnitCost(match.grnDerivedUnitCost)}, price var{" "}
                                 {formatMoney(match.priceVarianceAmount, "")}, tax var{" "}
                                 {formatMoney(match.taxVarianceAmount, "")})
                               </>

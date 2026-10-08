@@ -39,8 +39,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <ResponsiveContainer>
       <PageHeader
         title={payment.number}
-        description={`${payment.supplier.name} — ${payment.status}`}
+        description={
+          payment.reversalOf
+            ? `${payment.supplier.name} — reversal of payment ${payment.reversalOf.number}; cancels its payable and cash effect.`
+            : payment.reversalPayment
+              ? `${payment.supplier.name} — payment REVERSED by ${payment.reversalPayment.number}; it no longer reduces the payable or uses cash.`
+              : `${payment.supplier.name} — ${payment.status}`
+        }
       />
+      {/* BUG-36: mirror customer receipts -- a reversed payment must not look valid. */}
+      {payment.reversalPayment && (
+        <p className="mb-4 rounded border-2 border-red-700 bg-red-50 p-3 font-semibold text-red-700">
+          This payment has been REVERSED by {payment.reversalPayment.number}. Its payable and
+          treasury effects are no longer in force.
+        </p>
+      )}
       <p className="mb-4">
         <Link
           className="rounded-lg border px-4 py-2 text-sm font-semibold"
@@ -54,8 +67,23 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           Payment: {formatMoney(payment.totalAmount, "")} via {payment.treasuryAccount.name}
         </p>
         <p>
+          Status:{" "}
+          {payment.reversalPayment ? (
+            <span className="font-semibold text-red-700">POSTED (REVERSED)</span>
+          ) : payment.reversalOf ? (
+            <span className="font-semibold text-red-700">POSTED (REVERSAL)</span>
+          ) : (
+            payment.status
+          )}
+        </p>
+        <p>
           Allocated: {formatMoney(allocated, "")}; supplier advance:{" "}
-          {formatMoney(new Decimal(payment.totalAmount.toString()).sub(allocated), "")}
+          {formatMoney(
+            payment.status === "POSTED" && !payment.reversalOf && !payment.reversalPayment
+              ? new Decimal(payment.totalAmount.toString()).sub(allocated)
+              : 0,
+            "",
+          )}
         </p>
         <p>Reference: {payment.referenceNumber ?? "—"}</p>
         {payment.reversalOf ? <p>Reversal of: {payment.reversalOf.number}</p> : null}

@@ -41,6 +41,14 @@ export function SalesInvoiceForm({
       [],
   );
   const submittedLines = lines.filter((line) => line.cartons !== "0" || line.loosePieces !== "0");
+  // UX-14: a dispatch line with nothing left to invoice gets no input boxes (unless this draft
+  // already carries it).
+  const draftLineIds = new Set(initial?.lines.map((line) => line.salesDispatchLineId) ?? []);
+  const shownLines =
+    order?.lines.filter(
+      (line) => Number(line.invoiceablePieces) > 0 || draftLineIds.has(line.id),
+    ) ?? [];
+  const hiddenLineCount = (order?.lines.length ?? 0) - shownLines.length;
   const change = (id: string, field: "cartons" | "loosePieces", value: string) =>
     setLines((current) =>
       current.map((line) => (line.salesDispatchLineId === id ? { ...line, [field]: value } : line)),
@@ -100,7 +108,7 @@ export function SalesInvoiceForm({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {order.lines.map((line) => (
+                {shownLines.map((line) => (
                   <tr key={line.id}>
                     <td className="p-3">
                       <strong>{line.dispatchNumber}</strong>
@@ -142,6 +150,16 @@ export function SalesInvoiceForm({
               </tbody>
             </table>
           </div>
+          {shownLines.length === 0 && (
+            <p className="text-sm text-[var(--muted)]">
+              Every posted dispatch line on this order is already invoiced.
+            </p>
+          )}
+          {hiddenLineCount > 0 && shownLines.length > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              {hiddenLineCount} fully invoiced dispatch line(s) hidden.
+            </p>
+          )}
           <label className="block text-sm font-medium">
             Notes
             <textarea

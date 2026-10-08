@@ -47,18 +47,27 @@ export async function profitAndLoss(range: ReportRange) {
   const salesReturns = mappedBalance(accounts, mappings, "SALES_RETURNS");
   const cogs = mappedBalance(accounts, mappings, "COST_OF_GOODS_SOLD");
   const excluded = new Set([
+    mappings.get("SALES_REVENUE"),
     mappings.get("SALES_DISCOUNTS"),
     mappings.get("SALES_RETURNS"),
     mappings.get("COST_OF_GOODS_SOLD"),
   ]);
+  // Signed, never abs(): a credit-balance expense account (for example a favourable purchase
+  // return variance) reduces expenses. Every other revenue account is other income. So net profit
+  // is exactly the net of all revenue and expense accounts, which the balance sheet relies on.
   const operatingExpenseRows = accounts
     .filter((account) => account.accountType === "EXPENSE" && !excluded.has(account.id))
-    .map((account) => ({ ...account, amount: normal(account).abs() }))
+    .map((account) => ({ ...account, amount: account.balance }))
+    .filter((account) => !account.amount.isZero());
+  const otherIncomeRows = accounts
+    .filter((account) => account.accountType === "REVENUE" && !excluded.has(account.id))
+    .map((account) => ({ ...account, amount: account.balance.negated() }))
     .filter((account) => !account.amount.isZero());
   const operatingExpenses = sum(operatingExpenseRows.map((account) => account.amount));
+  const otherIncome = sum(otherIncomeRows.map((account) => account.amount));
   const netSales = salesRevenue.sub(salesDiscounts).sub(salesReturns);
   const grossProfit = netSales.sub(cogs);
-  const netProfit = grossProfit.sub(operatingExpenses);
+  const netProfit = grossProfit.add(otherIncome).sub(operatingExpenses);
   return {
     accounts,
     operatingExpenseRows: operatingExpenseRows.map((row) => ({
@@ -73,29 +82,79 @@ export async function profitAndLoss(range: ReportRange) {
     cogs: format(cogs),
     grossProfit: format(grossProfit),
     grossMargin: netSales.isZero() ? null : grossProfit.div(netSales).mul(100).toFixed(4),
+    otherIncomeRows: otherIncomeRows.map((row) => ({
+      code: row.code,
+      name: row.name,
+      amount: format(row.amount),
+    })),
+    otherIncome: format(otherIncome),
     operatingExpenses: format(operatingExpenses),
     netProfit: format(netProfit),
   };
 }
 
 export async function balanceSheet(asOf: Date) {
-  const [accounts, mappings] = await Promise.all([
+  const [accounts, mappings, advances] = await Promise.all([
     postedBalances({ from: new Date("1970-01-01T00:00:00.000Z"), to: asOf }),
     mappingIds(),
+    counterpartyAdvances(asOf),
+  ]);
+  // UX-15: a customer who has paid in advance is owed goods, not owing money. Receivables show
+  // only what customers owe, and credit balances appear as a "Customer advances" liability
+  // (likewise supplier debit balances as a "Supplier advances" asset). Both sides grow by the
+  // same amount, so totals and the balance check are unchanged.
+  const grossUp = new Map<string, Decimal>([
+    [mappings.get("ACCOUNTS_RECEIVABLE") ?? "", advances.customer],
+    [mappings.get("ACCOUNTS_PAYABLE") ?? "", advances.supplier],
   ]);
   const rowsFor = (type: string) =>
     accounts
       .filter((account) => account.accountType === type)
-      .map((account) => ({ ...account, amount: normal(account) }))
+      .map((account) => ({
+        ...account,
+        amount: normal(account).add(grossUp.get(account.id) ?? zero()),
+      }))
       .filter((account) => !account.amount.isZero());
-  const assets = sum(rowsFor("ASSET").map((row) => row.amount));
-  const liabilities = sum(rowsFor("LIABILITY").map((row) => row.amount));
+  const advanceRow = (
+    key: "ACCOUNTS_RECEIVABLE" | "ACCOUNTS_PAYABLE",
+    name: string,
+    accountType: string,
+    amount: Decimal,
+  ): (BalanceRow & { amount: Decimal })[] => {
+    const account = accounts.find((row) => row.id === mappings.get(key));
+    return account && amount.gt(0)
+      ? [{ ...account, name, accountType, balance: amount, amount }]
+      : [];
+  };
+  const assetRows = [
+    ...rowsFor("ASSET"),
+    ...advanceRow("ACCOUNTS_PAYABLE", "Supplier advances", "ASSET", advances.supplier),
+  ];
+  const liabilityRows = [
+    ...rowsFor("LIABILITY"),
+    ...advanceRow("ACCOUNTS_RECEIVABLE", "Customer advances", "LIABILITY", advances.customer),
+  ];
+  const assets = sum(assetRows.map((row) => row.amount));
+  const liabilities = sum(liabilityRows.map((row) => row.amount));
   const equity = sum(rowsFor("EQUITY").map((row) => row.amount));
-  const currentEarnings = new Decimal((await profitAndLoss(yearRange(asOf))).netProfit);
-  const presentedEquity = equity.add(currentEarnings);
+  const yearToDate = yearRange(asOf);
+  const [current, prior] = await Promise.all([
+    profitAndLoss(yearToDate),
+    profitAndLoss({
+      from: new Date("1970-01-01T00:00:00.000Z"),
+      to: new Date(yearToDate.from.getTime() - 1),
+    }),
+  ]);
+  const currentEarnings = new Decimal(current.netProfit);
+  // No year-end closing journal moves profit to equity, so earlier years' profit is presented
+  // as retained earnings; without it the balance sheet stops balancing every 1 January.
+  const priorEarnings = new Decimal(prior.netProfit);
+  const presentedEquity = equity.add(priorEarnings).add(currentEarnings);
   return {
-    assetRows: serializeRows(rowsFor("ASSET")),
-    liabilityRows: serializeRows(rowsFor("LIABILITY")),
+    assetRows: serializeRows(assetRows),
+    liabilityRows: serializeRows(liabilityRows),
+    customerAdvances: format(advances.customer),
+    supplierAdvances: format(advances.supplier),
     equityRows: serializeRows(rowsFor("EQUITY")),
     inventoryControl: format(
       [
@@ -110,6 +169,7 @@ export async function balanceSheet(asOf: Date) {
     assets: format(assets),
     liabilities: format(liabilities),
     equity: format(equity),
+    priorEarnings: priorEarnings.isZero() ? null : format(priorEarnings),
     currentEarnings: format(currentEarnings),
     totalLiabilitiesAndEquity: format(liabilities.add(presentedEquity)),
     difference: format(assets.sub(liabilities).sub(presentedEquity)),
@@ -509,6 +569,33 @@ async function postedBalances(range: ReportRange): Promise<BalanceRow[]> {
     balance: net(account.journalLines),
   }));
 }
+/**
+ * Credit balances of individual customers (paid ahead of invoices) and debit balances of
+ * individual suppliers (paid ahead of bills), from the authoritative subledgers.
+ */
+export async function counterpartyAdvances(asOf?: Date) {
+  const [customers, suppliers] = await Promise.all([
+    prisma.customerLedgerEntry.groupBy({
+      by: ["customerId"],
+      where: asOf ? { entryDate: { lte: asOf } } : {},
+      _sum: { signedAmount: true },
+    }),
+    prisma.supplierPayableLedgerEntry.groupBy({
+      by: ["supplierId"],
+      where: asOf ? { entryDate: { lte: asOf } } : {},
+      _sum: { signedAmount: true },
+    }),
+  ]);
+  const creditBalances = (rows: readonly { _sum: { signedAmount: unknown } }[]) =>
+    sum(
+      rows
+        .map((row) => new Decimal(String(row._sum.signedAmount ?? "0")))
+        .filter((balance) => balance.lt(0))
+        .map((balance) => balance.abs()),
+    );
+  return { customer: creditBalances(customers), supplier: creditBalances(suppliers) };
+}
+
 async function mappingIds() {
   const mappings = await prisma.accountingAccountMapping.findMany({
     where: { accountingSettingsId: "default" },

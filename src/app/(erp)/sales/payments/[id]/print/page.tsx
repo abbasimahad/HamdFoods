@@ -59,7 +59,7 @@ export default async function CustomerPaymentPrintPage({
             {payment.method} ·{" "}
             {payment.reversalOfNumber
               ? `-${formatMoney(payment.totalAmount, "")} (refund / reversal)`
-              : payment.totalAmount}
+              : formatMoney(payment.totalAmount, "")}
           </p>
           <p>Reference: {payment.referenceNumber ?? "-"}</p>
         </div>

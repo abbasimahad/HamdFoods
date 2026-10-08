@@ -649,9 +649,11 @@ function mapPayment(payment: PaymentRow): CustomerPaymentRecord {
     treasuryAccountId: payment.treasuryAccountId,
     treasuryAccountName: payment.treasuryAccount?.name ?? null,
     allocatedAmount: allocatedAmount.toFixed(),
-    unallocatedAmount: isEffective
-      ? nonNegative(new Decimal(payment.totalAmount.toString()).sub(allocatedAmount)).toFixed()
-      : "0",
+    // UX-13: a draft shows the credit it will leave once posted; cancelled and reversed none.
+    unallocatedAmount:
+      isEffective || payment.status === "DRAFT"
+        ? nonNegative(new Decimal(payment.totalAmount.toString()).sub(allocatedAmount)).toFixed()
+        : "0",
     referenceNumber: payment.referenceNumber,
     bankName: payment.bankName,
     chequeNumber: payment.chequeNumber,

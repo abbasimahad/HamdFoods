@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
@@ -16,7 +17,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const lines = await prisma.accountingJournalLine.findMany({
     where: { accountId: account.glAccountId, journal: { status: "POSTED" } },
     include: { journal: true },
-    orderBy: [{ journal: { accountingDate: "asc" } }, { position: "asc" }],
+    orderBy: [
+      { journal: { accountingDate: "asc" } },
+      { journal: { journalNumber: "asc" } },
+      { position: "asc" },
+    ],
   });
   const rows = lines.reduce<readonly { line: (typeof lines)[number]; runningBalance: string }[]>(
     (result, line) => {
@@ -53,8 +58,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   <td className="p-3">{formatFactoryDate(line.journal.accountingDate)}</td>
                   <td className="p-3">{line.journal.journalNumber}</td>
                   <td className="p-3">{line.journal.sourceType}</td>
-                  <td className="p-3">{line.debit.toString()}</td>
-                  <td className="p-3">{line.credit.toString()}</td>
+                  <td className="p-3">{formatMoney(line.debit, "")}</td>
+                  <td className="p-3">{formatMoney(line.credit, "")}</td>
                   <td className="p-3">{runningBalance}</td>
                 </tr>
               );

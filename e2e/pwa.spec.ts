@@ -94,12 +94,12 @@ test("offline form submission is rejected without a success state or replay", as
   await login(page);
   await page.goto("/accounting/manual-journals");
   await waitForServiceWorkerControl(page);
-  await page.getByLabel("Journal lines JSON").fill(
-    JSON.stringify([
-      { accountId: "offline-test", debit: "1.000000", description: "Not submitted" },
-      { accountId: "offline-test-2", credit: "1.000000", description: "Not submitted" },
-    ]),
-  );
+  // The journal form has a line editor (account / debit / credit per line).
+  const accounts = page.getByRole("combobox", { name: /^Account/ });
+  await accounts.nth(0).selectOption({ index: 1 });
+  await accounts.nth(1).selectOption({ index: 2 });
+  await page.getByLabel("Debit", { exact: true }).nth(0).fill("1.00");
+  await page.getByLabel("Credit", { exact: true }).nth(1).fill("1.00");
   await page.getByLabel("Journal date").fill("2026-08-31");
   await page.getByLabel("Journal memo").fill("Offline submission check");
 

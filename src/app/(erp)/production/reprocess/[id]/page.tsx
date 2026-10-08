@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { reprocessOutputSummary } from "@/components/production/reprocess-output-summary";
@@ -101,8 +102,11 @@ export default async function ReprocessDetailPage({ params }: { params: Promise<
         <Info
           label="Final cost pool"
           value={
-            document.linkedProductionBatch.productionCostSnapshot?.finishedGoodsCostPool?.toString() ??
-            "Not finalized"
+            document.linkedProductionBatch.productionCostSnapshot?.finishedGoodsCostPool
+              ? formatMoney(
+                  document.linkedProductionBatch.productionCostSnapshot.finishedGoodsCostPool,
+                )
+              : "Not finalized"
           }
         />
       </Card>

@@ -10,6 +10,7 @@ import {
 } from "@/generated/prisma/client";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { findOrOpenAccountingPeriod } from "@/server/accounting/accounting-periods";
+import { rejectedReturnGrniClearance } from "@/modules/purchasing/domain/grni";
 
 type Client = Prisma.TransactionClient;
 
@@ -1050,23 +1051,119 @@ export async function postSalesReturnAccounting(
     });
 }
 
+const POSTED_PURCHASE_RETURN_STATES = ["POSTED", "AWAITING_REPLACEMENT", "COMPLETED"] as const;
+
+type PurchaseReturnForAccounting = NonNullable<
+  Awaited<ReturnType<typeof loadPurchaseReturnForAccounting>>
+>;
+
+async function loadPurchaseReturnForAccounting(tx: Client, purchaseReturnId: string) {
+  return tx.purchaseReturn.findUnique({
+    where: { id: purchaseReturnId },
+    include: {
+      lines: {
+        include: {
+          originalGoodsReceiptLine: { include: { purchaseOrderLine: true, qcDecision: true } },
+        },
+        orderBy: { position: "asc" },
+      },
+    },
+  });
+}
+
+/** Receipt value (GRN-COST valuation) of each goods-receipt line the return draws on. */
+async function originalReceiptValues(tx: Client, purchaseReturn: PurchaseReturnForAccounting) {
+  const entries = await tx.inventoryValuationEntry.findMany({
+    where: {
+      sourceKey: {
+        in: purchaseReturn.lines.map((line) => `GRN-COST:${line.originalGoodsReceiptLineId}`),
+      },
+      entryType: { in: ["PURCHASE_RECEIPT", "SUPPLIER_REPLACEMENT"] },
+      state: "FINAL",
+    },
+    select: { sourceKey: true, valueDelta: true },
+  });
+  const values = new Map(
+    entries.map((entry) => [
+      entry.sourceKey.replace("GRN-COST:", ""),
+      new Decimal(entry.valueDelta?.toString() ?? "0").abs(),
+    ]),
+  );
+  return (line: PurchaseReturnForAccounting["lines"][number]) => {
+    const value = values.get(line.originalGoodsReceiptLineId);
+    if (!value)
+      throw new AccountingPostingError(
+        `Original goods receipt valuation is missing for purchase-return line ${line.position}.`,
+      );
+    return value;
+  };
+}
+
+/**
+ * BUG-35: GRNI the return's QC-rejected lines clear -- the rejected stock's share of its receipt
+ * value, not its moving-average carrying cost. Earlier posted returns of the same receipt line
+ * (and earlier lines of this return) count first, so all returns together clear exactly the
+ * rejected share and GRNI reaches 0.00.
+ */
+async function rejectedReturnGrni(
+  tx: Client,
+  purchaseReturn: PurchaseReturnForAccounting,
+  receiptValue: Awaited<ReturnType<typeof originalReceiptValues>>,
+) {
+  const rejectedLines = purchaseReturn.lines.filter((line) => line.source === "QC_REJECTED");
+  // One strict order (posting time, then number) so no two returns each count the other first.
+  const earlierReturns: Prisma.PurchaseReturnWhereInput[] = purchaseReturn.postedAt
+    ? [
+        { postedAt: { lt: purchaseReturn.postedAt } },
+        { postedAt: purchaseReturn.postedAt, number: { lt: purchaseReturn.number } },
+      ]
+    : [{ number: { lt: purchaseReturn.number } }];
+  const returnedWithinThis = new Map<string, Decimal>();
+  let clearance = new Decimal(0);
+  for (const line of rejectedLines) {
+    const earlier = await tx.purchaseReturnLine.aggregate({
+      where: {
+        originalGoodsReceiptLineId: line.originalGoodsReceiptLineId,
+        source: "QC_REJECTED",
+        purchaseReturnId: { not: purchaseReturn.id },
+        purchaseReturn: {
+          status: { in: [...POSTED_PURCHASE_RETURN_STATES] },
+          OR: earlierReturns,
+        },
+      },
+      _sum: { normalizedQuantity: true },
+    });
+    const within = returnedWithinThis.get(line.originalGoodsReceiptLineId) ?? new Decimal(0);
+    const returnedBefore = new Decimal(earlier._sum.normalizedQuantity?.toString() ?? "0").add(
+      within,
+    );
+    const receiptLine = line.originalGoodsReceiptLine;
+    clearance = clearance.add(
+      rejectedReturnGrniClearance(
+        {
+          value: receiptValue(line),
+          receivedQuantity: receiptLine.normalizedQuantity.toString(),
+          acceptedQuantity: receiptLine.qcDecision?.acceptedQuantity.toString() ?? "0",
+        },
+        returnedBefore,
+        line.normalizedQuantity.toString(),
+      ),
+    );
+    returnedWithinThis.set(line.originalGoodsReceiptLineId, within.add(line.normalizedQuantity));
+  }
+  return { rejectedLines, clearance };
+}
+
 export async function postPurchaseReturnAccounting(
   tx: Client,
   purchaseReturnId: string,
   actorUserId: string,
   allowHistoricalBackfill = false,
 ) {
-  const purchaseReturn = await tx.purchaseReturn.findUnique({
-    where: { id: purchaseReturnId },
-    include: {
-      lines: {
-        include: { originalGoodsReceiptLine: { include: { purchaseOrderLine: true } } },
-      },
-    },
-  });
+  const purchaseReturn = await loadPurchaseReturnForAccounting(tx, purchaseReturnId);
   if (
     !purchaseReturn ||
-    !["POSTED", "AWAITING_REPLACEMENT", "COMPLETED"].includes(purchaseReturn.status)
+    !(POSTED_PURCHASE_RETURN_STATES as readonly string[]).includes(purchaseReturn.status)
   )
     return;
   const valuations = await tx.inventoryValuationEntry.findMany({
@@ -1078,71 +1175,51 @@ export async function postPurchaseReturnAccounting(
     },
     include: { item: true },
   });
-  const carryingValue = sum(
-    valuations.map((entry) => new Decimal(entry.valueDelta?.toString() ?? "0").abs()),
+  const carryingByLine = new Map(
+    valuations.map((entry) => [
+      entry.sourceKey.replace("PURCHASE-RETURN-COST:", ""),
+      new Decimal(entry.valueDelta?.toString() ?? "0").abs(),
+    ]),
   );
+  const carryingValue = sum([...carryingByLine.values()]);
   if (carryingValue.isZero()) return;
-  const originalReceiptValuations = await tx.inventoryValuationEntry.findMany({
-    where: {
-      sourceKey: {
-        in: purchaseReturn.lines.map((line) => `GRN-COST:${line.originalGoodsReceiptLineId}`),
-      },
-      entryType: "PURCHASE_RECEIPT",
-      state: "FINAL",
-    },
-    select: { sourceKey: true, valueDelta: true },
-  });
-  const receiptBasis = new Map(
-    originalReceiptValuations.map((entry) => [entry.sourceKey.replace("GRN-COST:", ""), entry]),
+  const receiptValue = await originalReceiptValues(tx, purchaseReturn);
+  // QC-rejected stock was never payable: its accrual lives in GRNI, not accounts payable, and
+  // must clear whether or not a replacement is expected. Stock held after acceptance was
+  // payable: it becomes a payable credit, or a supplier claim while a replacement is awaited.
+  const { rejectedLines, clearance: grniClearance } = await rejectedReturnGrni(
+    tx,
+    purchaseReturn,
+    receiptValue,
   );
-  const commercial = purchaseReturn.lines.reduce((total, line) => {
-    const originalValue = receiptBasis.get(line.originalGoodsReceiptLineId);
-    if (!originalValue)
-      throw new AccountingPostingError(
-        `Original goods receipt valuation is missing for purchase-return line ${line.position}.`,
-      );
-    return total.add(
-      paisa(
-        new Decimal(originalValue.valueDelta?.toString() ?? "0")
-          .abs()
-          .mul(line.normalizedQuantity)
-          .div(line.originalGoodsReceiptLine.normalizedQuantity),
-      ),
-    );
-  }, new Decimal(0));
-  const tax = purchaseReturn.lines.reduce((total, line) => {
-    const purchaseBase = new Decimal(
-      line.originalGoodsReceiptLine.purchaseOrderLine.netAmount.toString(),
-    ).sub(line.originalGoodsReceiptLine.purchaseOrderLine.taxAmount.toString());
-    if (purchaseBase.isZero()) return total;
-    const originalValue = receiptBasis.get(line.originalGoodsReceiptLineId)!;
-    const returnedBase = paisa(
-      new Decimal(originalValue.valueDelta?.toString() ?? "0")
-        .abs()
+  const heldLines = purchaseReturn.lines.filter((line) => line.source !== "QC_REJECTED");
+  const rejectedCarrying = sum(
+    rejectedLines.map((line) => carryingByLine.get(line.id) ?? new Decimal(0)),
+  );
+  const heldCarrying = carryingValue.sub(rejectedCarrying);
+  const heldShare = (line: PurchaseReturnForAccounting["lines"][number]) =>
+    paisa(
+      receiptValue(line)
         .mul(line.normalizedQuantity)
         .div(line.originalGoodsReceiptLine.normalizedQuantity),
     );
-    return total.add(
-      paisa(
-        returnedBase
-          .mul(line.originalGoodsReceiptLine.purchaseOrderLine.taxAmount.toString())
-          .div(purchaseBase),
-      ),
-    );
-  }, new Decimal(0));
-  const awaitingReplacement = purchaseReturn.replacementExpected;
-  const allRejectedBeforePayable = purchaseReturn.lines.every(
-    (line) => line.source === "QC_REJECTED",
+  const commercial = sum(heldLines.map(heldShare));
+  const tax = sum(
+    heldLines.map((line) => {
+      const orderLine = line.originalGoodsReceiptLine.purchaseOrderLine;
+      const purchaseBase = new Decimal(orderLine.netAmount.toString()).sub(
+        orderLine.taxAmount.toString(),
+      );
+      if (purchaseBase.isZero()) return new Decimal(0);
+      return paisa(heldShare(line).mul(orderLine.taxAmount.toString()).div(purchaseBase));
+    }),
   );
+  const awaitingReplacement = purchaseReturn.replacementExpected;
+  const payableReturn = heldLines.length > 0 && !awaitingReplacement;
   const settings = await tx.accountingSettings.findUnique({ where: { id: "default" } });
-  if (!awaitingReplacement && !allRejectedBeforePayable && !settings)
+  if (payableReturn && !settings)
     throw new AccountingPostingError("Accounting settings are not configured.");
-  if (
-    !awaitingReplacement &&
-    !allRejectedBeforePayable &&
-    tax.gt(0) &&
-    settings?.purchaseTaxTreatment === "CAPITALIZE"
-  )
+  if (payableReturn && tax.gt(0) && settings?.purchaseTaxTreatment === "CAPITALIZE")
     return block(
       tx,
       {
@@ -1158,40 +1235,49 @@ export async function postPurchaseReturnAccounting(
       "Purchase-tax capitalization is blocked because Phase 21 valuation excludes tax from inventory cost.",
     );
   const payableCredit = commercial.add(tax);
-  const variance = commercial.sub(carryingValue);
-  // A return that is entirely QC-rejected before invoicing was never billed,
-  // so its accrual lives in GRNI, not accounts payable -- that must clear
-  // regardless of whether a replacement is expected. Posting the debit to
-  // SUPPLIER_CLAIMS instead (the pre-existing bug) left GRNI overstated
-  // forever for rejected-and-replaced quantities, since nothing ever debited
-  // it back down.
-  const debitLines: AccountingLineInput[] = allRejectedBeforePayable
-    ? [{ mapping: "GRNI", debit: carryingValue.toFixed(), supplierId: purchaseReturn.supplierId }]
-    : awaitingReplacement
+  // Receipt cost against carrying cost: the rejected stock always, held stock when it is credited
+  // to the payable. A claim awaiting replacement is carried at cost and settled by the replacement.
+  const variance = grniClearance
+    .sub(rejectedCarrying)
+    .add(payableReturn ? commercial.sub(heldCarrying) : 0);
+  const debitLines: AccountingLineInput[] = [
+    ...(rejectedLines.length > 0 && grniClearance.gt(0)
       ? [
           {
-            mapping: "SUPPLIER_CLAIMS",
-            debit: carryingValue.toFixed(),
+            mapping: "GRNI" as const,
+            debit: grniClearance.toFixed(),
             supplierId: purchaseReturn.supplierId,
           },
         ]
-      : [
-          {
-            mapping: "ACCOUNTS_PAYABLE",
-            debit: payableCredit.toFixed(),
-            supplierId: purchaseReturn.supplierId,
-          },
-          ...(variance.lt(0)
-            ? [{ mapping: "PURCHASE_RETURN_VARIANCE" as const, debit: variance.abs().toFixed() }]
-            : []),
-        ];
+      : []),
+    ...(heldLines.length === 0
+      ? []
+      : awaitingReplacement
+        ? [
+            {
+              mapping: "SUPPLIER_CLAIMS" as const,
+              debit: heldCarrying.toFixed(),
+              supplierId: purchaseReturn.supplierId,
+            },
+          ]
+        : [
+            {
+              mapping: "ACCOUNTS_PAYABLE" as const,
+              debit: payableCredit.toFixed(),
+              supplierId: purchaseReturn.supplierId,
+            },
+          ]),
+    ...(variance.lt(0)
+      ? [{ mapping: "PURCHASE_RETURN_VARIANCE" as const, debit: variance.abs().toFixed() }]
+      : []),
+  ];
   const creditLines: AccountingLineInput[] = [
     ...valuations.map((entry) => ({
       mapping: inventoryMapping(entry.item.itemType),
       credit: new Decimal(entry.valueDelta?.toString() ?? "0").abs().toFixed(),
       itemId: entry.itemId,
     })),
-    ...(!awaitingReplacement && !allRejectedBeforePayable && tax.gt(0)
+    ...(payableReturn && tax.gt(0)
       ? [
           settings?.purchaseTaxTreatment === "EXPENSE"
             ? { mapping: "PURCHASE_TAX_EXPENSE" as const, credit: tax.toFixed() }
@@ -1202,7 +1288,7 @@ export async function postPurchaseReturnAccounting(
               },
         ]
       : []),
-    ...(!awaitingReplacement && !allRejectedBeforePayable && variance.gt(0)
+    ...(variance.gt(0)
       ? [{ mapping: "PURCHASE_RETURN_VARIANCE" as const, credit: variance.toFixed() }]
       : []),
   ];
@@ -1211,14 +1297,15 @@ export async function postPurchaseReturnAccounting(
     sourceId: purchaseReturn.id,
     sourceNumber: purchaseReturn.number,
     accountingDate: purchaseReturn.postedAt ?? purchaseReturn.returnDate,
-    description: awaitingReplacement
-      ? `Supplier replacement claim: ${purchaseReturn.number}.`
-      : `Purchase return: ${purchaseReturn.number}.`,
+    description:
+      awaitingReplacement && heldLines.length > 0
+        ? `Supplier replacement claim: ${purchaseReturn.number}.`
+        : `Purchase return: ${purchaseReturn.number}.`,
     actorUserId,
     allowHistoricalBackfill,
     lines: [...debitLines, ...creditLines],
   });
-  if (result.journalId && !awaitingReplacement && !allRejectedBeforePayable)
+  if (result.journalId && payableReturn)
     await tx.supplierPayableLedgerEntry.upsert({
       where: { sourceKey: `PURCHASE_RETURN_CREDIT:${purchaseReturn.id}` },
       create: {
@@ -1235,6 +1322,73 @@ export async function postPurchaseReturnAccounting(
       },
       update: {},
     });
+}
+
+/**
+ * BUG-35 repair for returns posted before the fix: their journal cleared GRNI at the moving-average
+ * carrying cost. Posts one dated-today correcting journal that moves the difference between GRNI
+ * and the purchase-return variance account, so GRNI matches the receipts again. Idempotent.
+ */
+export async function correctPurchaseReturnGrniClearance(
+  tx: Client,
+  purchaseReturnId: string,
+  actorUserId: string,
+) {
+  const purchaseReturn = await loadPurchaseReturnForAccounting(tx, purchaseReturnId);
+  if (
+    !purchaseReturn ||
+    !(POSTED_PURCHASE_RETURN_STATES as readonly string[]).includes(purchaseReturn.status) ||
+    purchaseReturn.lines.some((line) => line.source !== "QC_REJECTED")
+  )
+    return;
+  const [journal, settings] = await Promise.all([
+    tx.accountingJournal.findUnique({
+      where: {
+        sourceType_sourceId: { sourceType: "PURCHASE_RETURN", sourceId: purchaseReturn.id },
+      },
+      include: { lines: true },
+    }),
+    tx.accountingSettings.findUnique({
+      where: { id: "default" },
+      include: { mappings: true },
+    }),
+  ]);
+  const grniAccountId = settings?.mappings.find((entry) => entry.mappingKey === "GRNI")?.accountId;
+  if (!journal || journal.status !== "POSTED" || !grniAccountId) return;
+  const postedClearance = sum(
+    journal.lines
+      .filter((line) => line.accountId === grniAccountId)
+      .map((line) => new Decimal(line.debit.toString()).sub(line.credit.toString())),
+  );
+  const receiptValue = await originalReceiptValues(tx, purchaseReturn);
+  const { clearance } = await rejectedReturnGrni(tx, purchaseReturn, receiptValue);
+  const difference = clearance.sub(postedClearance);
+  if (difference.isZero()) return;
+  await postAutomaticJournal(tx, {
+    sourceType: "PURCHASE_RETURN",
+    sourceId: `grni-correction:${purchaseReturn.id}`,
+    sourceNumber: purchaseReturn.number,
+    accountingDate: new Date(),
+    description: `GRNI correction to receipt cost: ${purchaseReturn.number}.`,
+    actorUserId,
+    lines: difference.gt(0)
+      ? [
+          {
+            mapping: "GRNI",
+            debit: difference.toFixed(),
+            supplierId: purchaseReturn.supplierId,
+          },
+          { mapping: "PURCHASE_RETURN_VARIANCE", credit: difference.toFixed() },
+        ]
+      : [
+          { mapping: "PURCHASE_RETURN_VARIANCE", debit: difference.abs().toFixed() },
+          {
+            mapping: "GRNI",
+            credit: difference.abs().toFixed(),
+            supplierId: purchaseReturn.supplierId,
+          },
+        ],
+  });
 }
 
 export async function postProductionCostAccounting(
@@ -1491,8 +1645,10 @@ export async function backfillAccounting(tx: Client, actorUserId: string) {
     await postGoodsReceiptAcceptanceAccounting(tx, receipt.id, actorUserId, true);
   for (const salesReturn of salesReturns)
     await postSalesReturnAccounting(tx, salesReturn.id, actorUserId, true);
-  for (const purchaseReturn of purchaseReturns)
+  for (const purchaseReturn of purchaseReturns) {
     await postPurchaseReturnAccounting(tx, purchaseReturn.id, actorUserId, true);
+    await correctPurchaseReturnGrniClearance(tx, purchaseReturn.id, actorUserId);
+  }
   const result = {
     processed:
       valuations.length +

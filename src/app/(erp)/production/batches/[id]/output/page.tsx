@@ -197,7 +197,7 @@ export default async function ProductionOutputPage({
             label="Unreconciled difference"
             value={
               view.reconciliation.unreconciledDifference === null
-                ? "Incompatible input basis"
+                ? "Not calculable (mixed units) — checked by pieces instead"
                 : `${view.reconciliation.unreconciledDifference} ${view.productContentUnitSymbol}`
             }
           />
@@ -438,6 +438,7 @@ export default async function ProductionOutputPage({
             action={completeBatchAction}
             batchId={id}
             blockers={view.completionBlockers}
+            explanationReasons={view.completionExplanationReasons}
             requiresExplanation={view.completionNeedsExplanation}
           />
         </Card>

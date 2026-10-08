@@ -1,6 +1,7 @@
 "use client";
 
 import { formatFactoryDate } from "@/components/ui/format-datetime";
+import Decimal from "decimal.js";
 import { startTransition, useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormActions } from "@/components/ui/form-actions";
@@ -63,18 +64,22 @@ export function CustomerPaymentForm({
       ),
     );
   const selected = allocations.filter((allocation) => allocation.allocatedAmount !== "0");
+  // Exact decimals (UX-13): binary floats drift ("2534.5899999") and disagree with the server.
   const allocated = selected.reduce(
-    (totalAmount, allocation) => totalAmount + (Number(allocation.allocatedAmount) || 0),
-    0,
+    (totalAmount, allocation) => totalAmount.add(exactOrZero(allocation.allocatedAmount)),
+    new Decimal(0),
   );
-  const unallocated = (Number(total) || 0) - allocated;
+  const unallocated = exactOrZero(total).sub(allocated);
   const autoAllocate = () => {
-    let remaining = Number(total) || 0;
+    let remaining = exactOrZero(total);
     setAllocations(
       invoices.map((invoice) => {
-        const amount = Math.max(0, Math.min(remaining, Number(invoice.outstandingAmount)));
-        remaining -= amount;
-        return { salesInvoiceId: invoice.id, allocatedAmount: amount ? String(amount) : "0" };
+        const amount = Decimal.max(0, Decimal.min(remaining, invoice.outstandingAmount));
+        remaining = remaining.sub(amount);
+        return {
+          salesInvoiceId: invoice.id,
+          allocatedAmount: amount.isZero() ? "0" : amount.toFixed(),
+        };
       }),
     );
   };
@@ -297,8 +302,9 @@ export function CustomerPaymentForm({
               </tbody>
             </table>
           </div>
-          <p className={unallocated < 0 ? "text-red-700" : "text-sm"}>
-            Payment {total || "0"} · Allocated {allocated} · Unallocated {unallocated}
+          <p className={unallocated.lt(0) ? "text-red-700" : "text-sm"}>
+            Payment {formatMoney(exactOrZero(total), "")} · Allocated {formatMoney(allocated, "")} ·
+            Unallocated {formatMoney(unallocated, "")}
           </p>
         </>
       ) : (
@@ -317,4 +323,12 @@ export function CustomerPaymentForm({
       )}
     </form>
   );
+}
+
+function exactOrZero(value: string) {
+  try {
+    return new Decimal(value || "0");
+  } catch {
+    return new Decimal(0);
+  }
 }

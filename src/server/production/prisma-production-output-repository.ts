@@ -632,11 +632,26 @@ async function buildView(
   // UX-11: when inputs can't be compared with output content (a recipe mixing kg and L), the
   // piece-based shortfall check above is the reconciliation; "not calculable" alone is no reason
   // to demand an explanation from a batch that produced exactly what was planned.
-  const needsExplanation =
-    unexplainedShortfall ||
-    (reconciliation.unreconciledDifference !== null &&
-      !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
-    packaging.some((row) => row.consistencyWarning !== null);
+  // UX-11: say exactly why an explanation is required, so a kg/L "not calculable" yield is never
+  // mistaken for the reason. Only NORMAL batches need one (as enforced in completeBatch).
+  const explanationReasons =
+    batch.batchType === "NORMAL"
+      ? [
+          ...(unexplainedShortfall
+            ? [
+                `Good output is ${new Decimal(batch.plannedTotalPieces.toString()).sub(postedGoodPieces).toFixed()} piece(s) short of plan with no REJECTED, PROCESS LOSS or REPROCESS output posted.`,
+              ]
+            : []),
+          ...(reconciliation.unreconciledDifference !== null &&
+          !new Decimal(reconciliation.unreconciledDifference).isZero()
+            ? [
+                `Input and output differ by ${reconciliation.unreconciledDifference} ${batch.productContentCanonicalUnit.symbol}.`,
+              ]
+            : []),
+          ...packaging.flatMap((row) => (row.consistencyWarning ? [row.consistencyWarning] : [])),
+        ]
+      : [];
+  const needsExplanation = explanationReasons.length > 0;
   return {
     productionBatchId: batch.id,
     batchNumber: batch.batchNumber,
@@ -686,6 +701,7 @@ async function buildView(
     transactions: batch.outputTransactions.map(mapTransaction),
     completionBlockers: blockers,
     completionNeedsExplanation: needsExplanation,
+    completionExplanationReasons: explanationReasons,
     completionExplanation: batch.completionExplanation,
     completedByName: batch.completedBy?.name ?? null,
     completedAt: batch.completedAt,

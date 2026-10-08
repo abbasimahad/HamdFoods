@@ -66,13 +66,17 @@ export default async function DashboardPage() {
           {
             label: "Receivables",
             value: formatMoney(finance.receivables),
-            detail: "Owed by customers",
+            detail: new Decimal(finance.customerAdvances).gt(0)
+              ? `Owed by customers · advances received ${formatMoney(finance.customerAdvances)}`
+              : "Owed by customers",
             href: "/accounting/receivables",
           },
           {
             label: "Payables",
             value: formatMoney(finance.payables),
-            detail: "Owed to suppliers",
+            detail: new Decimal(finance.supplierAdvances).gt(0)
+              ? `Owed to suppliers · advances paid ${formatMoney(finance.supplierAdvances)}`
+              : "Owed to suppliers",
             href: "/accounting/payables",
           },
           {

@@ -1,4 +1,4 @@
-import { displayAmounts } from "@/components/ui/format-money";
+import { displayAmounts, formatMoney, formatUnitCost } from "@/components/ui/format-money";
 import { FinancialReportControls } from "@/components/accounting/financial-report-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { ResponsiveContainer } from "@/components/ui/responsive-container";
@@ -43,11 +43,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
               <tr key={row.batch}>
                 <td className="p-3">{row.batch}</td>
                 <td className="p-3">{row.product}</td>
-                <td className="p-3 text-right">{row.rawMaterialCost}</td>
-                <td className="p-3 text-right">{row.packagingCost}</td>
-                <td className="p-3 text-right">{row.additionalCost}</td>
-                <td className="p-3 text-right">{row.finishedGoodsCostPool}</td>
-                <td className="p-3 text-right">{row.costPerPiece}</td>
+                <td className="p-3 text-right">{formatMoney(row.rawMaterialCost, "")}</td>
+                <td className="p-3 text-right">{formatMoney(row.packagingCost, "")}</td>
+                <td className="p-3 text-right">{formatMoney(row.additionalCost, "")}</td>
+                <td className="p-3 text-right">{formatMoney(row.finishedGoodsCostPool, "")}</td>
+                <td className="p-3 text-right">{formatUnitCost(row.costPerPiece, 2)}</td>
               </tr>
             ))}
           </tbody>

@@ -156,6 +156,8 @@ export type ProductionOutputView = {
   transactions: readonly OutputTransactionRecord[];
   completionBlockers: readonly string[];
   completionNeedsExplanation: boolean;
+  /** Why an explanation is required (empty when it is optional). */
+  completionExplanationReasons: readonly string[];
   completionExplanation: string | null;
   completedByName: string | null;
   completedAt: Date | null;

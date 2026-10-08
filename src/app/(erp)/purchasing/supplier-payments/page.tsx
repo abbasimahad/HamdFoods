@@ -55,11 +55,28 @@ export default async function Page() {
                 <td className="p-3">{formatFactoryDate(payment.paymentDate)}</td>
                 <td className="p-3">{payment.supplier.name}</td>
                 <td className="p-3">{payment.treasuryAccount.name}</td>
-                <td className="p-3">{formatMoney(payment.totalAmount, "")}</td>
                 <td className="p-3">
-                  {payment.allocated} / {payment.unallocated}
+                  {payment.reversalOf
+                    ? `-${formatMoney(payment.totalAmount, "")}`
+                    : formatMoney(payment.totalAmount, "")}
                 </td>
-                <td className="p-3">{payment.status}</td>
+                <td className="p-3">
+                  {formatMoney(payment.allocated, "")} / {formatMoney(payment.unallocated, "")}
+                </td>
+                <td className="p-3">
+                  {/* BUG-36: a reversed payment and its reversal never read as two live payments. */}
+                  {payment.reversalPayment ? (
+                    <span className="font-semibold text-red-700">
+                      REVERSED ({payment.reversalPayment.number})
+                    </span>
+                  ) : payment.reversalOf ? (
+                    <span className="font-semibold text-red-700">
+                      REVERSAL of {payment.reversalOf.number}
+                    </span>
+                  ) : (
+                    payment.status
+                  )}
+                </td>
                 <td className="p-3">
                   {payment.status === "DRAFT" && hasPermission(principal, "accounting.manage") ? (
                     <>

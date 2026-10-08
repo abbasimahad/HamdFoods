@@ -75,11 +75,13 @@ export function CompleteBatchForm({
   action,
   batchId,
   requiresExplanation,
+  explanationReasons = [],
   blockers,
 }: {
   action: Action;
   batchId: string;
   requiresExplanation: boolean;
+  explanationReasons?: readonly string[];
   blockers: readonly string[];
 }) {
   const [state, formAction, pending] = useActionState(action, initialProductionActionState);
@@ -92,6 +94,16 @@ export function CompleteBatchForm({
             <li key={blocker}>{blocker}</li>
           ))}
         </ul>
+      )}
+      {requiresExplanation && explanationReasons.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          <p className="font-medium">An explanation is required because:</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {explanationReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
       )}
       <label className="block text-sm font-medium">
         Completion reconciliation explanation{requiresExplanation ? " (required)" : " (optional)"}

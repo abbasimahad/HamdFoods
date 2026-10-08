@@ -33,6 +33,8 @@ export type EligibleMaterialLot = {
   goodsReceiptNumber: string;
   manufacturingDate: Date | null;
   expiryDate: Date | null;
+  /** Goods-receipt date: the FIFO tie-break when expiry dates don't separate lots (UX-10). */
+  receivedAt: Date;
   availableQuantity: string;
   canonicalUnitId: string;
   canonicalUnitCode: string;

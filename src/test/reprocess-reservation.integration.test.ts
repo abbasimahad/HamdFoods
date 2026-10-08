@@ -931,7 +931,13 @@ describe("reprocess draft and reservation", () => {
     const beforeWriteOff = await prisma.inventoryValuationBalance.findUniqueOrThrow({
       where: { itemId: state.finishedItemId },
     });
-    const expectedValue = new Decimal(beforeWriteOff.averageUnitCost!.toString()).toFixed(6);
+    // BUG-34: an outbound value is whole paisa, except a full depletion, which takes the exact
+    // remaining inventory value.
+    const expectedValue = new Decimal(beforeWriteOff.ownedQuantity.toString()).eq(1)
+      ? new Decimal(beforeWriteOff.inventoryValue.toString()).toFixed(6)
+      : new Decimal(beforeWriteOff.averageUnitCost!.toString())
+          .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+          .toFixed(6);
     const lossMapping = await prisma.accountingAccountMapping.findUniqueOrThrow({
       where: {
         accountingSettingsId_mappingKey: {

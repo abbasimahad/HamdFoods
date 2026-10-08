@@ -1,3 +1,4 @@
+import { formatMoney } from "@/components/ui/format-money";
 import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -55,8 +56,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   {line.account.code} — {line.account.name}
                 </td>
                 <td className="p-3">{line.description ?? ""}</td>
-                <td className="p-3">{line.debit.toString()}</td>
-                <td className="p-3">{line.credit.toString()}</td>
+                <td className="p-3">{formatMoney(line.debit, "")}</td>
+                <td className="p-3">{formatMoney(line.credit, "")}</td>
               </tr>
             ))}
           </tbody>
@@ -65,8 +66,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <td className="p-3" colSpan={2}>
                 Total
               </td>
-              <td className="p-3">{journal.totalDebit.toString()}</td>
-              <td className="p-3">{journal.totalCredit.toString()}</td>
+              <td className="p-3">{formatMoney(journal.totalDebit, "")}</td>
+              <td className="p-3">{formatMoney(journal.totalCredit, "")}</td>
             </tr>
           </tfoot>
         </table>

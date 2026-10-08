@@ -1,5 +1,6 @@
 "use client";
 import { formatFactoryDate } from "@/components/ui/format-datetime";
+import Decimal from "decimal.js";
 import { useActionState, useState } from "react";
 import type { OpenInvoice } from "@/modules/sales/application/customer-payment-contracts";
 import { formatMoney } from "@/components/ui/format-money";
@@ -23,17 +24,24 @@ export function CustomerCreditAllocationForm({
     invoices.map((invoice) => ({ salesInvoiceId: invoice.id, allocatedAmount: "0" })),
   );
   const selected = allocations.filter((allocation) => allocation.allocatedAmount !== "0");
-  const allocated = selected.reduce(
-    (total, allocation) => total + (Number(allocation.allocatedAmount) || 0),
-    0,
-  );
+  // Exact decimals: binary floats would show "1373.8000000000002" and drift from the server.
+  const allocated = selected.reduce((total, allocation) => {
+    try {
+      return total.add(allocation.allocatedAmount || "0");
+    } catch {
+      return total;
+    }
+  }, new Decimal(0));
   const auto = () => {
-    let remaining = Number(availableCredit);
+    let remaining = new Decimal(availableCredit);
     setAllocations(
       invoices.map((invoice) => {
-        const amount = Math.max(0, Math.min(remaining, Number(invoice.outstandingAmount)));
-        remaining -= amount;
-        return { salesInvoiceId: invoice.id, allocatedAmount: amount ? String(amount) : "0" };
+        const amount = Decimal.max(0, Decimal.min(remaining, invoice.outstandingAmount));
+        remaining = remaining.sub(amount);
+        return {
+          salesInvoiceId: invoice.id,
+          allocatedAmount: amount.isZero() ? "0" : amount.toFixed(),
+        };
       }),
     );
   };
@@ -43,7 +51,9 @@ export function CustomerCreditAllocationForm({
       <input name="customerId" type="hidden" value={customerId} />
       <input name="allocationsJson" type="hidden" value={JSON.stringify(selected)} />
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Allocate unallocated credit ({availableCredit})</h2>
+        <h2 className="font-semibold">
+          Allocate unallocated credit ({formatMoney(availableCredit, "")})
+        </h2>
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={auto} type="button">
           Auto allocate oldest
         </button>
@@ -90,8 +100,8 @@ export function CustomerCreditAllocationForm({
           </tbody>
         </table>
       </div>
-      <p className={allocated > Number(availableCredit) ? "text-sm text-red-700" : "text-sm"}>
-        Selected: {allocated}
+      <p className={allocated.gt(availableCredit) ? "text-sm text-red-700" : "text-sm"}>
+        Selected: {formatMoney(allocated, "")} of {formatMoney(availableCredit, "")}
       </p>
       <button
         className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"

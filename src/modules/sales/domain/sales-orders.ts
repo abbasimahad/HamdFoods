@@ -91,8 +91,10 @@ export function calculateSalesOrderTotals(
   };
 }
 
+/** UX-9: "Rs 16,500.00" -- exact half-up paisa with thousands separators. */
 export function formatSalesMoney(value: string) {
-  return `Rs ${new Decimal(value).toFixed(2)}`;
+  const [whole, fraction] = new Decimal(value).toFixed(2, Decimal.ROUND_HALF_UP).split(".");
+  return `Rs ${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
 }
 
 function percent(value: string, label: string) {

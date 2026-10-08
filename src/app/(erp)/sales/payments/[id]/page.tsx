@@ -77,7 +77,10 @@ export default async function CustomerPaymentDetailPage({
             .join(" / ") || "-"}
         </p>
         <p>Allocated: {formatMoney(payment.allocatedAmount, "")}</p>
-        <p>Unallocated customer credit: {formatMoney(payment.unallocatedAmount, "")}</p>
+        <p>
+          Unallocated customer credit{payment.status === "DRAFT" ? " (once posted)" : ""}:{" "}
+          {formatMoney(payment.unallocatedAmount, "")}
+        </p>
         {payment.reversalOfNumber ? <p>Reversal of: {payment.reversalOfNumber}</p> : null}
         {payment.reversalPaymentNumber ? <p>Reversed by: {payment.reversalPaymentNumber}</p> : null}
         {payment.reversalReason ? <p>Reversal reason: {payment.reversalReason}</p> : null}
@@ -130,6 +133,8 @@ export default async function CustomerPaymentDetailPage({
         Number(payment.unallocatedAmount) > 0 && (
           <Card className="mt-4 p-5">
             <CustomerCreditAllocationForm
+              // Remount after each allocation so the selection resets to the new balance (UX-13).
+              key={`${payment.unallocatedAmount}:${openInvoices.map((invoice) => `${invoice.id}=${invoice.outstandingAmount}`).join(",")}`}
               action={allocateCustomerCreditAction}
               availableCredit={payment.unallocatedAmount}
               customerId={payment.customerId}

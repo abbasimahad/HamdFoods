@@ -6,7 +6,9 @@ import { useActionState, useMemo, useState } from "react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SingleFlightForm } from "@/components/ui/single-flight-form";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
+import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import { initialProductionActionState, type ProductionAction } from "./action-state";
+import { suggestWarehouse, WAREHOUSE_PURPOSE } from "./suggest-warehouse";
 
 type Source = {
   productionLotId: string;
@@ -41,7 +43,7 @@ export function ReprocessForm({
   action: ProductionAction;
   sources: readonly Source[];
   recipes: readonly Recipe[];
-  warehouses: readonly { id: string; code: string; name: string }[];
+  warehouses: readonly BatchWarehouseOption[];
 }) {
   const [state, formAction, pending] = useActionState(action, initialProductionActionState);
   const [sourceKey, setSourceKey] = useState(sources[0] ? key(sources[0]) : "");
@@ -140,16 +142,31 @@ export function ReprocessForm({
             required={false}
           />
           <Warehouse
+            defaultValue={suggestWarehouse(
+              warehouses,
+              "RAW_MATERIAL",
+              WAREHOUSE_PURPOSE.RAW_MATERIAL,
+            )}
             label="Raw-material warehouse"
             name="rawMaterialWarehouseId"
             warehouses={warehouses}
           />
           <Warehouse
+            defaultValue={suggestWarehouse(
+              warehouses,
+              "PACKAGING_MATERIAL",
+              WAREHOUSE_PURPOSE.PACKAGING_MATERIAL,
+            )}
             label="Packaging warehouse"
             name="packagingWarehouseId"
             warehouses={warehouses}
           />
           <Warehouse
+            defaultValue={suggestWarehouse(
+              warehouses,
+              "FINISHED_GOOD",
+              WAREHOUSE_PURPOSE.FINISHED_GOOD,
+            )}
             label="Finished-goods destination"
             name="finishedGoodsDestinationWarehouseId"
             warehouses={warehouses}
@@ -233,18 +250,25 @@ function Field({
   );
 }
 function Warehouse({
+  defaultValue,
   label,
   name,
   warehouses,
 }: {
+  defaultValue: string;
   label: string;
   name: string;
-  warehouses: readonly { id: string; code: string; name: string }[];
+  warehouses: readonly BatchWarehouseOption[];
 }) {
   return (
     <label className="text-sm font-medium">
       {label}
-      <select className="mt-1 min-h-11 w-full rounded-lg border bg-white px-3" name={name} required>
+      <select
+        className="mt-1 min-h-11 w-full rounded-lg border bg-white px-3"
+        defaultValue={defaultValue}
+        name={name}
+        required
+      >
         {warehouses.map((warehouse) => (
           <option key={warehouse.id} value={warehouse.id}>
             {warehouse.code} / {warehouse.name}

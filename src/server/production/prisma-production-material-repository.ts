@@ -491,6 +491,7 @@ async function listLotBalances(
       goodsReceiptNumber: lot.sourceGoodsReceipt.number,
       manufacturingDate: lot.manufacturingDate,
       expiryDate: lot.expiryDate,
+      receivedAt: lot.sourceGoodsReceipt.receiptDate,
       availableQuantity: group._sum?.quantity?.toString() ?? "0",
       canonicalUnitId: unit.id,
       canonicalUnitCode: unit.code,

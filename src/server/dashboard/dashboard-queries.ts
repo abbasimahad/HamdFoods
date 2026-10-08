@@ -2,6 +2,7 @@ import "server-only";
 
 import Decimal from "decimal.js";
 import type { AccountingMappingKey } from "@/generated/prisma/client";
+import { counterpartyAdvances } from "@/server/accounting/financial-reporting";
 import { prisma } from "@/server/db/prisma";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 
@@ -57,7 +58,7 @@ export async function financialSnapshot() {
   for (const id of defaults.values()) cashAccountIds.add(id);
   const pick = (...keys: AccountingMappingKey[]) =>
     keys.flatMap((key) => (ids.get(key) ? [ids.get(key)!] : []));
-  const [receivables, payables, stock, cash] = await Promise.all([
+  const [receivables, payables, stock, cash, advances] = await Promise.all([
     ledgerBalance(pick("ACCOUNTS_RECEIVABLE")),
     ledgerBalance(pick("ACCOUNTS_PAYABLE")),
     ledgerBalance(
@@ -69,11 +70,15 @@ export async function financialSnapshot() {
       ),
     ),
     ledgerBalance([...cashAccountIds]),
+    counterpartyAdvances(),
   ]);
   return {
-    receivables: receivables.toFixed(2),
-    // AP is a credit balance; show it as a positive amount owed.
-    payables: payables.negated().toFixed(2),
+    // UX-15: what customers owe, with their advance payments shown separately (a liability).
+    receivables: receivables.add(advances.customer).toFixed(2),
+    customerAdvances: advances.customer.toFixed(2),
+    // AP is a credit balance; show it as a positive amount owed, supplier advances separately.
+    payables: payables.negated().add(advances.supplier).toFixed(2),
+    supplierAdvances: advances.supplier.toFixed(2),
     stockValue: stock.toFixed(2),
     cashAndBank: cash.toFixed(2),
   };

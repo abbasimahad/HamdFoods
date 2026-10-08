@@ -43,6 +43,16 @@ export function factoryLocalDateTimeValue(date: Date): string {
 }
 
 /**
+ * UX-14: a transaction-time form field left blank means "now" -- the moment the server saves it,
+ * in factory-local "YYYY-MM-DDTHH:mm:ss" form -- never the moment the page was opened.
+ */
+export function factoryLocalDateTimeOrNow(value: unknown): unknown {
+  if (typeof value === "string" && value.trim() !== "") return value;
+  const local = new Date(Date.now() + FACTORY_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  return local.toISOString().slice(0, 19);
+}
+
+/**
  * The factory-local business date of an instant, as a UTC-midnight Date (the shape stored in
  * `@db.Date` columns). A date-only value (already UTC midnight) maps to itself; a timestamp such
  * as a batch posted at 03:23 PKT (22:23 UTC the previous day) maps to the local calendar day.

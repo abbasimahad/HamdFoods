@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { ProductionActionState } from "./action-state";
+import { suggestWarehouse, WAREHOUSE_PURPOSE } from "./suggest-warehouse";
 import type {
   BatchRecipeOption,
   BatchWarehouseOption,
@@ -71,7 +72,7 @@ export function ProductionBatchForm({
             name="rawMaterialWarehouseId"
             defaultValue={
               initial?.rawMaterialWarehouseId ??
-              suggestWarehouse(warehouses, "RAW_MATERIAL", /\braw\b|\brm\b/i)
+              suggestWarehouse(warehouses, "RAW_MATERIAL", WAREHOUSE_PURPOSE.RAW_MATERIAL)
             }
             options={warehouseOptions(warehouses)}
           />
@@ -80,7 +81,11 @@ export function ProductionBatchForm({
             name="packagingWarehouseId"
             defaultValue={
               initial?.packagingWarehouseId ??
-              suggestWarehouse(warehouses, "PACKAGING_MATERIAL", /pack/i)
+              suggestWarehouse(
+                warehouses,
+                "PACKAGING_MATERIAL",
+                WAREHOUSE_PURPOSE.PACKAGING_MATERIAL,
+              )
             }
             options={warehouseOptions(warehouses)}
           />
@@ -89,7 +94,7 @@ export function ProductionBatchForm({
             name="finishedGoodsDestinationWarehouseId"
             defaultValue={
               initial?.finishedGoodsDestinationWarehouseId ??
-              suggestWarehouse(warehouses, "FINISHED_GOOD", /finish|\bfg\b/i)
+              suggestWarehouse(warehouses, "FINISHED_GOOD", WAREHOUSE_PURPOSE.FINISHED_GOOD)
             }
             options={warehouseOptions(warehouses)}
           />
@@ -241,33 +246,6 @@ function Select({
         ))}
       </select>
     </label>
-  );
-}
-
-/**
- * UX-9: the first warehouse alphabetically is usually the finished-goods store, which is the
- * wrong default for raw materials and packaging. Prefer the warehouse that actually holds the
- * most items of that kind, then one whose code or name matches its purpose, then one that holds
- * no other kind of stock, and only then the first one.
- */
-function suggestWarehouse(
-  warehouses: readonly BatchWarehouseOption[],
-  itemType: "RAW_MATERIAL" | "PACKAGING_MATERIAL" | "FINISHED_GOOD",
-  pattern: RegExp,
-) {
-  const count = (warehouse: BatchWarehouseOption) => warehouse.stockedItemCounts?.[itemType] ?? 0;
-  const stocked = warehouses.filter((warehouse) => count(warehouse) > 0);
-  stocked.sort((a, b) => count(b) - count(a));
-  const holdsOtherStock = (warehouse: BatchWarehouseOption) =>
-    Object.entries(warehouse.stockedItemCounts ?? {}).some(
-      ([type, lines]) => type !== itemType && (lines ?? 0) > 0,
-    );
-  return (
-    stocked[0]?.id ??
-    warehouses.find((warehouse) => pattern.test(`${warehouse.code} ${warehouse.name}`))?.id ??
-    warehouses.find((warehouse) => !holdsOtherStock(warehouse))?.id ??
-    warehouses[0]?.id ??
-    ""
   );
 }
 

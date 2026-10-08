@@ -32,8 +32,9 @@ test("representative printable documents and financial report render", async ({ 
   await expect(page.getByText("P27-RAW", { exact: false })).toBeVisible();
 
   await page.goto(`/sales/invoices/${state.invoiceId}/print`);
-  await expect(page.getByRole("heading", { name: "Sales Invoice" })).toBeVisible();
-  await expect(page.getByText("Phase 27 Customer", { exact: true })).toBeVisible();
+  // A taxed invoice prints as a "Sales Tax Invoice".
+  await expect(page.getByRole("heading", { name: /^Sales (Tax )?Invoice$/ })).toBeVisible();
+  await expect(page.getByText(/^Phase 27 Customer \(/)).toBeVisible();
 
   await page.goto("/accounting/reports/profit-loss?from=2026-01-01&to=2026-12-31");
   await expect(page.getByRole("heading", { name: "Profit & Loss" })).toBeVisible();

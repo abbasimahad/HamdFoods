@@ -21,7 +21,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
       <table className="w-full text-sm">
         <tbody className="divide-y">
           {rows.map((row) => (
-            <tr key={row.code}>
+            <tr key={`${row.code}:${row.name}`}>
               <td className="p-3">
                 {row.code} — {row.name}
               </td>
@@ -45,6 +45,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
         {group("Equity", report.equityRows)}
         <table className="w-full border-t text-sm">
           <tbody>
+            {report.priorEarnings !== null && (
+              <tr className="font-semibold">
+                <td className="p-3">Retained earnings (earlier years)</td>
+                <td className="p-3 text-right">{report.priorEarnings}</td>
+              </tr>
+            )}
             <tr className="font-semibold">
               <td className="p-3">Current-year earnings</td>
               <td className="p-3 text-right">{report.currentEarnings}</td>

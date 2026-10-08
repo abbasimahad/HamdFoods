@@ -448,6 +448,13 @@ async function prepareReturn(transaction: Prisma.TransactionClient, input: Purch
       "One return must use unique sources from one supplier, PO, GRN, and warehouse.",
     );
   }
+  // QC-rejected stock was never payable (it clears GRNI) while stock held after acceptance was
+  // (it credits the payable); one return carries one of the two so each settles cleanly.
+  if (selected.some(({ source }) => source.source !== header.source))
+    throw new PurchasingRepositoryError(
+      "invalid-reference",
+      "Return QC-rejected stock and stock held after acceptance on separate purchase returns.",
+    );
   return {
     header,
     returnDate: dateOnly(input.returnDate),

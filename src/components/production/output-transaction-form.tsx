@@ -45,11 +45,13 @@ export function OutputTransactionForm({
           Transaction time
           <input
             className="mt-1 min-h-11 w-full rounded-lg border px-3"
-            defaultValue={dateTimeLocal(initial?.transactionDate)}
+            defaultValue={initial ? dateTimeLocal(initial.transactionDate) : ""}
             name="transactionDate"
-            required
             type="datetime-local"
           />
+          <span className="mt-1 block text-xs font-normal text-[var(--muted)]">
+            Leave blank to record the time you save.
+          </span>
         </label>
         <label className="text-sm font-medium">
           Production date
@@ -237,6 +239,6 @@ function Field({ label, value }: { label: string; value: string }) {
 function dateOnly(value?: Date | null) {
   return value ? value.toISOString().slice(0, 10) : undefined;
 }
-function dateTimeLocal(value?: Date) {
-  return factoryLocalDateTimeValue(value ?? new Date());
+function dateTimeLocal(value: Date) {
+  return factoryLocalDateTimeValue(value);
 }

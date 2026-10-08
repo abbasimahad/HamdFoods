@@ -23,6 +23,7 @@ export default async function Page({
     ["Net sales", report.netSales],
     ["Cost of goods sold", `(${report.cogs})`],
     ["Gross profit", report.grossProfit],
+    ...(report.otherIncomeRows.length ? [["Other income", report.otherIncome]] : []),
     ["Operating expenses", `(${report.operatingExpenses})`],
     ["Net profit / (loss)", report.netProfit],
   ];
@@ -53,6 +54,23 @@ export default async function Page({
           </tbody>
         </table>
       </Card>
+      {report.otherIncomeRows.length > 0 && (
+        <Card className="mt-4 overflow-hidden">
+          <h2 className="p-3 font-semibold">Other income detail</h2>
+          <table className="w-full text-sm">
+            <tbody className="divide-y">
+              {report.otherIncomeRows.map((row) => (
+                <tr key={row.code}>
+                  <td className="p-3">
+                    {row.code} — {row.name}
+                  </td>
+                  <td className="p-3 text-right tabular-nums">{row.amount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
       <Card className="mt-4 overflow-hidden">
         <h2 className="p-3 font-semibold">Operating expense detail</h2>
         <table className="w-full text-sm">
