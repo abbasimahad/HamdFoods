@@ -11,20 +11,27 @@ import {
 
 const decimal = z.string().trim().min(1).max(80);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const batchSchema = z.object({
-  id: optionalUuid(),
-  recipeId: z.string().uuid(),
-  plannedBatchQuantity: decimal,
-  plannedBatchUnitId: z.string().uuid(),
-  plannedProductionDate: date,
-  targetCompletionDate: date.optional(),
-  rawMaterialWarehouseId: z.string().uuid(),
-  packagingWarehouseId: z.string().uuid(),
-  finishedGoodsDestinationWarehouseId: z.string().uuid(),
-  plannedCartons: z.string().trim().regex(/^\d+$/),
-  plannedLoosePieces: z.string().trim().regex(/^\d+$/),
-  notes: z.string().trim().max(3000).optional(),
-});
+const batchSchema = z
+  .object({
+    id: optionalUuid(),
+    recipeId: z.string().uuid(),
+    plannedBatchQuantity: decimal,
+    plannedBatchUnitId: z.string().uuid(),
+    plannedProductionDate: date,
+    targetCompletionDate: date.optional(),
+    rawMaterialWarehouseId: z.string().uuid(),
+    packagingWarehouseId: z.string().uuid(),
+    finishedGoodsDestinationWarehouseId: z.string().uuid(),
+    plannedCartons: z.string().trim().regex(/^\d+$/),
+    plannedLoosePieces: z.string().trim().regex(/^\d+$/),
+    notes: z.string().trim().max(3000).optional(),
+  })
+  .refine(
+    // BUG-37: at least one piece must be planned (cartons x pieces per carton is checked again on
+    // the server once the recipe's packing profile is known).
+    (batch) => Number(batch.plannedCartons) > 0 || Number(batch.plannedLoosePieces) > 0,
+    { message: "Planned output must be more than 0 pieces." },
+  );
 
 export async function saveProductionBatch(
   actor: ApplicationPrincipal,

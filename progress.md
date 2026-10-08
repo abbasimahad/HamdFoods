@@ -172,3 +172,10 @@ Round-6 bug log (HamdFoods_ERP_Test_Report, rounds 1-6; 2026-10-08):
 - Found while testing: the balance sheet dropped earlier years' profit (no year-end close exists), so it would stop balancing every 1 January -- earlier years now show as retained earnings. The P&L used `abs()` on expense accounts (a credit variance increased expenses) and ignored revenue accounts other than Sales -- now signed, with an "Other income" section, so net profit equals the net of all revenue and expense accounts.
 - Test fix: the write-off integration test expected the unrounded average cost; it now expects the round-5 paisa rule (it passed only when the average happened to be a whole paisa).
 - COST-1 unchanged (moving weighted average confirmed in round 5). INST-5/INST-7/INST-9 remain operator actions (PostgreSQL prerequisite, licence activation, one Restore Backup trial).
+
+Round-7 bug log (2026-10-09):
+
+- BUG-37: a production batch must plan more than 0 pieces. The batch form defaults planned cartons/loose pieces from the recipe's expected output divided by the finished good's content per piece (canonical units, rounded down; blank when they are measured differently); the create schema, the batch calculation, planning and release all refuse 0 planned pieces ("Planned output must be more than 0 pieces."), so the CTRL-1 shortfall explanation can never be switched off by a zero plan. Release also catches PLANNED batches saved before the rule.
+- BUG-35 leftover (Rs 3.75 in 2010 GRNI on the round-6 test database): no code change; the accounting backfill posts the `grni-correction` journal, or post a manual 2010/5020 journal. Go-live uses a fresh database.
+- UX-11 (exact-output kg/L batch) and the reprocess default warehouse remain to be confirmed in a live run; COST-1 remains a policy decision.
+- Verification: unit 533 passed / 2 skipped; disposable-DB integration 59 passed / 1 skipped (new round-7 regressions); E2E 42/42; production build compiles.

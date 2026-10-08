@@ -11,7 +11,11 @@ import type {
   ProductionBatchRepository,
 } from "@/modules/production/application/batch-contracts";
 import { ProductionBatchRepositoryError } from "@/modules/production/application/batch-contracts";
-import { calculateProductionBatch } from "@/modules/production/domain/batch-calculations";
+import {
+  calculateProductionBatch,
+  PLANNED_OUTPUT_REQUIRED_MESSAGE,
+  suggestedPlannedPieces,
+} from "@/modules/production/domain/batch-calculations";
 import { prisma } from "@/server/db/prisma";
 import { recordAuditEvent } from "@/server/audit/audit-event";
 import { PrismaRecipeRepository } from "./prisma-recipe-repository";
@@ -44,6 +48,7 @@ type BatchRow = Prisma.ProductionBatchGetPayload<{ include: typeof batchInclude 
 
 export class PrismaProductionBatchRepository implements ProductionBatchRepository {
   async listApprovedRecipes(): Promise<readonly BatchRecipeOption[]> {
+    const units = await new PrismaRecipeRepository().listRecipeUnits();
     const rows = await prisma.recipe.findMany({
       where: {
         status: "APPROVED",
@@ -74,6 +79,19 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
       expectedOutputQuantity: row.expectedOutputEnteredQuantity?.toString() ?? null,
       expectedOutputUnitSymbol: row.expectedOutputUnit?.symbol ?? null,
       piecesPerCarton: row.finishedGood.finishedGoodProfile!.piecesPerCarton,
+      suggestedPlannedPieces: suggestedPlannedPieces(
+        row.expectedOutputEnteredQuantity && row.expectedOutputUnitId
+          ? {
+              quantity: row.expectedOutputEnteredQuantity.toString(),
+              unitId: row.expectedOutputUnitId,
+            }
+          : null,
+        {
+          quantity: row.finishedGood.finishedGoodProfile!.netContentQuantity.toString(),
+          unitId: row.finishedGood.finishedGoodProfile!.netContentUnitId,
+        },
+        units,
+      ),
     }));
   }
 
@@ -172,6 +190,8 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
           "invalid-state",
           "Only a DRAFT production batch can be planned.",
         );
+      if (new Decimal(batch.plannedTotalPieces.toString()).lte(0))
+        throw new ProductionBatchRepositoryError("invalid-state", PLANNED_OUTPUT_REQUIRED_MESSAGE);
       await validateLifecycleReferences(transaction, batch);
       await transaction.productionBatch.update({ where: { id }, data: { status: "PLANNED" } });
       await recordAuditEvent(transaction, {
@@ -200,6 +220,9 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
           "invalid-state",
           "Only a PLANNED production batch can be released.",
         );
+      // BUG-37: never release a batch with nothing planned (older drafts predate the rule).
+      if (new Decimal(batch.plannedTotalPieces.toString()).lte(0))
+        throw new ProductionBatchRepositoryError("invalid-state", PLANNED_OUTPUT_REQUIRED_MESSAGE);
       await validateLifecycleReferences(transaction, batch);
       const hasShortage = await currentShortage(transaction, batch);
       if (hasShortage && !acknowledgeShortage)

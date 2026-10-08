@@ -30,6 +30,7 @@ export function ProductionBatchForm({
     initial?.plannedBatchUnitId ?? recipes[0]?.standardBatchUnitId ?? "",
   );
   const recipe = recipes.find((candidate) => candidate.id === recipeId);
+  const suggested = suggestedOutput(recipe);
   const compatibleUnits = units.filter(
     (unit) => unit.dimension === (recipe?.standardBatchDimension ?? initial?.plannedBatchDimension),
   );
@@ -122,19 +123,23 @@ export function ProductionBatchForm({
               label: `${unit.code} (${unit.dimension})`,
             }))}
           />
+          {/* BUG-37: start from the recipe's expected output, never 0 pieces; remount on recipe
+              change so the defaults follow the chosen recipe. */}
           <Field
+            key={`cartons:${recipeId}`}
             label="Planned cartons"
             name="plannedCartons"
             type="number"
-            defaultValue={initial?.plannedCartons ?? "0"}
+            defaultValue={initial?.plannedCartons ?? suggested.cartons}
             required
             integer
           />
           <Field
+            key={`loose:${recipeId}`}
             label="Planned loose pieces"
             name="plannedLoosePieces"
             type="number"
-            defaultValue={initial?.plannedLoosePieces ?? "0"}
+            defaultValue={initial?.plannedLoosePieces ?? suggested.loosePieces}
             required
             integer
           />
@@ -179,6 +184,16 @@ export function ProductionBatchForm({
       </p>
     </form>
   );
+}
+
+function suggestedOutput(recipe: BatchRecipeOption | undefined) {
+  const pieces = recipe?.suggestedPlannedPieces ?? null;
+  const perCarton = recipe?.piecesPerCarton ?? 0;
+  if (!pieces || perCarton <= 0) return { cartons: "0", loosePieces: pieces ? String(pieces) : "" };
+  return {
+    cartons: String(Math.floor(pieces / perCarton)),
+    loosePieces: String(pieces % perCarton),
+  };
 }
 
 function Field({

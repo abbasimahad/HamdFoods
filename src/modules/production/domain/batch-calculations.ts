@@ -50,6 +50,36 @@ export type ProductionBatchCalculation = {
   }[];
 };
 
+export const PLANNED_OUTPUT_REQUIRED_MESSAGE = "Planned output must be more than 0 pieces.";
+
+/**
+ * BUG-37: the planned pieces a recipe's standard batch yields -- its expected output divided by
+ * the finished good's content per piece, both in canonical units, rounded down. Null when the
+ * recipe has no expected output or it is not measured like the content (kg output, L bottles).
+ */
+export function suggestedPlannedPieces(
+  expectedOutput: { quantity: string; unitId: string } | null,
+  contentPerPiece: { quantity: string; unitId: string },
+  units: readonly RecipeUnit[],
+): number | null {
+  if (!expectedOutput) return null;
+  const outputUnit = units.find((unit) => unit.id === expectedOutput.unitId);
+  const contentUnit = units.find((unit) => unit.id === contentPerPiece.unitId);
+  if (!outputUnit || !contentUnit || outputUnit.dimension !== contentUnit.dimension) return null;
+  try {
+    const output = normalizeQuantity({ amount: expectedOutput.quantity, unit: outputUnit }, units);
+    const content = normalizeQuantity(
+      { amount: contentPerPiece.quantity, unit: contentUnit },
+      units,
+    );
+    if (exact(content.amount).lte(0)) return null;
+    const pieces = exact(output.amount).div(content.amount).floor();
+    return pieces.gt(0) && pieces.lte(Number.MAX_SAFE_INTEGER) ? pieces.toNumber() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function calculateProductionBatch(
   recipe: RecipeRecord,
   target: { quantity: string; unitId: string; cartons: string; loosePieces: string },
@@ -72,6 +102,9 @@ export function calculateProductionBatch(
   );
   const cartons = safeInteger(packaging.cartons, "Planned cartons");
   const loosePieces = safeInteger(packaging.loosePieces, "Planned loose pieces");
+  // BUG-37: a batch planned at 0 pieces can never be "short of plan", which silently switches
+  // off the CTRL-1 shortfall explanation and makes yield meaningless.
+  if (exact(packaging.totalPieces).lte(0)) throw new Error(PLANNED_OUTPUT_REQUIRED_MESSAGE);
   const contentPerPiece = normalizeQuantity(
     { amount: finishedGoodContent.quantity, unit: contentUnit },
     units,
