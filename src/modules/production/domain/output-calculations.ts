@@ -100,3 +100,36 @@ function nonnegative(value: string) {
 function percent(value: Decimal) {
   return value.toDecimalPlaces(6, Decimal.ROUND_HALF_UP).toFixed();
 }
+
+/**
+ * CTRL-1 / UX-11: why completing a batch needs a written explanation; empty when it is optional.
+ * The single rule behind both the output page and completion itself:
+ * - fewer good pieces than planned with no REJECTED, PROCESS LOSS or REPROCESS output posted;
+ * - a real input/output difference (an incomparable kg/L input basis is null, never a reason --
+ *   the piece check above reconciles such batches);
+ * - packaging good consumption that differs from the actual-output standard.
+ * Reprocess batches reconcile through their own yield check and never need one.
+ */
+export function completionExplanationReasons(input: {
+  batchType: "NORMAL" | "REPROCESS";
+  plannedPieces: Decimal.Value;
+  goodPieces: Decimal.Value;
+  nonGoodOutputPosted: boolean;
+  unreconciledDifference: string | null;
+  contentUnitSymbol: string;
+  packagingWarnings: readonly string[];
+}): string[] {
+  if (input.batchType !== "NORMAL") return [];
+  const shortfall = new Decimal(input.plannedPieces).sub(input.goodPieces);
+  return [
+    ...(shortfall.gt(0) && !input.nonGoodOutputPosted
+      ? [
+          `Good output is ${shortfall.toFixed()} piece(s) short of plan with no REJECTED, PROCESS LOSS or REPROCESS output posted.`,
+        ]
+      : []),
+    ...(input.unreconciledDifference !== null && !new Decimal(input.unreconciledDifference).isZero()
+      ? [`Input and output differ by ${input.unreconciledDifference} ${input.contentUnitSymbol}.`]
+      : []),
+    ...input.packagingWarnings,
+  ];
+}

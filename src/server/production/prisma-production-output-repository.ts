@@ -13,6 +13,7 @@ import { ProductionOutputRepositoryError } from "@/modules/production/applicatio
 import {
   calculateFinalPackagingStandard,
   calculateOutputReconciliation,
+  completionExplanationReasons,
   normalizeGoodOutput,
 } from "@/modules/production/domain/output-calculations";
 import {
@@ -621,36 +622,22 @@ async function buildView(
       : []),
     ...(custody.length ? ["Resolve all raw-material and packaging IN_PRODUCTION custody."] : []),
   ];
-  // Mirrors completionSnapshot: fewer good pieces than planned with no posted loss, reject or
-  // reprocess output is an unexplained shortfall (CTRL-1).
   const postedGoodPieces = posted
     .filter((row) => row.outputType === "GOOD")
     .reduce((total, row) => total.add(row.totalPieces?.toString() ?? "0"), new Decimal(0));
-  const unexplainedShortfall =
-    postedGoodPieces.lt(batch.plannedTotalPieces.toString()) &&
-    !posted.some((row) => row.outputType !== "GOOD");
-  // UX-11: when inputs can't be compared with output content (a recipe mixing kg and L), the
-  // piece-based shortfall check above is the reconciliation; "not calculable" alone is no reason
-  // to demand an explanation from a batch that produced exactly what was planned.
   // UX-11: say exactly why an explanation is required, so a kg/L "not calculable" yield is never
-  // mistaken for the reason. Only NORMAL batches need one (as enforced in completeBatch).
-  const explanationReasons =
-    batch.batchType === "NORMAL"
-      ? [
-          ...(unexplainedShortfall
-            ? [
-                `Good output is ${new Decimal(batch.plannedTotalPieces.toString()).sub(postedGoodPieces).toFixed()} piece(s) short of plan with no REJECTED, PROCESS LOSS or REPROCESS output posted.`,
-              ]
-            : []),
-          ...(reconciliation.unreconciledDifference !== null &&
-          !new Decimal(reconciliation.unreconciledDifference).isZero()
-            ? [
-                `Input and output differ by ${reconciliation.unreconciledDifference} ${batch.productContentCanonicalUnit.symbol}.`,
-              ]
-            : []),
-          ...packaging.flatMap((row) => (row.consistencyWarning ? [row.consistencyWarning] : [])),
-        ]
-      : [];
+  // mistaken for the reason; the same rule decides completion (completionSnapshot).
+  const explanationReasons = completionExplanationReasons({
+    batchType: batch.batchType,
+    plannedPieces: batch.plannedTotalPieces.toString(),
+    goodPieces: postedGoodPieces,
+    nonGoodOutputPosted: posted.some((row) => row.outputType !== "GOOD"),
+    unreconciledDifference: reconciliation.unreconciledDifference,
+    contentUnitSymbol: batch.productContentCanonicalUnit.symbol,
+    packagingWarnings: packaging.flatMap((row) =>
+      row.consistencyWarning ? [row.consistencyWarning] : [],
+    ),
+  });
   const needsExplanation = explanationReasons.length > 0;
   return {
     productionBatchId: batch.id,
@@ -770,7 +757,7 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
     expectedYieldPercent: batch.expectedYieldPercent?.toString() ?? null,
   });
   const packagingActual = await packagingAggregates(client, batchId);
-  const packagingMismatch = batch.packagingRequirements.some((line) => {
+  const packagingWarnings = batch.packagingRequirements.flatMap((line) => {
     const consumed = packagingActual.get(line.id) ?? "0";
     const standard = calculateFinalPackagingStandard(
       line.usageBasis,
@@ -778,7 +765,9 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
       goodPieces,
       goodCartons,
     );
-    return !new Decimal(consumed).eq(standard);
+    return new Decimal(consumed).eq(standard)
+      ? []
+      : [`Packaging line ${line.sequence} good consumption differs from actual-output standard.`];
   });
   const reprocessSource = batch.reprocessDocument
     ? batch.reprocessDocument.sourceContributions.reduce(
@@ -807,13 +796,18 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
       reprocessYieldError = error instanceof Error ? error.message : "Reprocess yield is invalid.";
     }
   }
-  // Piece-based check that works even when the recipe mixes kg and L (content reconciliation is
-  // then "not calculable"): fewer good pieces than planned, with no posted loss, reject or
-  // reprocess output to account for them, is an unexplained shortfall.
   const plannedPieces = new Decimal(batch.plannedTotalPieces.toString());
   const pieceShortfall = Decimal.max(0, plannedPieces.sub(goodPieces));
-  const lossRecorded = posted.some((row) => row.outputType !== "GOOD");
-  const unexplainedShortfall = pieceShortfall.gt(0) && !lossRecorded;
+  // The same rule the output page shows (completionExplanationReasons, CTRL-1 / UX-11).
+  const explanationReasons = completionExplanationReasons({
+    batchType: batch.batchType,
+    plannedPieces,
+    goodPieces,
+    nonGoodOutputPosted: posted.some((row) => row.outputType !== "GOOD"),
+    unreconciledDifference: reconciliation.unreconciledDifference,
+    contentUnitSymbol: "",
+    packagingWarnings,
+  });
   return {
     batchNumber: batch.batchNumber,
     batchType: batch.batchType,
@@ -843,12 +837,7 @@ async function completionSnapshot(client: Prisma.TransactionClient, batchId: str
         : []),
       ...(reprocessYieldError ? [reprocessYieldError] : []),
     ],
-    needsExplanation:
-      batch.batchType === "NORMAL" &&
-      (unexplainedShortfall ||
-        (reconciliation.unreconciledDifference !== null &&
-          !new Decimal(reconciliation.unreconciledDifference).isZero()) ||
-        packagingMismatch),
+    needsExplanation: explanationReasons.length > 0,
   };
 }
 

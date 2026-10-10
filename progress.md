@@ -179,3 +179,9 @@ Round-7 bug log (2026-10-09):
 - BUG-35 leftover (Rs 3.75 in 2010 GRNI on the round-6 test database): no code change; the accounting backfill posts the `grni-correction` journal, or post a manual 2010/5020 journal. Go-live uses a fresh database.
 - UX-11 (exact-output kg/L batch) and the reprocess default warehouse remain to be confirmed in a live run; COST-1 remains a policy decision.
 - Verification: unit 533 passed / 2 skipped; disposable-DB integration 59 passed / 1 skipped (new round-7 regressions); E2E 42/42; production build compiles.
+
+Round-7 follow-up (v0.4.1 retest, 2026-10-10):
+
+- BUG-37 default: the planned-output default did not appear for recipes whose expected output is in pieces (both factory recipes). The default now uses an expected output in pieces directly (otherwise expected content / content per piece), scales it by planned batch size / standard batch size, and fills cartons + loose pieces (ketchup 40 pcs -> 3 + 4, juice 24 pcs -> 2 + 0). The form follows recipe and batch-size changes until the user types their own figures; a saved batch keeps its plan. Covered by unit tests and a new E2E test on the real form.
+- Found while retesting: the shared warehouse-purpose patterns from round 6 contained literal backspace bytes instead of `\b`, so the name fallback (a "Raw Material" / "FG" store when no stock is held yet) never matched on batch and reprocess forms. Fixed, unit-tested, and every tracked source file scanned clean of control bytes.
+- UX-11: the completion-explanation rule is now one domain function (`completionExplanationReasons`) used by both the output page and completion, with a unit test of the exact-output kg/L juice case (no explanation required).

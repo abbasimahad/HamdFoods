@@ -13,8 +13,8 @@ import type {
 import { ProductionBatchRepositoryError } from "@/modules/production/application/batch-contracts";
 import {
   calculateProductionBatch,
+  expectedPiecesPerStandardBatch,
   PLANNED_OUTPUT_REQUIRED_MESSAGE,
-  suggestedPlannedPieces,
 } from "@/modules/production/domain/batch-calculations";
 import { prisma } from "@/server/db/prisma";
 import { recordAuditEvent } from "@/server/audit/audit-event";
@@ -79,7 +79,8 @@ export class PrismaProductionBatchRepository implements ProductionBatchRepositor
       expectedOutputQuantity: row.expectedOutputEnteredQuantity?.toString() ?? null,
       expectedOutputUnitSymbol: row.expectedOutputUnit?.symbol ?? null,
       piecesPerCarton: row.finishedGood.finishedGoodProfile!.piecesPerCarton,
-      suggestedPlannedPieces: suggestedPlannedPieces(
+      standardBatchNormalizedQuantity: row.standardBatchNormalizedQuantity.toString(),
+      expectedPiecesPerStandardBatch: expectedPiecesPerStandardBatch(
         row.expectedOutputEnteredQuantity && row.expectedOutputUnitId
           ? {
               quantity: row.expectedOutputEnteredQuantity.toString(),

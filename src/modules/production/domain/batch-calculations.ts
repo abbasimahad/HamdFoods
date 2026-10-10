@@ -53,27 +53,57 @@ export type ProductionBatchCalculation = {
 export const PLANNED_OUTPUT_REQUIRED_MESSAGE = "Planned output must be more than 0 pieces.";
 
 /**
- * BUG-37: the planned pieces a recipe's standard batch yields -- its expected output divided by
- * the finished good's content per piece, both in canonical units, rounded down. Null when the
- * recipe has no expected output or it is not measured like the content (kg output, L bottles).
+ * BUG-37: the pieces a recipe's standard batch is expected to yield (exact, unrounded). A recipe
+ * whose expected output is already in pieces gives it directly; one whose expected output is a
+ * content quantity (kg, L) is divided by the finished good's content per piece, both in canonical
+ * units. Null when the recipe has no expected output or it cannot be compared with the content.
  */
-export function suggestedPlannedPieces(
+export function expectedPiecesPerStandardBatch(
   expectedOutput: { quantity: string; unitId: string } | null,
   contentPerPiece: { quantity: string; unitId: string },
   units: readonly RecipeUnit[],
-): number | null {
+): string | null {
   if (!expectedOutput) return null;
   const outputUnit = units.find((unit) => unit.id === expectedOutput.unitId);
-  const contentUnit = units.find((unit) => unit.id === contentPerPiece.unitId);
-  if (!outputUnit || !contentUnit || outputUnit.dimension !== contentUnit.dimension) return null;
+  if (!outputUnit) return null;
   try {
-    const output = normalizeQuantity({ amount: expectedOutput.quantity, unit: outputUnit }, units);
-    const content = normalizeQuantity(
-      { amount: contentPerPiece.quantity, unit: contentUnit },
-      units,
+    const output = exact(
+      normalizeQuantity({ amount: expectedOutput.quantity, unit: outputUnit }, units).amount,
     );
-    if (exact(content.amount).lte(0)) return null;
-    const pieces = exact(output.amount).div(content.amount).floor();
+    if (output.lte(0)) return null;
+    if (outputUnit.dimension === "COUNT") return output.toFixed();
+    const contentUnit = units.find((unit) => unit.id === contentPerPiece.unitId);
+    if (!contentUnit || contentUnit.dimension !== outputUnit.dimension) return null;
+    const content = exact(
+      normalizeQuantity({ amount: contentPerPiece.quantity, unit: contentUnit }, units).amount,
+    );
+    return content.gt(0) ? output.div(content).toFixed() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * BUG-37: the default planned pieces for a batch -- the standard batch's expected pieces scaled by
+ * planned batch size / standard batch size, rounded down to whole pieces. Null when unknown or
+ * when the planned size is not a valid quantity of the recipe's batch dimension.
+ */
+export function suggestedPlannedPieces(
+  piecesPerStandardBatch: string | null,
+  standardBatchNormalizedQuantity: string,
+  plannedBatch: { quantity: string; unitId: string },
+  units: readonly RecipeUnit[],
+): number | null {
+  if (!piecesPerStandardBatch) return null;
+  const unit = units.find((candidate) => candidate.id === plannedBatch.unitId);
+  if (!unit || !/^\d+(\.\d+)?$/.test(plannedBatch.quantity.trim())) return null;
+  try {
+    const standard = exact(standardBatchNormalizedQuantity);
+    if (standard.lte(0)) return null;
+    const planned = exact(
+      normalizeQuantity({ amount: plannedBatch.quantity.trim(), unit }, units).amount,
+    );
+    const pieces = exact(piecesPerStandardBatch).mul(planned).div(standard).floor();
     return pieces.gt(0) && pieces.lte(Number.MAX_SAFE_INTEGER) ? pieces.toNumber() : null;
   } catch {
     return null;

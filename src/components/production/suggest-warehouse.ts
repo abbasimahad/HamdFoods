@@ -29,7 +29,7 @@ export function suggestWarehouse(
 
 /** Default warehouse purpose patterns shared by the batch and reprocess forms. */
 export const WAREHOUSE_PURPOSE = {
-  RAW_MATERIAL: /raw|rm/i,
+  RAW_MATERIAL: /\braw\b|\brm\b/i,
   PACKAGING_MATERIAL: /pack/i,
-  FINISHED_GOOD: /finish|fg/i,
+  FINISHED_GOOD: /finish|\bfg\b/i,
 } as const;

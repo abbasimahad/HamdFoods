@@ -40,8 +40,10 @@ export type BatchRecipeOption = {
   expectedOutputQuantity: string | null;
   expectedOutputUnitSymbol: string | null;
   piecesPerCarton: number;
-  /** Pieces the standard batch is expected to yield; the default planned output (BUG-37). */
-  suggestedPlannedPieces: number | null;
+  /** Canonical size of the standard batch, the base for scaling the planned output. */
+  standardBatchNormalizedQuantity: string;
+  /** Pieces the standard batch is expected to yield, exact; the planned-output default (BUG-37). */
+  expectedPiecesPerStandardBatch: string | null;
 };
 
 export type ProductionBatchInput = {

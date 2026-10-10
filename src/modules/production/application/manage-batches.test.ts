@@ -4,7 +4,10 @@ import type { ApplicationPrincipal } from "@/modules/access/domain/principal";
 import type { RecipeUnit } from "./contracts";
 import type { ProductionBatchRepository } from "./batch-contracts";
 import { saveProductionBatch } from "./manage-batches";
-import { suggestedPlannedPieces } from "../domain/batch-calculations";
+import {
+  expectedPiecesPerStandardBatch,
+  suggestedPlannedPieces,
+} from "../domain/batch-calculations";
 
 const actor: ApplicationPrincipal = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -38,6 +41,7 @@ const units = [
   unit("ml", "ML", "VOLUME"),
   unit("kg", "KG", "MASS"),
   unit("g", "G", "MASS"),
+  unit("pcs", "PCS", "COUNT"),
 ];
 
 describe("BUG-37: a batch must plan more than 0 pieces", () => {
@@ -61,32 +65,65 @@ describe("BUG-37: a batch must plan more than 0 pieces", () => {
     );
     expect(result).toEqual({ ok: true, id: "batch-id" });
   });
+});
 
-  it("suggests the pieces a standard batch yields from expected output and content", () => {
+describe("BUG-37: the planned-output default follows the recipe", () => {
+  it("uses an expected output already in pieces, scaled by the planned batch size", () => {
+    // Ketchup: standard batch 20 kg expected to give 40 bottles of 500 g.
+    const ketchup = expectedPiecesPerStandardBatch(
+      { quantity: "40", unitId: "pcs" },
+      { quantity: "500", unitId: "g" },
+      units,
+    );
+    expect(ketchup).toBe("40");
+    expect(suggestedPlannedPieces(ketchup, "20000", { quantity: "20", unitId: "kg" }, units)).toBe(
+      40,
+    );
+    expect(suggestedPlannedPieces(ketchup, "20000", { quantity: "10", unitId: "kg" }, units)).toBe(
+      20,
+    );
+    // Juice: standard batch 24 L expected to give 24 bottles of 1,000 ml.
+    const juice = expectedPiecesPerStandardBatch(
+      { quantity: "24", unitId: "pcs" },
+      { quantity: "1000", unitId: "ml" },
+      units,
+    );
+    expect(suggestedPlannedPieces(juice, "24000", { quantity: "24", unitId: "l" }, units)).toBe(24);
+  });
+
+  it("derives pieces from an expected content quantity, rounding part pieces down", () => {
     // 40 L expected juice in 1,000 ml bottles -> 40 bottles.
     expect(
-      suggestedPlannedPieces(
+      expectedPiecesPerStandardBatch(
         { quantity: "40", unitId: "l" },
         { quantity: "1000", unitId: "ml" },
         units,
       ),
-    ).toBe(40);
-    // 12.7 kg ketchup in 500 g bottles -> 25 bottles; a part bottle rounds down.
+    ).toBe("40");
+    // 12.7 kg ketchup in 500 g bottles -> 25.4, so 25 bottles.
+    const ketchup = expectedPiecesPerStandardBatch(
+      { quantity: "12.7", unitId: "kg" },
+      { quantity: "500", unitId: "g" },
+      units,
+    );
     expect(
-      suggestedPlannedPieces(
-        { quantity: "12.7", unitId: "kg" },
-        { quantity: "500", unitId: "g" },
-        units,
-      ),
+      suggestedPlannedPieces(ketchup, "12700", { quantity: "12.7", unitId: "kg" }, units),
     ).toBe(25);
-    // No expected output, or output measured unlike the content: no suggestion.
-    expect(suggestedPlannedPieces(null, { quantity: "1", unitId: "l" }, units)).toBeNull();
+  });
+
+  it("offers no suggestion when the plan cannot be derived", () => {
+    expect(expectedPiecesPerStandardBatch(null, { quantity: "1", unitId: "l" }, units)).toBeNull();
     expect(
-      suggestedPlannedPieces(
+      expectedPiecesPerStandardBatch(
         { quantity: "40", unitId: "kg" },
         { quantity: "1", unitId: "l" },
         units,
       ),
+    ).toBeNull();
+    expect(suggestedPlannedPieces(null, "1000", { quantity: "1", unitId: "kg" }, units)).toBeNull();
+    expect(suggestedPlannedPieces("40", "1000", { quantity: "", unitId: "kg" }, units)).toBeNull();
+    expect(
+      suggestedPlannedPieces("40", "1000", { quantity: "-1", unitId: "kg" }, units),
     ).toBeNull();
   });
 });

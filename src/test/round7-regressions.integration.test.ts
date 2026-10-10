@@ -54,7 +54,8 @@ describe("round-7 bug-log regressions", () => {
     const recipes = await new PrismaProductionBatchRepository().listApprovedRecipes();
     const recipe = recipes.find((candidate) => candidate.id === state.recipeId);
     expect(recipe).toBeDefined();
-    if (recipe!.suggestedPlannedPieces !== null)
-      expect(recipe!.suggestedPlannedPieces).toBeGreaterThan(0);
+    expect(Number(recipe!.standardBatchNormalizedQuantity)).toBeGreaterThan(0);
+    if (recipe!.expectedPiecesPerStandardBatch !== null)
+      expect(Number(recipe!.expectedPiecesPerStandardBatch)).toBeGreaterThan(0);
   });
 });

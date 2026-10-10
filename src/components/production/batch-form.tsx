@@ -10,6 +10,7 @@ import type {
   ProductionBatchRecord,
 } from "@/modules/production/application/batch-contracts";
 import type { RecipeUnit } from "@/modules/production/application/contracts";
+import { suggestedPlannedPieces } from "@/modules/production/domain/batch-calculations";
 
 export function ProductionBatchForm({
   action,
@@ -30,7 +31,15 @@ export function ProductionBatchForm({
     initial?.plannedBatchUnitId ?? recipes[0]?.standardBatchUnitId ?? "",
   );
   const recipe = recipes.find((candidate) => candidate.id === recipeId);
-  const suggested = suggestedOutput(recipe);
+  const [batchQuantity, setBatchQuantity] = useState(
+    initial?.plannedBatchEnteredQuantity ?? recipes[0]?.standardBatchQuantity ?? "",
+  );
+  // BUG-37: planned output follows the recipe's expected pieces, scaled to the batch size, until
+  // the user types their own figures (a saved batch keeps its own plan).
+  const [plan, setPlan] = useState<{ cartons: string; loosePieces: string } | null>(
+    initial ? { cartons: initial.plannedCartons, loosePieces: initial.plannedLoosePieces } : null,
+  );
+  const shown = plan ?? suggestedOutput(recipe, batchQuantity, batchUnitId, units);
   const compatibleUnits = units.filter(
     (unit) => unit.dimension === (recipe?.standardBatchDimension ?? initial?.plannedBatchDimension),
   );
@@ -45,10 +54,11 @@ export function ProductionBatchForm({
             name="recipeId"
             value={recipeId}
             onChange={(value) => {
+              const next = recipes.find((candidate) => candidate.id === value);
               setRecipeId(value);
-              setBatchUnitId(
-                recipes.find((candidate) => candidate.id === value)?.standardBatchUnitId ?? "",
-              );
+              setBatchUnitId(next?.standardBatchUnitId ?? "");
+              setBatchQuantity(next?.standardBatchQuantity ?? "");
+              setPlan(null);
             }}
             options={recipes.map((option) => ({
               value: option.id,
@@ -108,9 +118,8 @@ export function ProductionBatchForm({
             label="Planned batch quantity"
             name="plannedBatchQuantity"
             type="number"
-            defaultValue={
-              initial?.plannedBatchEnteredQuantity ?? recipe?.standardBatchQuantity ?? ""
-            }
+            value={batchQuantity}
+            onChange={setBatchQuantity}
             required
           />
           <Select
@@ -123,23 +132,21 @@ export function ProductionBatchForm({
               label: `${unit.code} (${unit.dimension})`,
             }))}
           />
-          {/* BUG-37: start from the recipe's expected output, never 0 pieces; remount on recipe
-              change so the defaults follow the chosen recipe. */}
           <Field
-            key={`cartons:${recipeId}`}
             label="Planned cartons"
             name="plannedCartons"
             type="number"
-            defaultValue={initial?.plannedCartons ?? suggested.cartons}
+            value={shown.cartons}
+            onChange={(cartons) => setPlan({ ...shown, cartons })}
             required
             integer
           />
           <Field
-            key={`loose:${recipeId}`}
             label="Planned loose pieces"
             name="plannedLoosePieces"
             type="number"
-            defaultValue={initial?.plannedLoosePieces ?? suggested.loosePieces}
+            value={shown.loosePieces}
+            onChange={(loosePieces) => setPlan({ ...shown, loosePieces })}
             required
             integer
           />
@@ -186,10 +193,23 @@ export function ProductionBatchForm({
   );
 }
 
-function suggestedOutput(recipe: BatchRecipeOption | undefined) {
-  const pieces = recipe?.suggestedPlannedPieces ?? null;
+function suggestedOutput(
+  recipe: BatchRecipeOption | undefined,
+  batchQuantity: string,
+  batchUnitId: string,
+  units: readonly RecipeUnit[],
+) {
+  const pieces = recipe
+    ? suggestedPlannedPieces(
+        recipe.expectedPiecesPerStandardBatch,
+        recipe.standardBatchNormalizedQuantity,
+        { quantity: batchQuantity, unitId: batchUnitId },
+        units,
+      )
+    : null;
   const perCarton = recipe?.piecesPerCarton ?? 0;
-  if (!pieces || perCarton <= 0) return { cartons: "0", loosePieces: pieces ? String(pieces) : "" };
+  if (!pieces) return { cartons: "0", loosePieces: "" };
+  if (perCarton <= 0) return { cartons: "0", loosePieces: String(pieces) };
   return {
     cartons: String(Math.floor(pieces / perCarton)),
     loosePieces: String(pieces % perCarton),
@@ -201,13 +221,17 @@ function Field({
   name,
   type,
   defaultValue,
+  value,
+  onChange,
   required = false,
   integer = false,
 }: {
   label: string;
   name: string;
   type: string;
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   required?: boolean;
   integer?: boolean;
 }) {
@@ -216,7 +240,9 @@ function Field({
       {label}
       <input
         className="mt-1 min-h-11 w-full rounded-lg border px-3"
-        defaultValue={defaultValue}
+        {...(onChange
+          ? { value, onChange: (event) => onChange(event.target.value) }
+          : { defaultValue })}
         min={type === "number" ? "0" : undefined}
         name={name}
         required={required}
