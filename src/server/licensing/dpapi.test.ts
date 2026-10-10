@@ -2,11 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { windowsIt } from "@/test/live-windows";
 
 import { dpapiProtect, dpapiUnprotect, resolveDpapiScriptPath } from "./dpapi";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const windowsIt = process.platform === "win32" ? it : it.skip;
 
 describe("resolveDpapiScriptPath", () => {
   it("resolves the repository installer script when no data root is configured", () => {

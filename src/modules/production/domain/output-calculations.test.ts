@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateOutputReconciliation, completionExplanationReasons } from "./output-calculations";
+import {
+  calculateOutputReconciliation,
+  completionExplanationReasons,
+  defaultExpiryDate,
+  remainingPlannedOutput,
+} from "./output-calculations";
 
 // Mango juice: kg pulp and sugar plus L water into 1 L bottles -> no common input basis.
 const juiceReconciliation = calculateOutputReconciliation({
@@ -59,5 +64,20 @@ describe("completionExplanationReasons (CTRL-1 / UX-11)", () => {
     expect(
       completionExplanationReasons({ ...base, batchType: "REPROCESS", goodPieces: "1" }),
     ).toEqual([]);
+  });
+});
+
+describe("output form defaults (BUG-39)", () => {
+  it("dates expiry from production date plus shelf life", () => {
+    expect(defaultExpiryDate("2026-10-10", 180)).toBe("2027-04-08");
+    expect(defaultExpiryDate("2028-02-28", 1)).toBe("2028-02-29");
+    expect(defaultExpiryDate("2026-10-10", null)).toBe("");
+    expect(defaultExpiryDate("", 180)).toBe("");
+  });
+
+  it("offers the good output still to record against the plan", () => {
+    expect(remainingPlannedOutput("40", "0", 12)).toEqual({ cartons: "3", loosePieces: "4" });
+    expect(remainingPlannedOutput("40", "12", 12)).toEqual({ cartons: "2", loosePieces: "4" });
+    expect(remainingPlannedOutput("40", "45", 12)).toEqual({ cartons: "0", loosePieces: "0" });
   });
 });

@@ -4,12 +4,12 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { windowsIt } from "@/test/live-windows";
 
 const commonScript = path.resolve("installer/scripts/Common-HamdFoodsERP.ps1");
 const setupScript = path.resolve("installer/scripts/Setup-HamdFoodsERP.ps1");
 const recoveryScript = path.resolve("installer/scripts/Account-Recovery-HamdFoodsERP.ps1");
 const installerDefinition = path.resolve("installer/HamdFoodsERP.iss");
-const windowsIt = process.platform === "win32" ? it : it.skip;
 
 describe("Windows installer PowerShell architecture boundaries", () => {
   windowsIt("keeps recovery credentials off command lines and requires elevation", () => {

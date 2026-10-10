@@ -564,21 +564,53 @@ export async function postSalesInvoiceAccounting(
     });
 }
 
+type CustomerPaymentForAccounting = NonNullable<
+  Awaited<ReturnType<typeof loadCustomerPaymentForAccounting>>
+>;
+
+function loadCustomerPaymentForAccounting(tx: Client, paymentId: string) {
+  return tx.customerPayment.findUnique({
+    where: { id: paymentId },
+    include: { treasuryAccount: true },
+  });
+}
+
+/** Cash in from the customer: Dr cash/bank, Cr receivable. Its reversal swaps the two sides. */
+function customerPaymentLines(
+  payment: CustomerPaymentForAccounting,
+  direction: "RECEIPT" | "REVERSAL",
+): AccountingLineInput[] {
+  const cash: AccountingLineInput = {
+    mapping: payment.method === "CASH" ? "DEFAULT_CASH" : "DEFAULT_BANK",
+    ...(payment.treasuryAccount ? { accountId: payment.treasuryAccount.glAccountId } : {}),
+    customerId: payment.customerId,
+  };
+  const receivable: AccountingLineInput = {
+    mapping: "ACCOUNTS_RECEIVABLE",
+    customerId: payment.customerId,
+  };
+  const value = payment.totalAmount.toString();
+  return direction === "RECEIPT"
+    ? [
+        { ...cash, debit: value },
+        { ...receivable, credit: value },
+      ]
+    : [
+        { ...receivable, debit: value },
+        { ...cash, credit: value },
+      ];
+}
+
 export async function postCustomerPaymentAccounting(
   tx: Client,
   paymentId: string,
   actorUserId: string,
   allowHistoricalBackfill = false,
 ) {
-  const payment = await tx.customerPayment.findUnique({
-    where: { id: paymentId },
-    include: { treasuryAccount: true },
-  });
-  if (!payment || payment.status !== "POSTED") return;
-  const cashMapping = payment.method === "CASH" ? "DEFAULT_CASH" : "DEFAULT_BANK";
-  const cashAccount = payment.treasuryAccount
-    ? { accountId: payment.treasuryAccount.glAccountId }
-    : {};
+  const payment = await loadCustomerPaymentForAccounting(tx, paymentId);
+  // BUG-38: a reversal document is also POSTED, but it returns money -- it is never a receipt.
+  // Its journal is posted by reverseCustomerPaymentAccounting under CUSTOMER_PAYMENT_REVERSAL.
+  if (!payment || payment.status !== "POSTED" || payment.reversalOfId) return;
   return postAutomaticJournal(tx, {
     sourceType: "CUSTOMER_PAYMENT",
     sourceId: payment.id,
@@ -587,19 +619,7 @@ export async function postCustomerPaymentAccounting(
     description: `Customer payment: ${payment.number}.`,
     actorUserId,
     allowHistoricalBackfill,
-    lines: [
-      {
-        mapping: cashMapping,
-        ...cashAccount,
-        debit: payment.totalAmount.toString(),
-        customerId: payment.customerId,
-      },
-      {
-        mapping: "ACCOUNTS_RECEIVABLE",
-        credit: payment.totalAmount.toString(),
-        customerId: payment.customerId,
-      },
-    ],
+    lines: customerPaymentLines(payment, "RECEIPT"),
   });
 }
 
@@ -607,16 +627,10 @@ export async function reverseCustomerPaymentAccounting(
   tx: Client,
   reversalPaymentId: string,
   actorUserId: string,
+  allowHistoricalBackfill = false,
 ) {
-  const payment = await tx.customerPayment.findUnique({
-    where: { id: reversalPaymentId },
-    include: { treasuryAccount: true },
-  });
+  const payment = await loadCustomerPaymentForAccounting(tx, reversalPaymentId);
   if (!payment || payment.status !== "POSTED" || !payment.reversalOfId) return;
-  const cashMapping = payment.method === "CASH" ? "DEFAULT_CASH" : "DEFAULT_BANK";
-  const cashAccount = payment.treasuryAccount
-    ? { accountId: payment.treasuryAccount.glAccountId }
-    : {};
   return postAutomaticJournal(tx, {
     sourceType: "CUSTOMER_PAYMENT_REVERSAL",
     sourceId: payment.id,
@@ -624,19 +638,36 @@ export async function reverseCustomerPaymentAccounting(
     accountingDate: payment.paymentDate,
     description: `Customer-payment reversal: ${payment.number}. ${payment.reversalReason ?? ""}`,
     actorUserId,
-    lines: [
-      {
-        mapping: "ACCOUNTS_RECEIVABLE",
-        debit: payment.totalAmount.toString(),
-        customerId: payment.customerId,
-      },
-      {
-        mapping: cashMapping,
-        ...cashAccount,
-        credit: payment.totalAmount.toString(),
-        customerId: payment.customerId,
-      },
-    ],
+    allowHistoricalBackfill,
+    lines: customerPaymentLines(payment, "REVERSAL"),
+  });
+}
+
+/**
+ * BUG-38 repair: backfills before the fix booked a customer-payment reversal (a bounced cheque)
+ * a second time as money received. Journals are immutable, so post one dated-today journal that
+ * takes that receipt back out (Dr receivable / Cr cash). Idempotent.
+ */
+export async function correctDuplicateReversalReceipt(
+  tx: Client,
+  reversalPaymentId: string,
+  actorUserId: string,
+) {
+  const payment = await loadCustomerPaymentForAccounting(tx, reversalPaymentId);
+  if (!payment || payment.status !== "POSTED" || !payment.reversalOfId) return;
+  const duplicate = await tx.accountingJournal.findUnique({
+    where: { sourceType_sourceId: { sourceType: "CUSTOMER_PAYMENT", sourceId: payment.id } },
+    select: { status: true, journalNumber: true },
+  });
+  if (!duplicate || duplicate.status !== "POSTED") return;
+  return postAutomaticJournal(tx, {
+    sourceType: "CUSTOMER_PAYMENT_REVERSAL",
+    sourceId: `duplicate-correction:${payment.id}`,
+    sourceNumber: payment.number,
+    accountingDate: new Date(),
+    description: `Correct duplicate backfill ${duplicate.journalNumber} that booked reversal ${payment.number} as a receipt (BUG-38).`,
+    actorUserId,
+    lines: customerPaymentLines(payment, "REVERSAL"),
   });
 }
 
@@ -1612,7 +1643,10 @@ export async function backfillAccounting(tx: Client, actorUserId: string) {
   ] = await Promise.all([
     tx.inventoryValuationEntry.findMany({ where: { state: "FINAL" }, select: { id: true } }),
     tx.salesInvoice.findMany({ where: { status: "POSTED" }, select: { id: true } }),
-    tx.customerPayment.findMany({ where: { status: "POSTED" }, select: { id: true } }),
+    tx.customerPayment.findMany({
+      where: { status: "POSTED" },
+      select: { id: true, reversalOfId: true },
+    }),
     tx.productionCostEntry.findMany({ select: { id: true } }),
     tx.productionBatchCostSnapshot.findMany({
       where: { status: "FINALIZED" },
@@ -1635,8 +1669,16 @@ export async function backfillAccounting(tx: Client, actorUserId: string) {
     await postValuationAccounting(tx, valuation.id, actorUserId, true);
   for (const invoice of invoices)
     await postSalesInvoiceAccounting(tx, invoice.id, actorUserId, true);
-  for (const payment of payments)
-    await postCustomerPaymentAccounting(tx, payment.id, actorUserId, true);
+  // BUG-38: receipts post as receipts and reversals (bounced cheques) as reversals, each under
+  // its own idempotent source key; a reversal is never re-posted as money received.
+  for (const payment of payments) {
+    if (!payment.reversalOfId) {
+      await postCustomerPaymentAccounting(tx, payment.id, actorUserId, true);
+      continue;
+    }
+    await reverseCustomerPaymentAccounting(tx, payment.id, actorUserId, true);
+    await correctDuplicateReversalReceipt(tx, payment.id, actorUserId);
+  }
   for (const cost of productionCosts)
     await postProductionCostAccounting(tx, cost.id, actorUserId, true);
   for (const snapshot of snapshots)

@@ -133,3 +133,30 @@ export function completionExplanationReasons(input: {
     ...input.packagingWarnings,
   ];
 }
+
+/**
+ * BUG-39: the default expiry of production output -- the production date plus the finished
+ * good's shelf life, both as calendar dates ("YYYY-MM-DD"). Empty when either is unknown.
+ */
+export function defaultExpiryDate(productionDate: string, shelfLifeDays: number | null): string {
+  if (!shelfLifeDays || shelfLifeDays <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(productionDate))
+    return "";
+  const date = new Date(`${productionDate}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + shelfLifeDays);
+  return date.toISOString().slice(0, 10);
+}
+
+/** The good output still to record against the plan, as cartons + loose pieces. */
+export function remainingPlannedOutput(
+  plannedPieces: Decimal.Value,
+  postedGoodPieces: Decimal.Value,
+  piecesPerCarton: number,
+) {
+  const remaining = Decimal.max(0, new Decimal(plannedPieces).sub(postedGoodPieces)).floor();
+  if (piecesPerCarton <= 0) return { cartons: "0", loosePieces: remaining.toFixed() };
+  return {
+    cartons: remaining.div(piecesPerCarton).floor().toFixed(),
+    loosePieces: remaining.mod(piecesPerCarton).toFixed(),
+  };
+}

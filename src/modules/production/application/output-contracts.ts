@@ -87,6 +87,13 @@ export type FinalPackagingVariance = {
   unitSymbol: string;
 };
 
+/**
+ * BUG-39: a production lot without an expiry sorts last in FEFO dispatch, never raises an expiry
+ * alert and prints without a date. Every output of a NORMAL batch shares its lot, so each one
+ * carries the lot's expiry; reprocess child expiry is system-calculated instead.
+ */
+export const FINISHED_GOOD_EXPIRY_REQUIRED_MESSAGE = "Expiry date is required for finished goods.";
+
 export type ProductionOutputView = {
   productionBatchId: string;
   batchNumber: string;
@@ -97,6 +104,8 @@ export type ProductionOutputView = {
   finishedGoodCode: string;
   finishedGoodName: string;
   piecesPerCarton: number;
+  /** BUG-39: the finished good's shelf life; output expiry defaults to production + this. */
+  shelfLifeDays: number | null;
   destinationWarehouseId: string;
   destinationWarehouseName: string;
   productContentUnitId: string;

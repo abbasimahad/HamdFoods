@@ -110,6 +110,18 @@ export function ItemForm({
           />
           <TextField
             defaultValue={
+              initial?.finishedGoodProfile?.shelfLifeDays
+                ? String(initial.finishedGoodProfile.shelfLifeDays)
+                : undefined
+            }
+            help="Days from production to expiry. Fills in the expiry date when output is recorded."
+            inputMode="numeric"
+            label="Shelf life (days)"
+            name="shelfLifeDays"
+            required={false}
+          />
+          <TextField
+            defaultValue={
               initial?.finishedGoodProfile?.reprocessShelfLifeDays
                 ? String(initial.finishedGoodProfile.reprocessShelfLifeDays)
                 : undefined

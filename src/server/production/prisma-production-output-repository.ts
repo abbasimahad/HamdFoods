@@ -9,7 +9,10 @@ import type {
   ProductionOutputRepository,
   ProductionOutputView,
 } from "@/modules/production/application/output-contracts";
-import { ProductionOutputRepositoryError } from "@/modules/production/application/output-contracts";
+import {
+  FINISHED_GOOD_EXPIRY_REQUIRED_MESSAGE,
+  ProductionOutputRepositoryError,
+} from "@/modules/production/application/output-contracts";
 import {
   calculateFinalPackagingStandard,
   calculateOutputReconciliation,
@@ -127,6 +130,12 @@ export class PrismaProductionOutputRepository implements ProductionOutputReposit
       const existingLot = await transaction.productionLot.findUnique({
         where: { productionBatchId: row.productionBatchId },
       });
+      // BUG-39: drafts saved before the rule cannot create a lot without an expiry.
+      if (row.productionBatch.batchType === "NORMAL" && !row.expiryDate)
+        throw new ProductionOutputRepositoryError(
+          "invalid-reference",
+          FINISHED_GOOD_EXPIRY_REQUIRED_MESSAGE,
+        );
       const reprocess = row.productionBatch.reprocessDocument;
       if (row.productionBatch.batchType === "REPROCESS" && !reprocess)
         throw new ProductionOutputRepositoryError(
@@ -431,7 +440,12 @@ async function prepare(input: OutputTransactionInput) {
       batch.reprocessDocument.sourceExpirySnapshot,
     );
   }
-  if (expiryDate && expiryDate < productionDate)
+  if (!expiryDate)
+    throw new ProductionOutputRepositoryError(
+      "invalid-reference",
+      FINISHED_GOOD_EXPIRY_REQUIRED_MESSAGE,
+    );
+  if (expiryDate < productionDate)
     throw new ProductionOutputRepositoryError(
       "invalid-reference",
       "Expiry cannot precede production date.",
@@ -649,6 +663,7 @@ async function buildView(
     finishedGoodCode: batch.finishedGood.code,
     finishedGoodName: batch.finishedGood.name,
     piecesPerCarton: batch.finishedGood.finishedGoodProfile.piecesPerCarton,
+    shelfLifeDays: batch.finishedGood.finishedGoodProfile.shelfLifeDays,
     destinationWarehouseId: batch.finishedGoodsDestinationWarehouseId,
     destinationWarehouseName: batch.finishedGoodsDestinationWarehouse.name,
     productContentUnitId: batch.productContentCanonicalUnitId,

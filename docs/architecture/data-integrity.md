@@ -26,7 +26,11 @@ Returned QC-rejected stock clears GRNI at its share of the original receipt valu
 
 Supplier replacements are linked to purchase-return lines and reuse GRN QUALITY_HOLD posting plus QC classification. Only accepted replacement QC quantity satisfies the supplier obligation. PostgreSQL guards keep posted return and GRN replacement provenance immutable and reject mismatched replacement return/header/PO-line/item links.
 
+Every output of a NORMAL production batch carries the expiry date of the batch's single production lot; saving or posting one without it is refused, so no finished-good lot is created undated (an undated lot sorts last in FEFO dispatch, raises no expiry alert and prints without a date). The output form defaults expiry to production date plus the finished good's optional shelf life. Reprocess child-lot expiry stays system-calculated (BUG-39).
+
 ## Posted transactions
+
+The automatic accounting backfill only posts journals a document is still missing, under the same source key the live posting uses: customer receipts as `CUSTOMER_PAYMENT`, their reversals (bounced cheques) as `CUSTOMER_PAYMENT_REVERSAL` -- a reversal is never booked as money received. A backfill over documents already posted live creates no journal; databases where an earlier backfill booked a reversal as a receipt get one dated-today `duplicate-correction:<reversalId>` journal (BUG-38). Control-account reconciliation compares the accounts named by the accounting mappings, never fixed account codes.
 
 Business transactions must support draft, posted, and cancelled/reversed lifecycles. Posted inventory or financial effects are corrected through compensating or reversal transactions, not destructive deletion.
 

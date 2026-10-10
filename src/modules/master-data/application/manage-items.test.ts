@@ -113,3 +113,26 @@ describe("finished-good reprocess shelf-life policy", () => {
     expect(saved[0]).toMatchObject({ reprocessShelfLifeDays: 60 });
   });
 });
+
+describe("finished-good shelf life (BUG-39)", () => {
+  const withShelfLife = (shelfLifeDays: unknown) => ({ ...finishedGood(), shelfLifeDays });
+
+  it("stays optional and saves a whole number of days", async () => {
+    const saved: ItemInput[] = [];
+    expect(await saveItem(actor, finishedGood(), repository(saved))).toMatchObject({ ok: true });
+    expect(saved[0]).not.toHaveProperty("shelfLifeDays");
+    expect(await saveItem(actor, withShelfLife("180"), repository(saved))).toMatchObject({
+      ok: true,
+    });
+    expect(saved[1]).toMatchObject({ shelfLifeDays: 180 });
+  });
+
+  it.each([0, -1, 1.5, 3651])("rejects shelf life %s", async (value) => {
+    const saved: ItemInput[] = [];
+    expect(await saveItem(actor, withShelfLife(value), repository(saved))).toMatchObject({
+      ok: false,
+      reason: "validation",
+    });
+    expect(saved).toHaveLength(0);
+  });
+});

@@ -92,6 +92,7 @@ export class PrismaMasterDataRepository implements MasterDataRepository, MasterD
             netContentUnitActive: row.finishedGoodProfile.netContentUnit.active,
             piecesPerCarton: row.finishedGoodProfile.piecesPerCarton,
             reprocessShelfLifeDays: row.finishedGoodProfile.reprocessShelfLifeDays,
+            shelfLifeDays: row.finishedGoodProfile.shelfLifeDays,
           }
         : null,
     }));
@@ -333,6 +334,7 @@ export class PrismaMasterDataRepository implements MasterDataRepository, MasterD
               netContentUnitDimension: contentUnit.dimension,
               piecesPerCarton: input.piecesPerCarton,
               reprocessShelfLifeDays: input.reprocessShelfLifeDays ?? null,
+              shelfLifeDays: input.shelfLifeDays ?? null,
             },
             update: {
               netContentQuantity: input.netContentQuantity,
@@ -340,6 +342,7 @@ export class PrismaMasterDataRepository implements MasterDataRepository, MasterD
               netContentUnitDimension: contentUnit.dimension,
               piecesPerCarton: input.piecesPerCarton,
               reprocessShelfLifeDays: input.reprocessShelfLifeDays ?? null,
+              shelfLifeDays: input.shelfLifeDays ?? null,
             },
           });
         }

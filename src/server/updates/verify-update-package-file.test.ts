@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { windowsIt } from "@/test/live-windows";
 
 import {
   canonicalizeUpdateManifest,
@@ -20,7 +21,6 @@ import {
 } from "./verify-update-package-file";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const windowsIt = process.platform === "win32" ? it : it.skip;
 
 let tempDirectories: string[] = [];
 function tempDir() {

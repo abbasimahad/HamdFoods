@@ -1054,6 +1054,8 @@ model FinishedGoodProfile {
   netContentUnitDimension UnitDimension
   piecesPerCarton         Int
   reprocessShelfLifeDays  Int?
+  /// BUG-39: normal shelf life in days; pre-fills production output expiry.
+  shelfLifeDays           Int?
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
   item                    Item          @relation(fields: [itemId, itemType], references: [id, itemType], onDelete: Restrict)

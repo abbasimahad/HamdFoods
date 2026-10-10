@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { windowsIt } from "@/test/live-windows";
 
 import {
   canonicalizeLicensePayload,
@@ -14,8 +15,6 @@ import { signEd25519 } from "./ed25519";
 import { importLicenseFile, resolveLicenseFilePaths } from "./license-file-store";
 import { computeLicenseStatus, getLicenseStatus } from "./license-service";
 import { computeMachineFingerprint, resolveFingerprintScriptPath } from "./machine-fingerprint";
-
-const windowsIt = process.platform === "win32" ? it : it.skip;
 
 let tempDirectories: string[] = [];
 function tempDataRoot() {

@@ -50,6 +50,8 @@ export type ItemRecord = {
     netContentUnitActive: boolean;
     piecesPerCarton: number;
     reprocessShelfLifeDays: number | null;
+    /** BUG-39: normal shelf life; pre-fills production output expiry. */
+    shelfLifeDays: number | null;
   } | null;
 };
 
@@ -87,6 +89,7 @@ export type ItemInput =
       netContentUnitId: string;
       piecesPerCarton: number;
       reprocessShelfLifeDays?: number | undefined;
+      shelfLifeDays?: number | undefined;
     });
 
 export type MasterDataRepository = {

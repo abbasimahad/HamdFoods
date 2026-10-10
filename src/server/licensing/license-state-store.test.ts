@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect } from "vitest";
+import { windowsIt } from "@/test/live-windows";
 
 import { createInitialLicenseStateData } from "@/modules/licensing/domain/license";
 
@@ -16,7 +17,6 @@ import {
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const scriptPath = path.join(repositoryRoot, "installer", "scripts", "Dpapi-HamdFoodsERP.ps1");
-const windowsIt = process.platform === "win32" ? it : it.skip;
 
 let tempDirectories: string[] = [];
 function tempDataRoot() {

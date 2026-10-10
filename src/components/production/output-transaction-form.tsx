@@ -1,13 +1,17 @@
 "use client";
 
 import { factoryLocalDateTimeValue } from "@/server/shared/factory-local-time";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { FormActions } from "@/components/ui/form-actions";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { ProductionActionState } from "./action-state";
 import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import type { RecipeUnit } from "@/modules/production/application/contracts";
+import {
+  defaultExpiryDate,
+  remainingPlannedOutput,
+} from "@/modules/production/domain/output-calculations";
 import {
   PRODUCTION_LOSS_NATURES,
   PRODUCTION_LOSS_REASONS,
@@ -34,6 +38,22 @@ export function OutputTransactionForm({
   const [state, formAction, pending] = useActionState(action, { ok: false, message: "" });
   const contentUnits = units.filter((unit) => unit.dimension === view.productContentDimension);
   const today = todayInFactoryTimeZone();
+  // BUG-39: every output of a batch shares one production lot, so once the lot exists its dates
+  // are the defaults; otherwise expiry follows production date + the finished good's shelf life
+  // until the user types their own.
+  const lot = view.productionLot;
+  const [productionDate, setProductionDate] = useState(
+    dateOnly(initial?.productionDate) ?? dateOnly(lot?.productionDate) ?? today,
+  );
+  const [typedExpiry, setTypedExpiry] = useState<string | null>(
+    dateOnly(initial?.expiryDate) ?? dateOnly(lot?.expiryDate) ?? null,
+  );
+  const expiry = typedExpiry ?? defaultExpiryDate(productionDate, view.shelfLifeDays);
+  const remaining = remainingPlannedOutput(
+    view.plannedTotalPieces,
+    view.goodTotalPieces,
+    view.piecesPerCarton,
+  );
   return (
     <form action={formAction} className="space-y-5">
       {initial && <input name="id" type="hidden" value={initial.id} />}
@@ -57,8 +77,9 @@ export function OutputTransactionForm({
           Production date
           <input
             className="mt-1 min-h-11 w-full rounded-lg border px-3"
-            defaultValue={dateOnly(initial?.productionDate) ?? today}
             name="productionDate"
+            onChange={(event) => setProductionDate(event.target.value)}
+            value={productionDate}
             required
             type="date"
           />
@@ -76,10 +97,20 @@ export function OutputTransactionForm({
             Expiry date
             <input
               className="mt-1 min-h-11 w-full rounded-lg border px-3"
-              defaultValue={dateOnly(initial?.expiryDate)}
+              min={productionDate}
               name="expiryDate"
+              onChange={(event) => setTypedExpiry(event.target.value)}
+              required
               type="date"
+              value={expiry}
             />
+            <span className="mt-1 block text-xs font-normal text-[var(--muted)]">
+              {lot
+                ? `Must match lot ${lot.lotNumber}.`
+                : view.shelfLifeDays
+                  ? `Production date + ${view.shelfLifeDays} days shelf life.`
+                  : "Required. Set the item's shelf life to fill this in automatically."}
+            </span>
           </label>
         )}
         {type === "GOOD" ? (
@@ -88,7 +119,7 @@ export function OutputTransactionForm({
               Cartons
               <input
                 className="mt-1 min-h-11 w-full rounded-lg border px-3"
-                defaultValue={initial?.cartons ?? "0"}
+                defaultValue={initial?.cartons ?? remaining.cartons}
                 min="0"
                 name="cartons"
                 required
@@ -100,7 +131,7 @@ export function OutputTransactionForm({
               Loose pieces
               <input
                 className="mt-1 min-h-11 w-full rounded-lg border px-3"
-                defaultValue={initial?.loosePieces ?? "0"}
+                defaultValue={initial?.loosePieces ?? remaining.loosePieces}
                 min="0"
                 name="loosePieces"
                 required

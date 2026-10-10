@@ -132,7 +132,43 @@ const outputId = await outputs.createTransaction({
 await outputs.postTransaction(outputId, state.actorUserId);
 await outputs.completeBatch(batch!.id, state.actorUserId);
 await new PrismaInventoryValuationRepository().finalizeBatchCost(batch!.id, state.actorUserId);
+// BUG-39: a NORMAL batch left IN_PROGRESS (material issued, no output yet) so the browser suite
+// can exercise the good-output form.
+const normalBatches = new PrismaProductionBatchRepository();
+const grams = await prisma.unit.findUniqueOrThrow({ where: { code: "G" } });
+const inProgressBatchId = await normalBatches.createBatch({
+  recipeId: state.recipeId,
+  plannedBatchQuantity: "1000",
+  plannedBatchUnitId: grams.id,
+  plannedProductionDate: "2026-09-14",
+  rawMaterialWarehouseId: state.sourceWarehouseId,
+  packagingWarehouseId: state.sourceWarehouseId,
+  finishedGoodsDestinationWarehouseId: state.sourceWarehouseId,
+  plannedCartons: "0",
+  plannedLoosePieces: "2",
+  notes: "E2E in-progress batch for the output form.",
+  actorUserId: state.actorUserId,
+});
+await normalBatches.planBatch(inProgressBatchId, state.actorUserId);
+await normalBatches.releaseBatch(inProgressBatchId, state.actorUserId, true);
+const inProgressRequirement = (await normalBatches.getBatch(inProgressBatchId))!
+  .materialRequirements[0]!;
+const inProgressIssueId = await materials.createTransaction({
+  productionBatchId: inProgressBatchId,
+  transactionType: "ISSUE",
+  transactionDate: "2026-09-14",
+  batchRequirementId: inProgressRequirement.id,
+  inventoryLotId: state.rawInventoryLotId,
+  quantity: "1",
+  unitId: inProgressRequirement.canonicalUnitId,
+  actorUserId: state.actorUserId,
+});
+await materials.postTransaction(inProgressIssueId, state.actorUserId);
 mkdirSync(path.dirname(e2eStatePath), { recursive: true });
-writeFileSync(e2eStatePath, JSON.stringify({ ...state, awaitingReprocessId }, null, 2), "utf8");
+writeFileSync(
+  e2eStatePath,
+  JSON.stringify({ ...state, awaitingReprocessId, inProgressBatchId }, null, 2),
+  "utf8",
+);
 await prisma.$disconnect();
 console.log(`Phase 27 E2E workflow fixture ready at ${e2eStatePath}.`);

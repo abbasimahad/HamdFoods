@@ -1,7 +1,7 @@
 import "server-only";
 
 import Decimal from "decimal.js";
-import { type Prisma } from "@/generated/prisma/client";
+import { type AccountingMappingKey, type Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { outstandingGrni } from "@/modules/purchasing/domain/grni";
 
@@ -18,10 +18,7 @@ export async function accountingDashboard() {
         where: { status: "OPEN" },
         orderBy: { startDate: "asc" },
       }),
-      prisma.accountingAccount.findMany({
-        where: { code: { in: ["1100", "2000", "1230"] } },
-        include: { journalLines: { where: { journal: { status: "POSTED" } } } },
-      }),
+      mappedControlAccounts(["ACCOUNTS_RECEIVABLE", "ACCOUNTS_PAYABLE", "WORK_IN_PROCESS"]),
       prisma.inventoryValuationBalance.aggregate({ _sum: { inventoryValue: true } }),
       prisma.treasuryAccount.count({ where: { active: true } }),
       prisma.expenseVoucher.aggregate({
@@ -36,7 +33,7 @@ export async function accountingDashboard() {
     inventoryValue: valuation._sum.inventoryValue?.toString() ?? "0",
     activeTreasuryAccounts: treasuryCount,
     postedExpenseTotal: expenseTotal._sum.totalAmount?.toString() ?? "0",
-    controls: accounts.map(balance),
+    controls: [...accounts.values()].map(balance),
   };
 }
 
@@ -168,10 +165,14 @@ export async function trialBalance(from?: string, to?: string) {
 
 export async function reconciliation() {
   const [accounts, customer, supplier, valuation, treasuryAccounts, grni] = await Promise.all([
-    prisma.accountingAccount.findMany({
-      where: { code: { in: ["1100", "2000", "1200", "1210", "1220", "1230"] } },
-      include: { journalLines: { where: { journal: { status: "POSTED" } } } },
-    }),
+    mappedControlAccounts([
+      "ACCOUNTS_RECEIVABLE",
+      "ACCOUNTS_PAYABLE",
+      "RAW_MATERIAL_INVENTORY",
+      "PACKAGING_INVENTORY",
+      "FINISHED_GOODS_INVENTORY",
+      "WORK_IN_PROCESS",
+    ]),
     prisma.customerLedgerEntry.aggregate({ _sum: { signedAmount: true } }),
     prisma.supplierPayableLedgerEntry.aggregate({ _sum: { signedAmount: true } }),
     prisma.inventoryValuationBalance.findMany({ include: { item: true } }),
@@ -185,7 +186,12 @@ export async function reconciliation() {
     }),
     grniReconciliation(),
   ]);
-  const control = new Map(accounts.map((account) => [account.code, balance(account).net]));
+  // Control accounts come from the accounting mappings, never fixed codes, so reconciliation
+  // keeps comparing the right accounts after a mapping is changed (BUG-38 investigation).
+  const control = (key: AccountingMappingKey) => {
+    const account = accounts.get(key);
+    return account ? balance(account).net : undefined;
+  };
   const inventoryByType = new Map<string, Decimal>();
   for (const valuationRow of valuation) {
     const type = valuationRow.item.itemType;
@@ -197,7 +203,7 @@ export async function reconciliation() {
   const rows = [
     row(
       "Accounts Receivable",
-      control.get("1100"),
+      control("ACCOUNTS_RECEIVABLE"),
       new Decimal(customer._sum.signedAmount?.toString() ?? "0"),
     ),
     row(
@@ -206,16 +212,28 @@ export async function reconciliation() {
       // rows above. Negate it so it compares against the payable ledger's
       // own convention of a positive amount owed.
       "Accounts Payable",
-      control.get("2000")?.negated(),
+      control("ACCOUNTS_PAYABLE")?.negated(),
       new Decimal(supplier._sum.signedAmount?.toString() ?? "0"),
     ),
     // BUG-35: GRNI (a liability, so negated like AP) against the receipts still awaiting QC and
     // QC-rejected stock not yet returned, each at its receipt cost.
     ...(grni ? [row("Goods Received Not Invoiced (GRNI)", grni.gl, grni.source)] : []),
-    row("Raw material inventory", control.get("1200"), inventoryByType.get("RAW_MATERIAL")),
-    row("Packaging inventory", control.get("1210"), inventoryByType.get("PACKAGING_MATERIAL")),
-    row("Finished goods inventory", control.get("1220"), inventoryByType.get("FINISHED_GOOD")),
-    row("Work in Process", control.get("1230"), undefined),
+    row(
+      "Raw material inventory",
+      control("RAW_MATERIAL_INVENTORY"),
+      inventoryByType.get("RAW_MATERIAL"),
+    ),
+    row(
+      "Packaging inventory",
+      control("PACKAGING_INVENTORY"),
+      inventoryByType.get("PACKAGING_MATERIAL"),
+    ),
+    row(
+      "Finished goods inventory",
+      control("FINISHED_GOODS_INVENTORY"),
+      inventoryByType.get("FINISHED_GOOD"),
+    ),
+    row("Work in Process", control("WORK_IN_PROCESS"), undefined),
   ];
   return [
     ...rows,
@@ -318,6 +336,22 @@ async function grniReconciliation() {
       );
     }
   return { gl: balance(account).net.negated(), source };
+}
+
+async function mappedControlAccounts(keys: readonly AccountingMappingKey[]) {
+  const mappings = await prisma.accountingAccountMapping.findMany({
+    where: { accountingSettingsId: "default", mappingKey: { in: [...keys] } },
+    include: {
+      account: { include: { journalLines: { where: { journal: { status: "POSTED" } } } } },
+    },
+  });
+  const byKey = new Map(mappings.map((mapping) => [mapping.mappingKey, mapping.account]));
+  return new Map(
+    keys.flatMap((key) => {
+      const account = byKey.get(key);
+      return account ? [[key, account] as const] : [];
+    }),
+  );
 }
 
 function dateRange(from?: string, to?: string): Prisma.DateTimeFilter | undefined {
