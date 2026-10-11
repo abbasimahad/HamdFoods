@@ -1,5 +1,5 @@
 import { formatFactoryDate } from "@/components/ui/format-datetime";
-import { formatMoney } from "@/components/ui/format-money";
+import { formatMoney, formatMeasure } from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -139,7 +139,7 @@ export default async function WasteDispositionDetailPage({
                     </td>
                     <td className="p-4">{line.sourceStatus}</td>
                     <td className="p-4">
-                      {line.enteredQuantity.toString()} {line.canonicalUnit.symbol}
+                      {formatMeasure(line.enteredQuantity, line.canonicalUnit.symbol)}
                     </td>
                     <td className="p-4">
                       {line.action}

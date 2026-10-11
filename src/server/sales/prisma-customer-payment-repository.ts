@@ -470,12 +470,15 @@ async function savePayment(
   // nothing previously stopped that duplicate data entry.
   // Only live receipts count: a reversed (bounced) receipt and its reversal row no longer hold
   // the instrument, so a re-presented cheque can be entered again.
-  const liveReceipt = {
-    customerId: input.customerId,
+  const liveInstrument = {
     status: { in: ["DRAFT", "POSTED"] as ("DRAFT" | "POSTED")[] },
     reversalOfId: null,
     reversalPayment: { is: null },
     ...(input.id ? { id: { not: input.id } } : {}),
+  } satisfies Prisma.CustomerPaymentWhereInput;
+  const liveReceipt = {
+    customerId: input.customerId,
+    ...liveInstrument,
   } satisfies Prisma.CustomerPaymentWhereInput;
   const reference = input.referenceNumber?.trim();
   if (reference && input.method !== "CASH") {
@@ -501,6 +504,26 @@ async function savePayment(
       throw problem(
         "invalid-reference",
         `Cheque ${chequeNumber} is already recorded on payment ${duplicate.number} for this customer.`,
+      );
+    // CTRL-2 (policy confirmed): a cheque is identified by its bank and number, so the same
+    // bank + number on another customer's live receipt is the same instrument recorded twice.
+    // The same number from a different bank is a different cheque and stays allowed.
+    const bank = input.bankName?.trim();
+    const otherCustomer = await transaction.customerPayment.findFirst({
+      where: {
+        ...liveInstrument,
+        customerId: { not: input.customerId },
+        chequeNumber: { equals: chequeNumber, mode: "insensitive" },
+        ...(bank
+          ? { bankName: { equals: bank, mode: "insensitive" } }
+          : { OR: [{ bankName: null }, { bankName: "" }] }),
+      },
+      select: { number: true, customer: { select: { name: true } } },
+    });
+    if (otherCustomer)
+      throw problem(
+        "invalid-reference",
+        `Cheque ${chequeNumber}${bank ? ` from ${bank}` : ""} is already recorded on payment ${otherCustomer.number} for ${otherCustomer.customer.name}.`,
       );
   }
   const header = {

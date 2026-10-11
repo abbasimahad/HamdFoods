@@ -31,13 +31,42 @@ function submitWithoutReset(event: FormEvent<HTMLFormElement>, action: (form: Fo
   startTransition(() => action(form));
 }
 
-export function AccountingPeriodForm() {
+export function AccountingPeriodForm({ latestPeriodEnd }: { latestPeriodEnd?: Date | null }) {
   const [state, action, pending] = useActionState(createAccountingPeriodAction, undefined);
+  // UX-16: a new period defaults to the calendar month after the latest period (the current
+  // month when there is none), so the suggestion never overlaps an existing period.
+  const today = todayInFactoryTimeZone();
+  const start = latestPeriodEnd
+    ? new Date(Date.UTC(latestPeriodEnd.getUTCFullYear(), latestPeriodEnd.getUTCMonth() + 1, 1))
+    : new Date(`${today.slice(0, 7)}-01T00:00:00.000Z`);
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth() + 1;
+  const monthStart = start.toISOString().slice(0, 10);
+  const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  const monthName = start.toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
   return (
     <form action={action} className="grid gap-2 md:grid-cols-4">
-      <input className="rounded border px-3 py-2" name="name" placeholder="Period name" required />
-      <input className="rounded border px-3 py-2" name="startDate" type="date" required />
-      <input className="rounded border px-3 py-2" name="endDate" type="date" required />
+      <input
+        className="rounded border px-3 py-2"
+        defaultValue={`${monthName} ${year}`}
+        name="name"
+        placeholder="Period name"
+        required
+      />
+      <input
+        className="rounded border px-3 py-2"
+        defaultValue={monthStart}
+        name="startDate"
+        type="date"
+        required
+      />
+      <input
+        className="rounded border px-3 py-2"
+        defaultValue={monthEnd}
+        name="endDate"
+        type="date"
+        required
+      />
       <button className="rounded bg-[var(--accent)] px-3 py-2 text-white" disabled={pending}>
         Create period
       </button>

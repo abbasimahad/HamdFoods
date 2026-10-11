@@ -1,5 +1,5 @@
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
-import { formatMoney, formatQuantity } from "@/components/ui/format-money";
+import { formatMoney, formatQuantity, formatMeasure } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
@@ -80,7 +80,7 @@ export default async function PrintPurchaseInvoicePage({
               </td>
               <td className="border p-2">{line.purchaseOrderNumber}</td>
               <td className="border p-2">
-                {line.displayQuantity} {line.orderUnitSymbol}
+                {formatMeasure(line.displayQuantity, line.orderUnitSymbol)}
               </td>
               <td className="border p-2">
                 {line.displayUnitRate} / {line.orderUnitSymbol}

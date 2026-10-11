@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import Link from "next/link";
 import type {
   CategoryRecord,
@@ -148,7 +149,8 @@ function FinishedGoodDefinition({
   return (
     <>
       <span className="block">
-        {profile.netContentQuantity} {profile.netContentUnitSymbol} × {profile.piecesPerCarton}
+        {formatMeasure(profile.netContentQuantity, profile.netContentUnitSymbol)} ×{" "}
+        {profile.piecesPerCarton}
       </span>
       <span className="mt-1 block text-[var(--muted)]">Carton content: {cartonContent}</span>
     </>

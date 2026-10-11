@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
@@ -89,7 +90,7 @@ export default async function PrintPurchaseOrderPage({
                 {line.itemCode} - {line.itemName}
               </td>
               <td className="border p-2">
-                {line.orderedQuantity} {line.orderUnitSymbol}
+                {formatMeasure(line.orderedQuantity, line.orderUnitSymbol)}
               </td>
               <td className="border p-2">
                 {formatMoney(line.unitRate)} / {line.orderUnitSymbol}

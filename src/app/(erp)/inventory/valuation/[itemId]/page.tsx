@@ -1,4 +1,5 @@
 import { formatFactoryDateTime } from "@/components/ui/format-datetime";
+import { formatQuantity } from "@/components/ui/format-money";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -26,7 +27,7 @@ export default async function ItemValuationHistoryPage({
       <Card className="mb-5 grid gap-4 p-5 md:grid-cols-4">
         <Info
           label="Canonical quantity"
-          value={`${record.summary.canonicalQuantity} ${record.summary.canonicalUnitSymbol}`}
+          value={`${formatQuantity(record.summary.canonicalQuantity)} ${record.summary.canonicalUnitSymbol}`}
         />
         <Info label="Moving average" value={formatCost(record.summary.averageUnitCost, 6)} />
         <Info label="Inventory value" value={formatCost(record.summary.inventoryValue)} />
@@ -67,10 +68,10 @@ export default async function ItemValuationHistoryPage({
                   <td className="p-3">
                     {row.entryType} / {row.state}
                   </td>
-                  <td className="p-3">{row.quantityEffect}</td>
+                  <td className="p-3">{formatQuantity(row.quantityEffect)}</td>
                   <td className="p-3">{formatCost(row.unitCost, 6)}</td>
                   <td className="p-3">{formatCost(row.valueDelta)}</td>
-                  <td className="p-3">{row.runningOwnedQuantity}</td>
+                  <td className="p-3">{formatQuantity(row.runningOwnedQuantity)}</td>
                   <td className="p-3">{formatCost(row.runningInventoryValue)}</td>
                   <td className="p-3">{formatCost(row.resultingAverageUnitCost, 6)}</td>
                   <td className="p-3">{row.createdByName}</td>

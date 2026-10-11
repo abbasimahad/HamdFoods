@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMeasure } from "@/components/ui/format-money";
+
 import { factoryLocalDateTimeValue } from "@/server/shared/factory-local-time";
 import { formatFactoryDate } from "@/components/ui/format-datetime";
 import { useActionState, useMemo, useState } from "react";
@@ -115,7 +117,7 @@ export function MaterialTransactionForm({
             {lots.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.supplierLotNumber ?? "No supplier lot"} / {option.goodsReceiptNumber} /{" "}
-                {option.availableQuantity} {option.canonicalUnitSymbol} available
+                {formatMeasure(option.availableQuantity, option.canonicalUnitSymbol)} available
               </option>
             ))}
           </select>
@@ -195,8 +197,9 @@ export function MaterialTransactionForm({
       {lot && (
         <p className="text-sm">
           Selected lot: {lot.supplierName}; supplier lot {lot.supplierLotNumber ?? "not supplied"};
-          GRN {lot.goodsReceiptNumber}; available {lot.availableQuantity} {lot.canonicalUnitSymbol};
-          expiry {formatFactoryDate(lot.expiryDate) ?? "not recorded"}.
+          GRN {lot.goodsReceiptNumber}; available{" "}
+          {formatMeasure(lot.availableQuantity, lot.canonicalUnitSymbol)}; expiry{" "}
+          {formatFactoryDate(lot.expiryDate) ?? "not recorded"}.
         </p>
       )}
       <label className="block text-sm font-medium">

@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -388,12 +389,18 @@ function RequirementTable({
                   </td>
                   {material && (
                     <td className="p-3">
-                      {material.standardNormalizedQuantity} {record.canonicalUnitSymbol}
+                      {formatMeasure(
+                        material.standardNormalizedQuantity,
+                        record.canonicalUnitSymbol,
+                      )}
                     </td>
                   )}
                   {material && (
                     <td className="p-3">
-                      {material.plannedNormalizedQuantity} {record.canonicalUnitSymbol}
+                      {formatMeasure(
+                        material.plannedNormalizedQuantity,
+                        record.canonicalUnitSymbol,
+                      )}
                     </td>
                   )}
                   {packaging && (
@@ -401,15 +408,18 @@ function RequirementTable({
                   )}
                   {packaging && (
                     <td className="p-3">
-                      {packaging.standardRequiredQuantity} {record.canonicalUnitSymbol}
+                      {formatMeasure(
+                        packaging.standardRequiredQuantity,
+                        record.canonicalUnitSymbol,
+                      )}
                     </td>
                   )}
                   <td className="p-3">{record.allowancePercent}%</td>
                   <td className="p-3">
-                    {record.recommendedIssueQuantity} {record.canonicalUnitSymbol}
+                    {formatMeasure(record.recommendedIssueQuantity, record.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {record.availableQuantity} {record.canonicalUnitSymbol}
+                    {formatMeasure(record.availableQuantity, record.canonicalUnitSymbol)}
                   </td>
                   <td
                     className={`p-3 ${record.shortageQuantity !== "0" ? "font-semibold text-amber-700" : ""}`}

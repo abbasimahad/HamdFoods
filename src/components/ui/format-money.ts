@@ -34,6 +34,30 @@ export function formatQuantity(value: string | number | { toString(): string } |
   }
 }
 
+const LARGER_UNIT: Readonly<Record<string, string>> = { g: "kg", ml: "L" };
+
+/**
+ * UX-16: a measured quantity with its unit, readable on screen: 1,000 g and more show as kg and
+ * 1,000 ml and more as L ("12500 g" -> "12.5 kg"), grouped, without trailing zeros. Pieces and
+ * every other unit keep their own unit. Display only; stored quantities stay exact.
+ */
+export function formatMeasure(
+  value: string | number | { toString(): string } | null | undefined,
+  unitSymbol: string | null | undefined,
+) {
+  if (value === null || value === undefined || value === "") return "—";
+  const symbol = unitSymbol ?? "";
+  let amount: Decimal;
+  try {
+    amount = new Decimal(value.toString());
+  } catch {
+    return `${String(value)} ${symbol}`.trim();
+  }
+  const larger = LARGER_UNIT[symbol];
+  if (larger && amount.abs().gte(1000)) return `${formatQuantity(amount.div(1000))} ${larger}`;
+  return `${formatQuantity(amount)} ${symbol}`.trim();
+}
+
 /**
  * A per-unit cost (per gram, per ml, per piece) grouped like money but keeping up to 6 decimals
  * without trailing zeros, so a tiny per-gram cost stays visible ("0.3105") and a per-piece cost

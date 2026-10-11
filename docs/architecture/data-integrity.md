@@ -32,6 +32,8 @@ Every output of a NORMAL production batch carries the expiry date of the batch's
 
 The automatic accounting backfill only posts journals a document is still missing, under the same source key the live posting uses: customer receipts as `CUSTOMER_PAYMENT`, their reversals (bounced cheques) as `CUSTOMER_PAYMENT_REVERSAL` -- a reversal is never booked as money received. A backfill over documents already posted live creates no journal; databases where an earlier backfill booked a reversal as a receipt get one dated-today `duplicate-correction:<reversalId>` journal (BUG-38). Control-account reconciliation compares the accounts named by the accounting mappings, never fixed account codes.
 
+A cheque is identified by its bank and number. A live (draft or posted, not reversed) customer receipt refuses a cheque number already on another live receipt of the same customer, and a bank + cheque number already on another customer's live receipt (case- and space-insensitive). The same number from a different bank is a different cheque and is accepted; a bounced (reversed) cheque can be re-presented (BUG-25, CTRL-2).
+
 Business transactions must support draft, posted, and cancelled/reversed lifecycles. Posted inventory or financial effects are corrected through compensating or reversal transactions, not destructive deletion.
 
 An approved purchase order is a read-only commercial commitment, not a posted inventory or accounting transaction. PO creation/approval must not write inventory movements, received quantity, payables, journals, assets, or expenses. Draft header/line replacement and lifecycle transitions are atomic. Cancellation preserves the order and its actor, timestamp, and reason.

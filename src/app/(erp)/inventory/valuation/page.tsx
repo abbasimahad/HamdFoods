@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import {
@@ -137,7 +138,7 @@ export default async function InventoryValuationPage({
                     {row.itemType.replaceAll("_", " ")} / {row.categoryName}
                   </td>
                   <td className="p-3">
-                    {row.canonicalQuantity} {row.canonicalUnitSymbol}
+                    {formatMeasure(row.canonicalQuantity, row.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">{formatCost(row.averageUnitCost, 6)}</td>
                   <td className="p-3">{formatCost(row.inventoryValue)}</td>

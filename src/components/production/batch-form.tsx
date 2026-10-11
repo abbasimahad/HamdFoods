@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMeasure } from "@/components/ui/format-money";
+
 import { useActionState, useState } from "react";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { ProductionActionState } from "./action-state";
@@ -153,10 +155,14 @@ export function ProductionBatchForm({
         </div>
         {recipe && (
           <div className="mt-3 rounded-lg bg-[var(--surface)] p-3 text-sm">
-            Standard batch: {recipe.standardBatchQuantity} {recipe.standardBatchUnitSymbol};
-            expected output: {recipe.expectedOutputQuantity ?? "not specified"}{" "}
-            {recipe.expectedOutputUnitSymbol}; packing profile: {recipe.piecesPerCarton}{" "}
-            pieces/carton.
+            Standard batch:{" "}
+            {formatMeasure(recipe.standardBatchQuantity, recipe.standardBatchUnitSymbol)}; expected
+            output:{" "}
+            {formatMeasure(
+              recipe.expectedOutputQuantity ?? "not specified",
+              recipe.expectedOutputUnitSymbol,
+            )}
+            ; packing profile: {recipe.piecesPerCarton} pieces/carton.
           </div>
         )}
       </section>

@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -193,9 +194,15 @@ export default async function BatchPackagingPage({
                     <span className="block text-xs">{transaction.line.goodsReceiptNumber}</span>
                   </td>
                   <td className="p-3">
-                    {transaction.line.enteredQuantity} {transaction.line.enteredUnitSymbol}
+                    {formatMeasure(
+                      transaction.line.enteredQuantity,
+                      transaction.line.enteredUnitSymbol,
+                    )}
                     <span className="block text-xs">
-                      {transaction.line.normalizedQuantity} {transaction.line.canonicalUnitSymbol}
+                      {formatMeasure(
+                        transaction.line.normalizedQuantity,
+                        transaction.line.canonicalUnitSymbol,
+                      )}
                     </span>
                   </td>
                   <td className="p-3">

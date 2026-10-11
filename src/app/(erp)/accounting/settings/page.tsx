@@ -68,7 +68,12 @@ export default async function Page() {
       </Card>
       <Card className="mt-5 space-y-3 p-5">
         <h2 className="font-semibold">Create accounting period</h2>
-        <AccountingPeriodForm />
+        <AccountingPeriodForm
+          latestPeriodEnd={periods.reduce<Date | null>(
+            (latest, period) => (!latest || period.endDate > latest ? period.endDate : latest),
+            null,
+          )}
+        />
       </Card>
       <Card className="mt-5 overflow-hidden">
         <table className="w-full text-sm">

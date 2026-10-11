@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { formatQuantity } from "@/components/ui/format-money";
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -119,13 +119,13 @@ export default async function GoodsReceiptDetailPage({
                     <span className="block text-xs">{line.itemName}</span>
                   </td>
                   <td className="p-3">
-                    {line.orderedQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.orderedQuantity, line.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {line.enteredQuantity} {line.enteredUnitSymbol}
+                    {formatMeasure(line.enteredQuantity, line.enteredUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {line.normalizedQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.normalizedQuantity, line.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">{line.supplierLotNumber ?? "-"}</td>
                   <td className="p-3">{formatFactoryDate(line.expiryDate) ?? "-"}</td>
@@ -191,17 +191,13 @@ function ReceivedUnitQuantity({
   if (quantity === null || quantity === undefined) return <>-</>;
   const normalized = new Decimal(line.normalizedQuantity);
   if (line.enteredUnitSymbol === line.canonicalUnitSymbol || normalized.isZero())
-    return (
-      <>
-        {formatQuantity(quantity)} {line.canonicalUnitSymbol}
-      </>
-    );
+    return <>{formatMeasure(quantity, line.canonicalUnitSymbol)}</>;
   const inReceivedUnit = new Decimal(quantity).mul(line.enteredQuantity).div(normalized);
   return (
     <>
-      {formatQuantity(inReceivedUnit.toDecimalPlaces(6).toFixed())} {line.enteredUnitSymbol}
+      {formatMeasure(inReceivedUnit.toDecimalPlaces(6).toFixed(), line.enteredUnitSymbol)}
       <span className="block text-xs text-[var(--muted)]">
-        {formatQuantity(quantity)} {line.canonicalUnitSymbol}
+        {formatMeasure(quantity, line.canonicalUnitSymbol)}
       </span>
     </>
   );

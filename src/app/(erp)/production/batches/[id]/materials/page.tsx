@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -130,7 +131,8 @@ export default async function BatchMaterialsPage({
                   <td
                     className={`p-3 font-semibold ${line.varianceDirection === "OVER" ? "text-amber-700" : line.varianceDirection === "UNDER" ? "text-blue-700" : "text-emerald-700"}`}
                   >
-                    {line.varianceQuantity} {line.canonicalUnitSymbol} / {line.varianceDirection}
+                    {formatMeasure(line.varianceQuantity, line.canonicalUnitSymbol)} /{" "}
+                    {line.varianceDirection}
                   </td>
                 </tr>
               ))}
@@ -193,9 +195,15 @@ export default async function BatchMaterialsPage({
                     <span className="block text-xs">{transaction.line.goodsReceiptNumber}</span>
                   </td>
                   <td className="p-3">
-                    {transaction.line.enteredQuantity} {transaction.line.enteredUnitSymbol}
+                    {formatMeasure(
+                      transaction.line.enteredQuantity,
+                      transaction.line.enteredUnitSymbol,
+                    )}
                     <span className="block text-xs">
-                      {transaction.line.normalizedQuantity} {transaction.line.canonicalUnitSymbol}
+                      {formatMeasure(
+                        transaction.line.normalizedQuantity,
+                        transaction.line.canonicalUnitSymbol,
+                      )}
                     </span>
                   </td>
                   <td className="p-3">

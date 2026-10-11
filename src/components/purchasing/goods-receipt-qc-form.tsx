@@ -1,5 +1,6 @@
 "use client";
 import Decimal from "decimal.js";
+import { formatQuantity } from "@/components/ui/format-money";
 import { useActionState, useState } from "react";
 import type {
   GoodsReceiptRecord,
@@ -87,7 +88,7 @@ export function GoodsReceiptQcForm({
                   </span>
                 </td>
                 <td className="p-3">
-                  {new Decimal(line.enteredQuantity || line.normalizedQuantity).toString()}{" "}
+                  {formatQuantity(line.enteredQuantity || line.normalizedQuantity)}{" "}
                   {line.enteredUnitSymbol || line.canonicalUnitSymbol}
                 </td>
                 <QcInput

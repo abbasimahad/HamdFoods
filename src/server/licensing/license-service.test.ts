@@ -14,7 +14,9 @@ import {
 import { signEd25519 } from "./ed25519";
 import { importLicenseFile, resolveLicenseFilePaths } from "./license-file-store";
 import { computeLicenseStatus, getLicenseStatus } from "./license-service";
+import type { InstallAnchorStore } from "./install-anchor";
 import { computeMachineFingerprint, resolveFingerprintScriptPath } from "./machine-fingerprint";
+import { TRUSTED_LICENSE_PUBLIC_KEYS } from "./public-keys";
 
 let tempDirectories: string[] = [];
 function tempDataRoot() {
@@ -22,9 +24,25 @@ function tempDataRoot() {
   tempDirectories.push(dir);
   return dir;
 }
+// An in-memory stand-in for the machine registry, so tests never write HKLM (INST-11).
+let anchors = new Map<string, Date>();
+const memoryAnchors: InstallAnchorStore = {
+  read: (dataRoot) => anchors.get(dataRoot) ?? null,
+  recordIfAbsent: (dataRoot, anchor) => {
+    if (!anchors.has(dataRoot)) anchors.set(dataRoot, anchor);
+  },
+};
+function compute(
+  dataRoot: string,
+  now: Date,
+  trustedKeys: Readonly<Record<string, string>> = TRUSTED_LICENSE_PUBLIC_KEYS,
+) {
+  return computeLicenseStatus(dataRoot, now, trustedKeys, memoryAnchors);
+}
 afterEach(() => {
   for (const dir of tempDirectories) rmSync(dir, { recursive: true, force: true });
   tempDirectories = [];
+  anchors = new Map();
 });
 
 function testKeypair() {
@@ -73,7 +91,7 @@ describe("getLicenseStatus outside production", () => {
 
 describe("computeLicenseStatus (live Windows integration)", () => {
   windowsIt("enters SETUP_GRACE on the very first call with no license present", () => {
-    const status = computeLicenseStatus(tempDataRoot(), new Date());
+    const status = compute(tempDataRoot(), new Date());
     expect(status.state).toBe("SETUP_GRACE");
     expect(status.mutationAllowed).toBe(true);
     expect(status.daysRemaining).toBe(14);
@@ -81,8 +99,8 @@ describe("computeLicenseStatus (live Windows integration)", () => {
 
   windowsIt("stays SETUP_GRACE with a decreasing day count across calls without a license", () => {
     const dataRoot = tempDataRoot();
-    computeLicenseStatus(dataRoot, new Date("2026-01-01T00:00:00.000Z"));
-    const later = computeLicenseStatus(dataRoot, new Date("2026-01-06T00:00:00.000Z"));
+    compute(dataRoot, new Date("2026-01-01T00:00:00.000Z"));
+    const later = compute(dataRoot, new Date("2026-01-06T00:00:00.000Z"));
     expect(later.state).toBe("SETUP_GRACE");
     expect(later.daysRemaining).toBe(9);
   });
@@ -91,7 +109,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
     "reports VALID for a license correctly signed and bound to this machine's real fingerprint",
     () => {
       const dataRoot = tempDataRoot();
-      computeLicenseStatus(dataRoot, new Date());
+      compute(dataRoot, new Date());
       const fingerprintScript = resolveFingerprintScriptPath({
         repositoryRoot: process.cwd(),
         dataRoot: undefined,
@@ -110,7 +128,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
       };
       importSigned(dataRoot, privateKeyPem, payload, { "test-vendor": publicKeyPem });
 
-      const status = computeLicenseStatus(dataRoot, new Date(), { "test-vendor": publicKeyPem });
+      const status = compute(dataRoot, new Date(), { "test-vendor": publicKeyPem });
       expect(status.state).toBe("VALID");
       expect(status.mutationAllowed).toBe(true);
       expect(status.customer).toBe("Integration Test Customer");
@@ -122,7 +140,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
     "reports MACHINE_MISMATCH for a validly-signed license bound to a different machine",
     () => {
       const dataRoot = tempDataRoot();
-      computeLicenseStatus(dataRoot, new Date());
+      compute(dataRoot, new Date());
       const { publicKeyPem, privateKeyPem } = testKeypair();
       const payload: LicensePayload = {
         payloadVersion: 1,
@@ -135,7 +153,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
       };
       importSigned(dataRoot, privateKeyPem, payload, { "test-vendor": publicKeyPem });
 
-      const status = computeLicenseStatus(dataRoot, new Date(), { "test-vendor": publicKeyPem });
+      const status = compute(dataRoot, new Date(), { "test-vendor": publicKeyPem });
       expect(status.state).toBe("MACHINE_MISMATCH");
       expect(status.mutationAllowed).toBe(false);
     },
@@ -143,7 +161,7 @@ describe("computeLicenseStatus (live Windows integration)", () => {
 
   windowsIt("reports INVALID_SIGNATURE for a license signed under an untrusted key", () => {
     const dataRoot = tempDataRoot();
-    computeLicenseStatus(dataRoot, new Date());
+    compute(dataRoot, new Date());
     const { privateKeyPem } = testKeypair();
     const payload: LicensePayload = {
       payloadVersion: 1,
@@ -160,8 +178,22 @@ describe("computeLicenseStatus (live Windows integration)", () => {
     // after a key rotation.
     writeSignedDirectly(dataRoot, privateKeyPem, payload);
 
-    const status = computeLicenseStatus(dataRoot, new Date(), {});
+    const status = compute(dataRoot, new Date(), {});
     expect(status.state).toBe("INVALID_SIGNATURE");
     expect(status.mutationAllowed).toBe(false);
+  });
+});
+
+describe("setup grace across a reinstall (INST-11, live Windows)", () => {
+  windowsIt("continues the original grace after the data folder is removed", () => {
+    const dataRoot = tempDataRoot();
+    const first = compute(dataRoot, new Date("2026-10-01T00:00:00.000Z"));
+    expect(first.state).toBe("SETUP_GRACE");
+    expect(anchors.get(dataRoot)?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    // "Uninstall and remove data": the protected state and its key are gone.
+    rmSync(path.join(dataRoot, "config"), { recursive: true, force: true });
+    const reinstalled = compute(dataRoot, new Date("2026-10-11T00:00:00.000Z"));
+    expect(reinstalled.state).toBe("SETUP_GRACE");
+    expect(reinstalled.daysRemaining).toBe(4);
   });
 });

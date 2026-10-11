@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Decimal from "decimal.js";
 import Link from "next/link";
@@ -155,11 +156,11 @@ export default async function ProductionOutputPage({
                   </td>
                   {[line.planned, line.issued, line.returned, line.consumed].map((value, index) => (
                     <td className="p-3" key={`${index}:${value}`}>
-                      {value} {line.unitSymbol}
+                      {formatMeasure(value, line.unitSymbol)}
                     </td>
                   ))}
                   <td className="p-3">
-                    {line.variance} {line.unitSymbol} ({line.varianceDirection})
+                    {formatMeasure(line.variance, line.unitSymbol)} ({line.varianceDirection})
                   </td>
                 </tr>
               ))}
@@ -276,7 +277,7 @@ export default async function ProductionOutputPage({
                     line.goodConsumptionVariance,
                   ].map((value, index) => (
                     <td className="p-3" key={`${index}:${value}`}>
-                      {value} {line.unitSymbol}
+                      {formatMeasure(value, line.unitSymbol)}
                     </td>
                   ))}
                 </tr>
@@ -315,9 +316,7 @@ export default async function ProductionOutputPage({
                   <td className="p-3">{lot.supplierName}</td>
                   <td className="p-3">{lot.supplierLotNumber ?? "Not supplied"}</td>
                   <td className="p-3">{lot.goodsReceiptNumber}</td>
-                  <td className="p-3">
-                    {lot.consumedQuantity} {lot.unitSymbol}
-                  </td>
+                  <td className="p-3">{formatMeasure(lot.consumedQuantity, lot.unitSymbol)}</td>
                   <td className="p-3">{view.productionLot?.lotNumber ?? "Pending posting"}</td>
                 </tr>
               ))}

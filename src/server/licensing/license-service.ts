@@ -21,6 +21,10 @@ import {
 } from "./license-state-store";
 import { computeMachineFingerprint, resolveFingerprintScriptPath } from "./machine-fingerprint";
 import { TRUSTED_LICENSE_PUBLIC_KEYS } from "./public-keys";
+import {
+  registryInstallAnchorStore,
+  type InstallAnchorStore,
+} from "@/server/licensing/install-anchor";
 
 export type LicenseStatus = {
   state: LicenseState;
@@ -81,6 +85,7 @@ export function computeLicenseStatus(
   dataRoot: string,
   now: Date = new Date(),
   trustedKeys: Readonly<Record<string, string>> = TRUSTED_LICENSE_PUBLIC_KEYS,
+  installAnchors: InstallAnchorStore = registryInstallAnchorStore,
 ): LicenseStatus {
   const dpapiScript = resolveDpapiScriptPath({
     repositoryRoot: process.cwd(),
@@ -96,9 +101,13 @@ export function computeLicenseStatus(
   const stateReadFailed = stateResult.kind === "corrupted";
   let stateData = stateResult.kind === "ok" ? stateResult.data : null;
   if (stateResult.kind === "absent") {
-    stateData = createInitialLicenseStateData(now);
+    // INST-11: a reinstall after the data folder was removed continues the original grace.
+    stateData = createInitialLicenseStateData(now, installAnchors.read(dataRoot));
     writeLicenseState(statePaths, dpapiScript, stateData);
   }
+  // Remember the setup anchor outside the data folder (once; existing installs record their
+  // original date the first time they run this version).
+  if (stateData) installAnchors.recordIfAbsent(dataRoot, new Date(stateData.setupGraceAnchor));
 
   const filePaths = resolveLicenseFilePaths(dataRoot);
   const fileVerdict = readLicenseFileVerdict(filePaths, trustedKeys);

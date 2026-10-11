@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -135,7 +136,10 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
                   </td>
                   <td className="p-4">v{recipe.version}</td>
                   <td className="p-4">
-                    {recipe.standardBatchEnteredQuantity} {recipe.standardBatchUnitSymbol}
+                    {formatMeasure(
+                      recipe.standardBatchEnteredQuantity,
+                      recipe.standardBatchUnitSymbol,
+                    )}
                   </td>
                   <td className="p-4">
                     {recipe.expectedOutputEnteredQuantity

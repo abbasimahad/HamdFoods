@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
@@ -86,18 +87,18 @@ export default async function PrintGoodsReceiptPage({
                 {line.itemCode} - {line.itemName}
               </td>
               <td className="border p-2">
-                {line.orderedQuantity} {line.canonicalUnitSymbol}
+                {formatMeasure(line.orderedQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2">
-                {line.enteredQuantity} {line.enteredUnitSymbol}
+                {formatMeasure(line.enteredQuantity, line.enteredUnitSymbol)}
               </td>
               <td className="border p-2">{line.supplierLotNumber ?? "-"}</td>
               <td className="border p-2">{formatFactoryDate(line.expiryDate) ?? "-"}</td>
               <td className="border p-2">
-                {line.acceptedQuantity} {line.canonicalUnitSymbol}
+                {formatMeasure(line.acceptedQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2">
-                {line.rejectedQuantity} {line.canonicalUnitSymbol}
+                {formatMeasure(line.rejectedQuantity, line.canonicalUnitSymbol)}
               </td>
             </tr>
           ))}

@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -157,7 +158,7 @@ export default async function ProductionBatchesPage({
                   </td>
                   <td className="p-4">{formatFactoryDate(batch.plannedProductionDate)}</td>
                   <td className="p-4">
-                    {batch.plannedBatchEnteredQuantity} {batch.plannedBatchUnitSymbol}
+                    {formatMeasure(batch.plannedBatchEnteredQuantity, batch.plannedBatchUnitSymbol)}
                   </td>
                   <td className="p-4">
                     {batch.plannedExpectedOutputNormalizedQuantity

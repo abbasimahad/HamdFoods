@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMeasure } from "@/components/ui/format-money";
+
 import { useActionState } from "react";
 import type {
   PackagingRequirementResult,
@@ -97,13 +99,13 @@ export function RecipeCalculators({
                       {line.itemCode} - {line.itemName}
                     </td>
                     <td className="p-2">
-                      {line.standardNormalizedQuantity} {line.canonicalUnitSymbol}
+                      {formatMeasure(line.standardNormalizedQuantity, line.canonicalUnitSymbol)}
                     </td>
                     <td className="p-2">
-                      {line.scaledNormalizedQuantity} {line.canonicalUnitSymbol}
+                      {formatMeasure(line.scaledNormalizedQuantity, line.canonicalUnitSymbol)}
                     </td>
                     <td className="p-2">
-                      {line.plannedIssueNormalizedQuantity} {line.canonicalUnitSymbol}
+                      {formatMeasure(line.plannedIssueNormalizedQuantity, line.canonicalUnitSymbol)}
                     </td>
                   </tr>
                 ))}
@@ -175,10 +177,10 @@ export function RecipeCalculators({
                     </td>
                     <td className="p-2">{line.usageBasis.replaceAll("_", " ")}</td>
                     <td className="p-2">
-                      {line.standardRequiredQuantity} {line.canonicalUnitSymbol}
+                      {formatMeasure(line.standardRequiredQuantity, line.canonicalUnitSymbol)}
                     </td>
                     <td className="p-2">
-                      {line.recommendedIssueQuantity} {line.canonicalUnitSymbol}
+                      {formatMeasure(line.recommendedIssueQuantity, line.canonicalUnitSymbol)}
                     </td>
                   </tr>
                 ))}

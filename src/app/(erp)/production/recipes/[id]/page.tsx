@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -112,10 +113,10 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
                     <strong>{line.itemCode}</strong> - {line.itemName}
                   </td>
                   <td className="p-3">
-                    {line.enteredQuantity} {line.enteredUnitSymbol}
+                    {formatMeasure(line.enteredQuantity, line.enteredUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {line.normalizedQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.normalizedQuantity, line.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">{line.allowancePercent}%</td>
                   <td className="p-3">{line.processNotes ?? "-"}</td>
@@ -151,10 +152,10 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
                   </td>
                   <td className="p-3">{line.usageBasis.replaceAll("_", " ")}</td>
                   <td className="p-3">
-                    {line.enteredQuantity} {line.enteredUnitSymbol}
+                    {formatMeasure(line.enteredQuantity, line.enteredUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {line.normalizedQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.normalizedQuantity, line.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">{line.allowancePercent}%</td>
                 </tr>

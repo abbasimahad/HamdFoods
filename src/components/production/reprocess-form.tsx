@@ -8,6 +8,7 @@ import { SingleFlightForm } from "@/components/ui/single-flight-form";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import type { BatchWarehouseOption } from "@/modules/production/application/batch-contracts";
 import { initialProductionActionState, type ProductionAction } from "./action-state";
+import { reprocessPlanDefaults } from "./reprocess-plan";
 import { suggestWarehouse, WAREHOUSE_PURPOSE } from "./suggest-warehouse";
 
 type Source = {
@@ -32,6 +33,8 @@ type Recipe = {
   finishedGoodCode: string;
   standardBatchQuantity: string;
   standardBatchUnitId: string;
+  expectedPiecesPerStandardBatch: string | null;
+  piecesPerCarton: number;
 };
 
 export function ReprocessForm({
@@ -56,6 +59,16 @@ export function ReprocessForm({
     [recipes, source?.itemId],
   );
   const recipe = compatibleRecipes.find((candidate) => candidate.id === recipeId);
+  // BUG-40: plan the bottles being reprocessed, with a batch size scaled to them, until the user
+  // types their own figures; choosing another source or recipe starts again from the defaults.
+  const [sourceQuantity, setSourceQuantity] = useState(sources[0]?.quantity ?? "");
+  const [typedPlan, setTypedPlan] = useState<{
+    batchQuantity?: string;
+    cartons?: string;
+    loosePieces?: string;
+  }>({});
+  const defaults = reprocessPlanDefaults(sourceQuantity, recipe);
+  const plan = { ...defaults, ...typedPlan };
   return (
     <SingleFlightForm action={formAction} className="space-y-6">
       <section>
@@ -67,6 +80,8 @@ export function ReprocessForm({
             onValueChange={(nextSourceKey) => {
               const nextSource = sources.find((candidate) => key(candidate) === nextSourceKey);
               setSourceKey(nextSourceKey);
+              setSourceQuantity(nextSource?.quantity ?? "");
+              setTypedPlan({});
               setRecipeId(
                 recipes.find((candidate) => candidate.finishedGoodId === nextSource?.itemId)?.id ??
                   "",
@@ -82,9 +97,12 @@ export function ReprocessForm({
           <Field
             label="Quantity to reprocess"
             name="sourceQuantity"
-            key={`source-quantity:${sourceKey}`}
-            defaultValue={source?.quantity ?? ""}
+            onChange={(value) => {
+              setSourceQuantity(value);
+              setTypedPlan({});
+            }}
             type="number"
+            value={sourceQuantity}
           />
         </div>
         {source && (
@@ -105,7 +123,10 @@ export function ReprocessForm({
             <select
               className="mt-1 min-h-11 w-full rounded-lg border bg-white px-3"
               name="recipeId"
-              onChange={(event) => setRecipeId(event.target.value)}
+              onChange={(event) => {
+                setRecipeId(event.target.value);
+                setTypedPlan({});
+              }}
               required
               value={recipeId}
             >
@@ -119,9 +140,9 @@ export function ReprocessForm({
           <Field
             label="Planned batch quantity"
             name="plannedBatchQuantity"
-            key={`quantity:${recipe?.id ?? "none"}`}
-            defaultValue={recipe?.standardBatchQuantity ?? ""}
+            onChange={(batchQuantity) => setTypedPlan({ ...typedPlan, batchQuantity })}
             type="number"
+            value={plan.batchQuantity}
           />
           <input
             name="plannedBatchUnitId"
@@ -171,12 +192,19 @@ export function ReprocessForm({
             name="finishedGoodsDestinationWarehouseId"
             warehouses={warehouses}
           />
-          <Field label="Planned cartons" name="plannedCartons" defaultValue="0" type="number" />
+          <Field
+            label="Planned cartons"
+            name="plannedCartons"
+            onChange={(cartons) => setTypedPlan({ ...typedPlan, cartons })}
+            type="number"
+            value={plan.cartons}
+          />
           <Field
             label="Planned loose pieces"
             name="plannedLoosePieces"
-            defaultValue="1"
+            onChange={(loosePieces) => setTypedPlan({ ...typedPlan, loosePieces })}
             type="number"
+            value={plan.loosePieces}
           />
         </div>
       </section>
@@ -225,12 +253,16 @@ function Field({
   label,
   name,
   defaultValue,
+  value,
+  onChange,
   type,
   required = true,
 }: {
   label: string;
   name: string;
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
   type: string;
   required?: boolean;
 }) {
@@ -239,7 +271,9 @@ function Field({
       {label}
       <input
         className="mt-1 min-h-11 w-full rounded-lg border px-3"
-        defaultValue={defaultValue}
+        {...(onChange
+          ? { value, onChange: (event) => onChange(event.target.value) }
+          : { defaultValue })}
         min={type === "number" ? "0" : undefined}
         name={name}
         required={required}

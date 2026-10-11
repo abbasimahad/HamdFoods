@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMeasure, formatMoney } from "@/components/ui/format-money";
+
 import Decimal from "decimal.js";
 import { useActionState, useMemo, useState } from "react";
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
@@ -251,13 +253,16 @@ export function PurchaseInvoiceForm({
                       >
                         {candidate.purchaseOrderNumber} / {candidate.itemCode} -{" "}
                         {candidate.itemName} (
-                        {scaled(
-                          candidate.orderedQuantity,
-                          toDecimal(candidate.orderUnitFactor) ?? new Decimal(1),
-                          "toDisplay",
-                          "quantity",
-                        )}{" "}
-                        {candidate.orderUnitSymbol})
+                        {formatMeasure(
+                          scaled(
+                            candidate.orderedQuantity,
+                            toDecimal(candidate.orderUnitFactor) ?? new Decimal(1),
+                            "toDisplay",
+                            "quantity",
+                          ),
+                          candidate.orderUnitSymbol,
+                        )}
+                        )
                       </option>
                     ))}
                   </select>
@@ -308,12 +313,15 @@ export function PurchaseInvoiceForm({
                     className={`text-xs font-semibold ${complete ? "text-green-700" : overMatched ? "text-red-700" : "text-amber-700"}`}
                     role={overMatched ? "alert" : undefined}
                   >
-                    Matched {matchedTotal.toString()} of{" "}
-                    {invoicedQuantity.isZero() ? "?" : invoicedQuantity.toString()} {unitSymbol}{" "}
+                    Matched {formatMeasure(matchedTotal.toString(), unitSymbol)} of{" "}
+                    {formatMeasure(
+                      invoicedQuantity.isZero() ? "?" : invoicedQuantity.toString(),
+                      unitSymbol,
+                    )}{" "}
                     {complete
                       ? "(complete)"
                       : overMatched
-                        ? `(over-matched by ${matchedTotal.minus(invoicedQuantity).toString()} -- reduce a match)`
+                        ? `(over-matched by ${formatMeasure(matchedTotal.minus(invoicedQuantity).toString(), unitSymbol)} -- reduce a match)`
                         : "(incomplete)"}
                   </span>
                 </div>
@@ -361,13 +369,15 @@ export function PurchaseInvoiceForm({
                               value={candidate.goodsReceiptLineId}
                             >
                               {candidate.goodsReceiptNumber} - remaining{" "}
-                              {scaled(
-                                candidate.remainingToInvoice,
-                                factor,
-                                "toDisplay",
-                                "quantity",
-                              )}{" "}
-                              {unitSymbol}
+                              {formatMeasure(
+                                scaled(
+                                  candidate.remainingToInvoice,
+                                  factor,
+                                  "toDisplay",
+                                  "quantity",
+                                ),
+                                unitSymbol,
+                              )}
                             </option>
                           ))}
                         </select>
@@ -385,7 +395,8 @@ export function PurchaseInvoiceForm({
                         />
                         {exceedsRemaining && (
                           <span className="text-xs font-semibold text-red-700" role="alert">
-                            more than the {remaining.toString()} {unitSymbol} left on this GRN line
+                            more than the {formatMeasure(remaining.toString(), unitSymbol)} left on
+                            this GRN line
                           </span>
                         )}
                         {grnLine && qty > 0 && (
@@ -394,7 +405,7 @@ export function PurchaseInvoiceForm({
                           >
                             {variance === 0
                               ? "no price variance vs GRN cost"
-                              : `est. variance ${variance > 0 ? "+" : ""}${variance.toFixed(2)}`}
+                              : `est. variance ${variance > 0 ? "+" : ""}${formatMoney(variance, "")}`}
                           </span>
                         )}
                         <button

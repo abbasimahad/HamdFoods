@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/purchasing/print-button";
@@ -85,7 +86,7 @@ export default async function PrintPurchaseReturnPage({
               </td>
               <td className="border p-2">{line.supplierLotNumber ?? "Internal lot"}</td>
               <td className="border p-2">
-                {line.enteredQuantity} {line.enteredUnitSymbol}
+                {formatMeasure(line.enteredQuantity, line.enteredUnitSymbol)}
               </td>
               <td className="border p-2">{line.reason.replaceAll("_", " ")}</td>
               <td className="border p-2">{line.replacementExpected ? "Yes" : "No"}</td>

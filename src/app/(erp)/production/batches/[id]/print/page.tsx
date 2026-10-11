@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PrintCompanyHeader } from "@/components/administration/print-company-header";
 import { PrintButton } from "@/components/purchasing/print-button";
-import { formatDocumentDate, formatQuantity } from "@/components/ui/format-money";
+import { formatDocumentDate, formatQuantity, formatMeasure } from "@/components/ui/format-money";
 import { PrismaCompanyProfileRepository } from "@/server/administration/prisma-company-profile-repository";
 import { requirePermission } from "@/server/auth/server-guards";
 import { PrismaProductionBatchRepository } from "@/server/production/prisma-production-batch-repository";
@@ -40,8 +40,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             {batch.finishedGoodCode} — {batch.finishedGoodName}
           </p>
           <p>
-            Batch size: {formatQuantity(batch.plannedBatchEnteredQuantity)}{" "}
-            {batch.plannedBatchUnitSymbol}
+            Batch size:{" "}
+            {formatMeasure(batch.plannedBatchEnteredQuantity, batch.plannedBatchUnitSymbol)}
           </p>
           <p>
             Planned output: {formatQuantity(batch.plannedCartons)} cartons +{" "}
@@ -83,13 +83,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 {line.itemCode} — {line.itemName}
               </td>
               <td className="border p-2 text-right">
-                {formatQuantity(line.standardNormalizedQuantity)} {line.canonicalUnitSymbol}
+                {formatMeasure(line.standardNormalizedQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2 text-right">
-                {formatQuantity(line.plannedNormalizedQuantity)} {line.canonicalUnitSymbol}
+                {formatMeasure(line.plannedNormalizedQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2 text-right">
-                {formatQuantity(line.recommendedIssueQuantity)} {line.canonicalUnitSymbol}
+                {formatMeasure(line.recommendedIssueQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2" />
               <td className="border p-2" />
@@ -124,10 +124,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               </td>
               <td className="border p-2">{line.usageBasis.replaceAll("_", " ")}</td>
               <td className="border p-2 text-right">
-                {formatQuantity(line.standardRequiredQuantity)} {line.canonicalUnitSymbol}
+                {formatMeasure(line.standardRequiredQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2 text-right">
-                {formatQuantity(line.recommendedIssueQuantity)} {line.canonicalUnitSymbol}
+                {formatMeasure(line.recommendedIssueQuantity, line.canonicalUnitSymbol)}
               </td>
               <td className="border p-2" />
             </tr>

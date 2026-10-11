@@ -2,6 +2,7 @@
 
 import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 import Decimal from "decimal.js";
+import { formatMoney } from "@/components/ui/format-money";
 import { startTransition, useActionState, useState } from "react";
 import {
   emptyExpenseLine,
@@ -104,7 +105,13 @@ export function SupplierPaymentForm({
           type="date"
           required
         />
-        <select className="rounded border px-3 py-2" name="treasuryAccountId" required>
+        <select
+          className="rounded border px-3 py-2"
+          // UX-16: the only treasury account is the obvious choice; with several, ask.
+          defaultValue={treasuries.length === 1 ? treasuries[0]!.id : ""}
+          name="treasuryAccountId"
+          required
+        >
           <option value="">Treasury account</option>
           {treasuries.map((account) => (
             <option key={account.id} value={account.id}>
@@ -257,7 +264,7 @@ export function SupplierPaymentAllocationForm({
               <tr key={item.payableLedgerEntryId}>
                 <td className="p-2">{item.sourceNumber}</td>
                 <td className="p-2">{item.entryDate}</td>
-                <td className="p-2 text-right">{new Decimal(item.outstanding).toFixed(2)}</td>
+                <td className="p-2 text-right">{formatMoney(item.outstanding, "")}</td>
                 <td className="p-2 text-right">
                   <input
                     aria-label={`Allocate to ${item.sourceNumber}`}
@@ -371,7 +378,13 @@ export function ExpenseVoucherForm({
             required
           />
           <input className="rounded border px-3 py-2" name="payee" placeholder="Payee" />
-          <select className="rounded border px-3 py-2" name="treasuryAccountId" required>
+          <select
+            className="rounded border px-3 py-2"
+            // UX-16: the only treasury account is the obvious choice; with several, ask.
+            defaultValue={treasuries.length === 1 ? treasuries[0]!.id : ""}
+            name="treasuryAccountId"
+            required
+          >
             <option value="">Paid from (cash / bank)</option>
             {treasuries.map((account) => (
               <option key={account.id} value={account.id}>

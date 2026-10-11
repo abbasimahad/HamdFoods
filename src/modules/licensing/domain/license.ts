@@ -78,10 +78,22 @@ export function canonicalizeLicenseStateData(data: LicenseStateData): string {
   });
 }
 
-export function createInitialLicenseStateData(now: Date): LicenseStateData {
+/**
+ * INST-11: `rememberedSetupAnchor` is the machine's first-install date kept outside the data
+ * folder, so removing the data and reinstalling continues the original setup grace instead of
+ * starting a new one. A remembered date in the future is ignored -- it can never extend grace.
+ */
+export function createInitialLicenseStateData(
+  now: Date,
+  rememberedSetupAnchor: Date | null = null,
+): LicenseStateData {
+  const setupAnchor =
+    rememberedSetupAnchor && rememberedSetupAnchor.getTime() < now.getTime()
+      ? rememberedSetupAnchor
+      : now;
   return {
     schemaVersion: 1,
-    setupGraceAnchor: now.toISOString(),
+    setupGraceAnchor: setupAnchor.toISOString(),
     expiryGraceAnchor: null,
     lastObservedTime: now.toISOString(),
   };

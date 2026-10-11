@@ -1,6 +1,7 @@
 "use client";
 
 import Decimal from "decimal.js";
+import { formatMoney } from "@/components/ui/format-money";
 import { LineEditorControls } from "@/components/ui/line-editor-controls";
 
 export type AccountOption = { id: string; code: string; name: string };
@@ -113,8 +114,8 @@ export function JournalLinesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <LineEditorControls onAdd={() => onChange([...lines, emptyJournalLine()])} />
         <p className={`text-sm font-semibold ${balanced ? "text-green-700" : "text-red-700"}`}>
-          Debit {debit.toFixed(2)} / Credit {credit.toFixed(2)}
-          {balanced ? " — balanced" : ` — difference ${debit.minus(credit).abs().toFixed(2)}`}
+          Debit {formatMoney(debit, "")} / Credit {formatMoney(credit, "")}
+          {balanced ? " — balanced" : ` — difference ${formatMoney(debit.minus(credit).abs(), "")}`}
         </p>
       </div>
     </div>
@@ -189,7 +190,7 @@ export function ExpenseLinesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <LineEditorControls onAdd={() => onChange([...lines, emptyExpenseLine()])} />
         <p className="text-sm font-semibold">
-          Total {sum(lines.map((line) => line.amount)).toFixed(2)}
+          Total {formatMoney(sum(lines.map((line) => line.amount)), "")}
         </p>
       </div>
     </div>

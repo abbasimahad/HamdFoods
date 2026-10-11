@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { displayAmounts, formatMoney } from "./format-money";
+import { displayAmounts, formatMeasure, formatMoney } from "./format-money";
 
 describe("displayAmounts (UX-9)", () => {
   it("formats exact report amounts and leaves other values alone", () => {
@@ -24,5 +24,22 @@ describe("displayAmounts (UX-9)", () => {
 
   it("rounds half-up on the exact decimal", () => {
     expect(formatMoney("122.125000", "")).toBe("122.13");
+  });
+});
+
+describe("formatMeasure (UX-16)", () => {
+  it("shows large gram and millilitre figures in kg and L", () => {
+    expect(formatMeasure("12500", "g")).toBe("12.5 kg");
+    expect(formatMeasure("12500.000000", "g")).toBe("12.5 kg");
+    expect(formatMeasure("1000", "ml")).toBe("1 L");
+    expect(formatMeasure("-2500", "g")).toBe("-2.5 kg");
+  });
+
+  it("keeps small amounts, pieces and other units in their own unit, grouped", () => {
+    expect(formatMeasure("500", "g")).toBe("500 g");
+    expect(formatMeasure("0.3105", "g")).toBe("0.311 g");
+    expect(formatMeasure("12000", "pcs")).toBe("12,000 pcs");
+    expect(formatMeasure("2500", "kg")).toBe("2,500 kg");
+    expect(formatMeasure(null, "g")).toBe("—");
   });
 });

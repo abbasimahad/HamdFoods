@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -95,21 +96,21 @@ export default async function PurchaseReturnDetailPage({
                   <td className="p-3">{line.supplierLotNumber ?? "Internal lot"}</td>
                   <td className="p-3">{line.source.replaceAll("_", " ")}</td>
                   <td className="p-3">
-                    {line.enteredQuantity} {line.enteredUnitSymbol}
+                    {formatMeasure(line.enteredQuantity, line.enteredUnitSymbol)}
                     <span className="block text-xs">
-                      {line.normalizedQuantity} {line.canonicalUnitSymbol}
+                      {formatMeasure(line.normalizedQuantity, line.canonicalUnitSymbol)}
                     </span>
                   </td>
                   <td className="p-3">{line.reason.replaceAll("_", " ")}</td>
                   <td className="p-3">{line.replacementExpected ? "Yes" : "No"}</td>
                   <td className="p-3">
-                    {line.replacementReceivedQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.replacementReceivedQuantity, line.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {line.replacementAcceptedQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.replacementAcceptedQuantity, line.canonicalUnitSymbol)}
                   </td>
                   <td className="p-3">
-                    {line.replacementRemainingQuantity} {line.canonicalUnitSymbol}
+                    {formatMeasure(line.replacementRemainingQuantity, line.canonicalUnitSymbol)}
                   </td>
                 </tr>
               ))}

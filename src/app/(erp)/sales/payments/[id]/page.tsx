@@ -15,6 +15,7 @@ import {
   reverseCustomerPaymentFormAction,
 } from "../actions";
 import { formatMoney } from "@/components/ui/format-money";
+import { todayInFactoryTimeZone } from "@/server/shared/factory-local-time";
 export default async function CustomerPaymentDetailPage({
   params,
 }: {
@@ -173,7 +174,12 @@ export default async function CustomerPaymentDetailPage({
             <form action={reverseCustomerPaymentFormAction} className="mt-3 flex flex-wrap gap-3">
               <input name="id" type="hidden" value={payment.id} />
               <input name="customerId" type="hidden" value={payment.customerId} />
-              <input name="reversalDate" required type="date" />
+              <input
+                defaultValue={todayInFactoryTimeZone()}
+                name="reversalDate"
+                required
+                type="date"
+              />
               <input name="reason" minLength={3} placeholder="Reason for reversal" required />
               <button className="rounded border px-4 py-2">Reverse payment</button>
             </form>

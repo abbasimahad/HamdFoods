@@ -267,3 +267,20 @@ describe("createInitialLicenseStateData", () => {
     expect(data.expiryGraceAnchor).toBeNull();
   });
 });
+
+describe("createInitialLicenseStateData remembered anchor (INST-11)", () => {
+  const now = new Date("2026-10-11T00:00:00.000Z");
+
+  it("continues from a remembered earlier first-install date", () => {
+    const state = createInitialLicenseStateData(now, new Date("2026-10-01T00:00:00.000Z"));
+    expect(state.setupGraceAnchor).toBe("2026-10-01T00:00:00.000Z");
+    expect(state.lastObservedTime).toBe(now.toISOString());
+  });
+
+  it("never lets a remembered date extend the grace period", () => {
+    expect(
+      createInitialLicenseStateData(now, new Date("2026-12-01T00:00:00.000Z")).setupGraceAnchor,
+    ).toBe(now.toISOString());
+    expect(createInitialLicenseStateData(now, null).setupGraceAnchor).toBe(now.toISOString());
+  });
+});

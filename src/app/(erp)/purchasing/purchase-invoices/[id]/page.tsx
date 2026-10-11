@@ -1,6 +1,11 @@
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Decimal from "decimal.js";
-import { formatMoney, formatQuantity, formatUnitCost } from "@/components/ui/format-money";
+import {
+  formatMoney,
+  formatQuantity,
+  formatUnitCost,
+  formatMeasure,
+} from "@/components/ui/format-money";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -100,7 +105,7 @@ export default async function PurchaseInvoiceDetailPage({
                   </td>
                   <td className="p-3">{line.purchaseOrderNumber}</td>
                   <td className="p-3">
-                    {line.displayQuantity} {line.orderUnitSymbol}
+                    {formatMeasure(line.displayQuantity, line.orderUnitSymbol)}
                   </td>
                   <td className="p-3">
                     {line.displayUnitRate} / {line.orderUnitSymbol}
@@ -109,7 +114,7 @@ export default async function PurchaseInvoiceDetailPage({
                   <td className="p-3">{formatMoney(line.netAmount, "")}</td>
                   <td className="p-3">
                     {inOrderUnit(line, line.matchedQuantityTotal)} /{" "}
-                    {inOrderUnit(line, line.invoicedQuantity)} {line.orderUnitSymbol}
+                    {formatMeasure(inOrderUnit(line, line.invoicedQuantity), line.orderUnitSymbol)}
                     {line.matchedQuantityTotal !== line.invoicedQuantity && (
                       <span className="ml-1 text-xs text-amber-700">incomplete</span>
                     )}
@@ -121,8 +126,11 @@ export default async function PurchaseInvoiceDetailPage({
                       <ul className="space-y-1 text-xs">
                         {line.matches.map((match) => (
                           <li key={match.id}>
-                            {match.goodsReceiptNumber}: {inOrderUnit(line, match.matchedQuantity)}{" "}
-                            {line.orderUnitSymbol}
+                            {match.goodsReceiptNumber}:{" "}
+                            {formatMeasure(
+                              inOrderUnit(line, match.matchedQuantity),
+                              line.orderUnitSymbol,
+                            )}
                             {record.status !== "DRAFT" && (
                               <>
                                 {" "}

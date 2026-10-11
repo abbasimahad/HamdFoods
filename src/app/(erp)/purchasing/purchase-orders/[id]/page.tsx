@@ -1,3 +1,4 @@
+import { formatMeasure } from "@/components/ui/format-money";
 import { formatFactoryDate, formatFactoryDateTime } from "@/components/ui/format-datetime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -154,7 +155,7 @@ function ReceiptProgress({
                   line.remainingToFulfil,
                 ].map((value, index) => (
                   <td className="p-3" key={index}>
-                    {value} {line.canonicalUnitSymbol}
+                    {formatMeasure(value, line.canonicalUnitSymbol)}
                   </td>
                 ))}
               </tr>
@@ -214,11 +215,9 @@ function OrderLines({
                   <strong>{line.itemCode}</strong>
                   <span className="block text-xs text-[var(--muted)]">{line.itemName}</span>
                 </td>
+                <td className="p-3">{formatMeasure(line.orderedQuantity, line.orderUnitSymbol)}</td>
                 <td className="p-3">
-                  {line.orderedQuantity} {line.orderUnitSymbol}
-                </td>
-                <td className="p-3">
-                  {line.normalizedQuantity} {line.canonicalUnitSymbol}
+                  {formatMeasure(line.normalizedQuantity, line.canonicalUnitSymbol)}
                 </td>
                 <td className="p-3">
                   {formatMoney(line.unitRate)} / {line.orderUnitSymbol}
